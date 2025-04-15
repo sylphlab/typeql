@@ -11,11 +11,10 @@
     *   [X] Setup basic monorepo structure (root `package.json`, `packages/core/package.json`)
     *   [X] Setup basic core build process (`packages/core/tsconfig.json`)
     *   [X] Add Standard Delta/Operation types (`packages/core/src/core/types.ts`)
-    *   [X] Add Standard Delta utilities (`getIn`, `setIn`, `applyStandardDelta`, `standardOperationToDelta`, `standardMatchesPendingOperation`) (`packages/core/src/core/utils.ts`)
+    *   [X] Add Standard Delta utilities (`getIn`, `setIn`, `applyStandardDelta`, `standardOperationToDelta`, `standardMatchesPendingOperation`, `defaultCloneState`) (`packages/core/src/core/utils.ts`)
+    *   [X] Refactor `createStore` to include Optimistic Update logic (`packages/core/src/client/createStore.ts`)
 *   **Phase 2: Optimistic Updates & Consistency (@reqdelta/core)**
-    *   [ ] Extend message types further if needed (seq IDs, acks, etc. are already added) (`packages/core/src/core/types.ts`)
-    *   [ ] Implement `OptimisticStore` client logic (`packages/core/src/client/optimisticStore.ts`, requires refactoring/integrating `createStore`)
-    *   [ ] Implement sequence number management (`packages/core/src/core/seqManager.ts`?)
+    *   [ ] Implement sequence number management (`packages/core/src/core/seqManager.ts`)
     *   [ ] Implement server-side update history (`packages/core/src/server/updateHistory.ts`)
     *   [ ] Implement conflict resolution strategies/interface (`packages/core/src/client/conflictResolver.ts`)
     *   [ ] Implement update recovery mechanism (client request, server handler)
@@ -34,4 +33,4 @@
     *   [ ] Performance optimization
 
 *   **Current Status**: Monorepo setup complete. Basic Phase 1 core components implemented. Memory Bank updated with optimistic update requirements. Preparing for first commit.
-*   **Known Issues**: `createStore` needs significant rework/integration to support optimistic updates as per Phase 2. `createStandardStore` convenience function not yet implemented. Build/test infrastructure not yet set up. Imports for new utils might be missing in index files.
+*   **Known Issues**: Conflict resolution logic (`resolveConflict`) is a placeholder. Server-side update history (`updateHistory.ts`) not implemented. Sequence gap handling needs update queuing. `createStandardStore` convenience function not yet implemented. Build/test infrastructure not yet set up.
