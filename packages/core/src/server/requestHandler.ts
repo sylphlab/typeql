@@ -1,5 +1,6 @@
 // packages/core/src/server/requestHandler.ts
 
+import { createServerSequenceManager, ServerSequenceManager } from '../core/seqManager'; // Import sequence manager
 import type { AnyRouter, ProcedureRouterRecord } from './router';
 import type { AnyProcedure, ProcedureContext, ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure';
 import { ZodError } from 'zod';
@@ -87,9 +88,14 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 ): (call: ProcedureCall, transport?: TypeQLTransport /* Pass transport if available */) => Promise<ProcedureResult | void> { // Return void for handled subscriptions
     const { router, createContext, subscriptionManager } = opts;
 
+    // Create a sequence manager for this request handler instance
+    // TODO: Consider if this should be shared or per-topic? Global for now.
+    const serverSequenceManager: ServerSequenceManager = createServerSequenceManager();
+    let lastServerSeqMap = new Map<string, number>(); // Track last seq per subscription ID
+
     // This handler needs access to the specific client's transport for subscriptions
     return async (call: ProcedureCall, transport?: TypeQLTransport): Promise<ProcedureResult | void> => {
-        console.log(`[TypeQL Handler] Handling ${call.type} call to path: ${call.path}`);
+        console.log(`[TypeQL Handler] Handling ${call.type} call for path: ${call.path} (ID: ${call.id})`);
 
         const pathSegments = call.path.split('.');
         const procedure = findProcedure(router._def.procedures, pathSegments);
@@ -173,21 +179,32 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                  // Function for the resolver to publish data
                  const publish = (data: unknown) => {
                      // TODO: Optional output parsing using procDef.subscriptionOutputSchema?
-                     const dataMsg: SubscriptionDataMessage = {
-                         type: 'subscriptionData',
-                         id: subId, // Correlate with the original subscription request ID
-                         data: data,
-                         // TODO: Add sequence number if implemented
-                     };
-                      // Use the transport's 'send' method (if available) defined in the updated interface
-                      if (transport?.send) {
+
+                      // Get next sequence number
+                      const currentServerSeq = serverSequenceManager.getNext();
+                      const prevServerSeqValue = lastServerSeqMap.get(String(subId)); // Get previous seq for this specific sub
+                      lastServerSeqMap.set(String(subId), currentServerSeq); // Update last seq for this sub
+
+                      // Construct message, conditionally adding prevServerSeq
+                      const dataMsg: SubscriptionDataMessage = {
+                          type: 'subscriptionData',
+                          id: subId, // Correlate with the original subscription request ID
+                          data: data,
+                          serverSeq: currentServerSeq, // Add sequence number
+                          ...(prevServerSeqValue !== undefined && { prevServerSeq: prevServerSeqValue }) // Only add if defined
+                      };
+                       // Use the transport's 'send' method (if available) defined in the updated interface
+                       if (transport?.send) {
                            console.log(`[TypeQL Handler] Publishing data for subId ${subId} via transport.send:`, data);
                            // Use Promise.resolve() to handle potential void return from transport.send
-                           Promise.resolve(transport.send(dataMsg)).catch((err: any) => {
-                                console.error(`[TypeQL Handler] Error sending subscription data via transport.send for subId ${subId}:`, err);
+                           Promise.resolve(transport.send(dataMsg)).catch((sendErr: any) => {
+                                console.error(`[TypeQL Handler] Error sending subscription data via transport.send for subId ${subId}:`, sendErr);
+                                // Optional: Rollback sequence number? Might complicate things.
                            });
                       } else {
                           console.error(`[TypeQL Handler] Cannot publish data for subId ${subId}: Transport lacks 'send' method.`);
+                          // Rollback sequence number if send fails immediately?
+                          // serverSequenceManager.reset(currentServerSeq - 1); // Complicated logic, avoid for now
                       }
                  };
 
@@ -201,10 +218,16 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                       // Assuming addSubscription handles storing the cleanup function needed on unsubscribe
                       // Pass the transport instance (assert non-null as it was checked earlier)
                       subscriptionManager.addSubscription(
-                           { type: 'subscription', id: subId, path: call.path, input: call.input }, // Reconstruct SubscribeMessage-like info
-                           clientId,
-                           transport!, // Pass the transport instance
-                           cleanupFn   // Pass the actual cleanup function
+                            { type: 'subscription', id: subId, path: call.path, input: call.input }, // Reconstruct SubscribeMessage-like info
+                            clientId,
+                            transport!, // Pass the transport instance
+                            // Pass the combined cleanup function directly as the 4th argument
+                            () => {
+                                 lastServerSeqMap.delete(String(subId)); // Clean up seq tracking on unsubscribe
+                                 if (typeof cleanupFn === 'function') {
+                                      cleanupFn(); // Call original cleanup
+                                }
+                           }
                       );
 
                       // Subscription setup successful, handler doesn't return data directly

@@ -8,20 +8,20 @@ import type { SubscriptionDataMessage } from '../core/types'; // Use new message
 export interface UpdateHistory<Delta = any> {
     /**
  * Adds a subscription data message to the history for a specific topic/path.
- * Handles pruning based on buffer size. Assumes messages have a sequence number.
+ * Handles pruning based on buffer size. Assumes messages have a `serverSeq`.
  * @param topic The topic/path the message belongs to.
- * @param message The SubscriptionDataMessage to store. Requires `seq`.
+ * @param message The SubscriptionDataMessage to store. Requires `serverSeq`.
  */
-    addUpdate(topic: string, message: SubscriptionDataMessage): void; // Removed <Delta>
+    addUpdate(topic: string, message: SubscriptionDataMessage): void;
 
     /**
  * Retrieves a range of subscription data messages for a topic/path based on sequence numbers.
  * @param topic The topic/path to retrieve messages for.
- * @param fromSeqExclusive The sequence number *after* which to start retrieving messages.
- * @param toSeqInclusive The sequence number *up to which* (inclusive) to retrieve messages.
- * @returns An array of SubscriptionDataMessages in the specified range, ordered by sequence number. Returns empty array if range is invalid or unavailable.
+ * @param fromSeqExclusive The *server* sequence number *after* which to start retrieving messages.
+ * @param toSeqInclusive The *server* sequence number *up to which* (inclusive) to retrieve messages.
+ * @returns An array of SubscriptionDataMessages in the specified range, ordered by `serverSeq`. Returns empty array if range is invalid or unavailable.
  */
-    getUpdates(topic: string, fromSeqExclusive: number, toSeqInclusive: number): SubscriptionDataMessage[]; // Removed <Delta>
+    getUpdates(topic: string, fromSeqExclusive: number, toSeqInclusive: number): SubscriptionDataMessage[];
 
     /**
      * Clears all history for a specific topic.
@@ -49,17 +49,17 @@ export interface InMemoryUpdateHistoryOptions {
  * Stores updates in a Map keyed by topic, with each topic holding an array of updates.
  * Automatically prunes older updates when the buffer size is exceeded.
  */
-export function createInMemoryUpdateHistory<Delta = any>(
+export function createInMemoryUpdateHistory(
     options: InMemoryUpdateHistoryOptions = {}
-): UpdateHistory<Delta> {
+): UpdateHistory { // Removed <Delta> generic
     const { bufferSize = 1000 } = options;
-    // Map<topic, SortedArray<SubscriptionDataMessage>> - Array is kept sorted by seq
-    const history = new Map<string, SubscriptionDataMessage[]>(); // Removed <Delta>
+    // Map<topic, SortedArray<SubscriptionDataMessage>> - Array is kept sorted by serverSeq
+    const history = new Map<string, SubscriptionDataMessage[]>();
 
-    const addUpdate = (topic: string, message: SubscriptionDataMessage) => { // Removed <Delta>
-        // Use message.seq instead of update.serverSeq
-        if (message.seq === undefined || message.seq <= 0) {
-             console.warn(`[TypeQL History] Ignoring message for topic "${topic}" without a valid positive seq:`, message);
+    const addUpdate = (topic: string, message: SubscriptionDataMessage) => {
+        // Use message.serverSeq instead of message.seq
+        if (message.serverSeq === undefined || message.serverSeq <= 0) {
+             console.warn(`[TypeQL History] Ignoring message for topic "${topic}" without a valid positive serverSeq:`, message);
              return;
         }
 
@@ -68,16 +68,16 @@ export function createInMemoryUpdateHistory<Delta = any>(
         }
         const topicHistory = history.get(topic)!;
 
-        // Simple insertion assuming messages mostly arrive in order.
+        // Simple insertion assuming messages mostly arrive in order based on serverSeq.
         const lastMessage = topicHistory.length > 0 ? topicHistory[topicHistory.length - 1] : undefined;
-        // Use message.seq
-        if (lastMessage && lastMessage.seq !== undefined && message.seq <= lastMessage.seq) {
-             console.warn(`[TypeQL History] Received out-of-order or duplicate message for topic "${topic}" (Seq: ${message.seq}, Last Seq: ${lastMessage.seq}). Ignoring.`);
+        // Use message.serverSeq
+        if (lastMessage && lastMessage.serverSeq !== undefined && message.serverSeq <= lastMessage.serverSeq) {
+             console.warn(`[TypeQL History] Received out-of-order or duplicate message for topic "${topic}" (serverSeq: ${message.serverSeq}, Last serverSeq: ${lastMessage.serverSeq}). Ignoring.`);
              // Or handle insertion/replacement if needed.
              return;
         }
 
-        topicHistory.push(message); // Push the new message type
+        topicHistory.push(message);
 
         // Prune if buffer size exceeded
         if (topicHistory.length > bufferSize) {
@@ -85,24 +85,24 @@ export function createInMemoryUpdateHistory<Delta = any>(
         }
     };
 
-    // Correct the return type here - SubscriptionDataMessage is not generic
+    // Ensure return type matches interface
     const getUpdates = (topic: string, fromSeqExclusive: number, toSeqInclusive: number): SubscriptionDataMessage[] => {
         const topicHistory = history.get(topic);
         if (!topicHistory || fromSeqExclusive >= toSeqInclusive) {
             return [];
         }
 
-        // Find messages within the range [fromSeqExclusive + 1, toSeqInclusive]
-        // This assumes topicHistory is sorted by seq.
-        const results: SubscriptionDataMessage[] = []; // Removed <Delta>
-        for (const message of topicHistory) { // Use new message type
-             // seq is guaranteed non-undefined by addUpdate logic
-             const seq = message.seq!;
-             if (seq > fromSeqExclusive && seq <= toSeqInclusive) {
-                 results.push(message); // Push the new message type
+        // Find messages within the range [fromSeqExclusive + 1, toSeqInclusive] based on serverSeq
+        // This assumes topicHistory is sorted by serverSeq.
+        const results: SubscriptionDataMessage[] = [];
+        for (const message of topicHistory) {
+             // serverSeq is guaranteed non-undefined by addUpdate logic
+             const serverSeq = message.serverSeq!;
+             if (serverSeq > fromSeqExclusive && serverSeq <= toSeqInclusive) {
+                 results.push(message);
              }
-             // Optimization: If history is sorted, we can break early if seq > toSeqInclusive
-             if (seq > toSeqInclusive) {
+             // Optimization: If history is sorted, we can break early if serverSeq > toSeqInclusive
+             if (serverSeq > toSeqInclusive) {
                  break;
              }
         }

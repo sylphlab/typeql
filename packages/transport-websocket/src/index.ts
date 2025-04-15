@@ -8,19 +8,22 @@ import type {
     SubscriptionHandlers,
     UnsubscribeFn,
     UnsubscribeMessage,
-    SubscriptionLifecycleMessage // Import the union type for received messages
+    SubscriptionLifecycleMessage, // Import the union type for received messages
+    AckMessage, // Import AckMessage type
+    RequestMissingMessage // Import RequestMissingMessage type
 } from '@typeql/core';
 import WebSocket from 'ws'; // Using 'ws' library
 
 interface WebSocketTransportOptions {
     url: string;
-    // TODO: Add options like protocols, retry logic, auto-reconnect etc.
     WebSocket?: typeof WebSocket | typeof globalThis.WebSocket; // Allow passing custom WebSocket implementation (e.g., browser vs node)
     serializer?: (data: any) => string; // Custom serializer
     deserializer?: (data: string | Buffer | ArrayBuffer | Buffer[]) => any; // Custom deserializer
     requestTimeoutMs?: number; // Optional request timeout
     maxReconnectAttempts?: number; // Max reconnect attempts
     baseReconnectDelayMs?: number; // Base delay for reconnect
+    /** Optional callback for when an AckMessage is received */
+    onAckReceived?: (ack: AckMessage) => void;
 }
 
 // Default serializer/deserializer - Ensure errors are handled
@@ -82,6 +85,7 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
          WebSocket: WebSocketImplementation = WebSocket, // Default to 'ws' library
          serializer = defaultSerializer,
          deserializer = defaultDeserializer,
+         onAckReceived, // Get the callback from options
      } = opts;
 
      console.log(`[TypeQL WS Transport] Creating transport for URL: ${url}`);
@@ -286,12 +290,61 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
 
                       console.debug("[TypeQL WS Transport] Received message:", message); // Use debug for less noise
 
-                      // --- Request/Response Handling ---
-                      if (message && typeof message === 'object' && 'id' in message && ('result' in message || 'error' in message) && pendingRequests.has(message.id)) {
-                          const pending = pendingRequests.get(message.id)!;
-                          if (pending.timer) clearTimeout(pending.timer);
-                          // Check if it's an error response
-                          if ('error' in message && message.error) {
+                       // --- Request/Response Handling (ProcedureResultMessage) ---
+                       if (message && typeof message === 'object' && 'id' in message && 'result' in message && pendingRequests.has(message.id)) {
+                           const pending = pendingRequests.get(message.id)!;
+                           if (pending.timer) clearTimeout(pending.timer);
+                           const resultMsg = message as ProcedureResultMessage; // Type assertion
+                           // Check if it's an error response within the result
+                           if (resultMsg.result.type === 'error') {
+                                console.warn(`[TypeQL WS Transport] Received error for request ${message.id}:`, resultMsg.result.error);
+                                pending.reject(new Error(resultMsg.result.error.message || 'Procedure execution failed'));
+                           } else {
+                                pending.resolve(resultMsg); // Resolve with the full ProcedureResultMessage
+                           }
+                           pendingRequests.delete(message.id);
+                       }
+                       // --- Ack Handling ---
+                       else if (message && typeof message === 'object' && message.type === 'ack' && 'clientSeq' in message && 'serverSeq' in message) {
+                            const ackMessage = message as AckMessage;
+                            console.debug(`[TypeQL WS Transport] Received Ack for clientSeq: ${ackMessage.clientSeq}`);
+                            onAckReceived?.(ackMessage); // Call the provided handler
+                       }
+                       // --- Subscription Message Handling ---
+                       else if (message && typeof message === 'object' && 'id' in message && activeSubscriptions.has(message.id)) {
+                           const subEntry = activeSubscriptions.get(message.id)!;
+                           // Ensure subscription is marked active if we receive data for it
+                           // (Might happen if reconnect was very fast and server sent data before client resent subscribe)
+                           subEntry.active = true;
+                           const subMsg = message as SubscriptionLifecycleMessage; // Type assertion
+
+                           switch (subMsg.type) {
+                               case 'subscriptionData':
+                                   subEntry.handlers.onData(subMsg);
+                                   break;
+                               case 'subscriptionError':
+                                   console.warn(`[TypeQL WS Transport] Received error for subscription ${message.id}:`, subMsg.error);
+                                   subEntry.handlers.onError(subMsg.error);
+                                   activeSubscriptions.delete(message.id); // Remove permanently on server error
+                                   break;
+                               case 'subscriptionEnd':
+                                   console.log(`[TypeQL WS Transport] Received end signal for subscription ${message.id}`);
+                                   subEntry.handlers.onEnd();
+                                   activeSubscriptions.delete(message.id); // Remove permanently on graceful end
+                                   break;
+                                default:
+                                   // The type checker already knows subMsg cannot be query/mutation here.
+                                   console.warn("[TypeQL WS Transport] Received unknown message type for active subscription:", message);
+                           }
+                       }
+                       else if (message && typeof message === 'object' && 'id' in message && pendingRequests.has(message.id)) {
+                           // This case handles ProcedureResultMessage arriving slightly differently
+                           // (e.g., if the outer 'result' check failed but ID matches pending)
+                           // This might be redundant with the first check, but acts as a fallback.
+                           const pending = pendingRequests.get(message.id)!;
+                           if (pending.timer) clearTimeout(pending.timer);
+                           const resultMsg = message as ProcedureResultMessage; // Assume it's a result message
+                           if (resultMsg.result?.type === 'error') {
                                console.warn(`[TypeQL WS Transport] Received error for request ${message.id}:`, message.error);
                                pending.reject(new Error(message.error.message || 'Procedure execution failed'));
                           } else {
@@ -497,7 +550,25 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
          onConnectionChange: (handler) => {
               connectionChangeListeners.add(handler);
               return () => connectionChangeListeners.delete(handler);
-         }
+         },
+
+         // Implementation for requesting missing deltas
+         requestMissingDeltas: (subscriptionId: number | string, fromSeq: number, toSeq: number) => {
+            console.log(`[TypeQL WS Transport] Requesting missing deltas for subscription ${subscriptionId} from ${fromSeq} to ${toSeq}`);
+            const message: RequestMissingMessage = {
+                type: 'request_missing',
+                id: subscriptionId, // Use subscriptionId as the correlation ID
+                fromSeq,
+                toSeq,
+            };
+            if (!sendMessage(message)) {
+                 // Log error, but don't throw, as this is often a recovery mechanism
+                 console.error(`[TypeQL WS Transport] Failed to send request_missing message for subscription ${subscriptionId}.`);
+                 // Optionally: Trigger an error handler or notification?
+            }
+            // This function doesn't wait for a response, it just fires the request.
+         },
+
      }; // *** End of transport object ***
 
     // Initiate connection eagerly? Or wait for first request/subscribe? Eager for now.

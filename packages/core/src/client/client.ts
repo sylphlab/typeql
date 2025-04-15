@@ -2,44 +2,72 @@
 
 import type { AnyRouter } from '../server/router';
 import type { AnyProcedure } from '../server/procedure';
-import * as z from 'zod'; // Moved import
-import type {
+import * as z from 'zod';
+import { // Changed to regular import for TypeQLClientError
     TypeQLTransport,
     ProcedureCallMessage,
     SubscribeMessage,
     UnsubscribeFn,
     SubscriptionHandlers,
-    ProcedureResultMessage // Import this too
-} from '../core/types'; // Import transport and message types
-import { generateId } from '../core/utils'; // Import ID generator
-// Removed duplicate Zod import
+    ProcedureResultMessage,
+    TypeQLClientError, // Keep custom error here
+} from '../core/types';
+import { generateId } from '../core/utils';
+// Import PredictedChange as a type, OptimisticStore as a value/type
+import type { PredictedChange } from './optimisticStore';
+import { OptimisticStore } from './optimisticStore';
+import { createClientSequenceManager, ClientSequenceManager } from '../core/seqManager';
+
 
 // --- Client Creation ---
 
-export interface ClientOptions {
+
+export interface ClientOptions<TState = any> { // Revert interface
     /** The transport layer responsible for communication */
-    transport: TypeQLTransport; // Use the correct transport type
+    transport: TypeQLTransport;
     /** Optional function to generate request IDs */
     generateRequestId?: () => string | number;
+    /** Optional optimistic store instance */
+    store?: OptimisticStore<TState>;
     // url?: string; // Potential alternative or supplement to transport
     // fetch?: typeof fetch; // Allow custom fetch implementation
 }
 
+
 /**
  * Creates a strongly-typed client proxy based on the server's AppRouter type.
+ * If an `OptimisticStore` is provided, it automatically wires the transport's
+ * `onAckReceived` callback to the store's `confirmPendingMutation` method.
  *
  * @param opts Client options, including the transport layer.
  * @returns A proxy object mirroring the server's router structure.
  */
-export function createClient<TRouter extends AnyRouter>(
-    opts: ClientOptions
+export function createClient<TRouter extends AnyRouter, TState = any>( // Add TState generic
+    opts: ClientOptions<TState> // Use generic options
 ): CreateClientProxy<TRouter> {
     console.log("[TypeQL Client] Creating client proxy...");
 
     const reqIdGenerator = opts.generateRequestId ?? generateId;
+    const store = opts.store; // Store the optional store instance
+    const transport = opts.transport; // Get the transport instance directly
+    const clientSeqManager = createClientSequenceManager(); // Internal manager for clientSeq if no store
+
+    // Automatically wire the store's confirmation method to the transport's ack handler
+    if (store && transport) {
+        if (transport.onAckReceived) {
+            console.warn("[TypeQL Client] Transport already has an onAckReceived handler. Overwriting with store.confirmPendingMutation.");
+        }
+        // Ensure the store's method is bound correctly if it relies on 'this'
+        transport.onAckReceived = store.confirmPendingMutation.bind(store);
+        console.log("[TypeQL Client] Automatically wired store.confirmPendingMutation to transport.onAckReceived.");
+    } else if (store && !transport) {
+        // Should not happen with current types, but defensive check
+        console.error("[TypeQL Client] OptimisticStore provided but no transport found in options.");
+    }
+
 
     // Use a Proxy to dynamically handle calls to the router structure
-    function createRecursiveProxy(path: string[]): any {
+    function createRecursiveProxy(path: string[], currentStore?: OptimisticStore<TState>): any { // Pass store down
         // This proxy represents a node in the router path.
         // It can either be further navigated (e.g., client.user...)
         // or terminated with a procedure call (.query, .mutate, .subscribe)
@@ -50,25 +78,19 @@ export function createClient<TRouter extends AnyRouter>(
                      return undefined;
                  }
                  const newPath = [...path, propKey];
-                 console.log(`[TypeQL Client] Accessing path: ${newPath.join('.')}`);
-                 // If the property accessed is a procedure method, execute it
+                 // If the property accessed is a procedure method, create and return the specific method
                  if (propKey === 'query' || propKey === 'mutate' || propKey === 'subscribe') {
-                     // We've reached the end of the path for this call type
-                     const procedureMethods = createProcedureProxy(opts.transport, path, reqIdGenerator);
-                     if (propKey === 'query') return procedureMethods.query;
-                     if (propKey === 'mutate') return procedureMethods.mutate;
-                     if (propKey === 'subscribe') return procedureMethods.subscribe;
+                     // Pass the confirmed transport instance
+                     const procedureMethods = createProcedureProxy(transport, path, reqIdGenerator, clientSeqManager, currentStore); // Pass store & seq manager
+                     return procedureMethods[propKey]; // Return the specific method directly
                  }
-                 // Otherwise, assume it's a path segment and continue recursively
-                 const nextPath = [...path, propKey];
-                 console.log(`[TypeQL Client] Accessing path segment: ${propKey} (Current path: ${nextPath.join('.')})`);
-                 return createRecursiveProxy(nextPath);
-                 // Removed extra closing brace/parenthesis from previous attempt
-            }
+                 // Otherwise, continue building the path recursively
+                 return createRecursiveProxy(newPath, currentStore); // Pass store down
+            },
         });
     }
 
-    return createRecursiveProxy([]);
+    return createRecursiveProxy([], store); // Start with root path and the store
 }
 
 // --- Proxy Logic ---
@@ -78,39 +100,49 @@ type CreateClientProxy<TRouter extends AnyRouter | AnyProcedure> = TRouter exten
     ? {
         [K in keyof TRouter['_def']['procedures']]: CreateClientProxy<TRouter['_def']['procedures'][K]>;
     }
-    : TRouter extends AnyProcedure // Base case: procedure
-    ? CreateProcedureClient<TRouter> // Return the actual function/object for procedure calls
-    : never; // Should not happen
-
-// Type helper for the callable procedure client part
-type CreateProcedureClient<TProcedure extends AnyProcedure> = TProcedure['_def']['type'] extends 'query'
-    ? { query: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never) => Promise<TProcedure['_def']['outputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['outputSchema']> : never> }
-    : TProcedure['_def']['type'] extends 'mutation'
-    ? { mutate: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never) => Promise<TProcedure['_def']['outputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['outputSchema']> : never> /* Add optimistic update options? */ }
-    : TProcedure['_def']['type'] extends 'subscription'
-     ? { subscribe: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never, handlers: SubscriptionHandlers) => UnsubscribeFn } // Correct subscribe signature
+    : TRouter extends AnyProcedure // Base case: a procedure
+    ? CreateProcedureClient<TRouter>
     : never;
 
+/** Input options for mutation calls, allowing optimistic updates. */
+export interface MutationCallOptions<TInput, TState> {
+    input: TInput;
+    optimistic?: {
+        /** The predicted change to apply locally (Immer patches or recipe). */
+        predictedChange: PredictedChange<TState>;
+        // TODO: Add context for onSettled?
+    };
+}
+
+// Type helper for the callable procedure client part
+type CreateProcedureClient<TProcedure extends AnyProcedure, TState = any> = // Add TState generic
+    TProcedure['_def']['type'] extends 'query'
+    ? { query: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never) => Promise<TProcedure['_def']['outputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['outputSchema']> : never> }
+    : TProcedure['_def']['type'] extends 'mutation'
+    // Mutate accepts an options object now
+    ? { mutate: (opts: MutationCallOptions<TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never, TState>) => Promise<TProcedure['_def']['outputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['outputSchema']> : never> }
+    : TProcedure['_def']['type'] extends 'subscription'
+    ? { subscribe: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never, handlers: SubscriptionHandlers) => UnsubscribeFn }
+    : never;
 
 /**
  * Internal function that creates the actual methods (.query, .mutate, .subscribe) for a given path.
  * @param transport The transport layer instance
- * @param path Array of path segments built up by the recursive proxy
+ * @param path Array of path segments
  * @param generateRequestId Function to generate correlation IDs
+ * @param clientSeqManager Manager for client sequence numbers
+ * @param store Optional OptimisticStore instance
  */
-function createProcedureProxy(
+function createProcedureProxy<TState = any>( // Add TState generic
     transport: TypeQLTransport,
     path: string[],
-    generateRequestId: () => string | number
-): {
-    query: (input: unknown) => Promise<unknown>;
-    mutate: (input: unknown) => Promise<unknown>;
-    subscribe: (input: unknown, handlers: SubscriptionHandlers) => UnsubscribeFn; // Changed return type
-} {
+    generateRequestId: () => string | number,
+    clientSeqManager: ClientSequenceManager, // Accept seq manager
+    store?: OptimisticStore<TState> // Accept store
+): any { // Simplify return type annotation for now to avoid complex assignment error
     const pathString = path.join('.');
-    // console.log(`[TypeQL Client] Creating procedure proxy for path: ${pathString}`); // Logged in recursive proxy now
 
-    return {
+    return { // Return implementation directly
         // --- Query ---
         query: async (input: unknown) => {
             console.log(`[TypeQL Client] Calling query '${pathString}' with input:`, input);
@@ -132,21 +164,51 @@ function createProcedureProxy(
             }
         },
         // --- Mutation ---
-        mutate: async (input: unknown) => {
-            console.log(`[TypeQL Client] Calling mutation '${pathString}' with input:`, input);
+        mutate: async (opts: MutationCallOptions<unknown, TState>) => {
+            const { input, optimistic } = opts;
+            console.log(`[TypeQL Client] Calling mutation '${pathString}' with input:`, input, optimistic ? "(Optimistic)" : "");
             const requestId = generateRequestId();
-            const message: ProcedureCallMessage = { type: 'mutation', id: requestId, path: pathString, input };
+            let clientSeq: number | undefined = undefined;
+            let message: ProcedureCallMessage;
+
+            if (store && optimistic) {
+                // Optimistic path: Add to store first
+                // Let store handle clientSeq generation internally or retrieve next one
+                clientSeq = clientSeqManager.getNext(); // Use internal manager for now
+                message = { type: 'mutation', id: requestId, path: pathString, input, clientSeq };
+                try {
+                    store.addPendingMutation(message, optimistic.predictedChange);
+                    console.log(`[TypeQL Client] Optimistic mutation added (clientSeq: ${clientSeq}) for '${pathString}'.`);
+                } catch (storeError: any) {
+                    console.error(`[TypeQL Client] Failed to add optimistic mutation (clientSeq: ${clientSeq}) for '${pathString}':`, storeError);
+                    // If store fails, should we still send? Probably not.
+                    throw storeError instanceof Error ? storeError : new TypeQLClientError(`Optimistic store failed: ${storeError}`);
+                }
+            } else {
+                // Non-optimistic path
+                message = { type: 'mutation', id: requestId, path: pathString, input };
+            }
+
+            // Send request via transport (always send, even if optimistic)
             try {
-                const resultMessage = await transport.request(message);
+                const resultMessage = await transport.request(message); // Send message (with or without clientSeq)
                 if (resultMessage.result.type === 'data') {
+                    // If optimistic, the store handles confirmation via Ack/Delta,
+                    // but we still resolve the promise for the caller.
                     return resultMessage.result.data;
                 } else {
-                    throw new Error(resultMessage.result.error.message);
+                    // Handle server error response
+                    const errorInfo = resultMessage.result.error;
+                    console.error(`[TypeQL Client] Mutation '${pathString}' received server error:`, errorInfo);
+                    // TODO: If optimistic, notify store about rejection?
+                    throw new TypeQLClientError(errorInfo.message, errorInfo.code);
                 }
-            } catch (error: any) {
-                 console.error(`[TypeQL Client] Mutation '${pathString}' failed:`, error);
-                 if (error instanceof Error) throw error;
-                 throw new Error(`Mutation failed: ${error}`);
+            } catch (transportError: any) {
+                 // Handle transport-level errors (network, timeout, etc.)
+                 console.error(`[TypeQL Client] Mutation transport request '${pathString}' failed:`, transportError);
+                 // TODO: If optimistic, potentially rollback or mark mutation as failed in store?
+                 if (transportError instanceof TypeQLClientError || transportError instanceof Error) throw transportError;
+                 throw new TypeQLClientError(`Mutation failed: ${transportError}`);
             }
         },
         // --- Subscription ---

@@ -22,35 +22,36 @@
         *   [X] Refine subscription handling in `RequestHandler` (uses `SubscriptionManager`, defines `publish`).
         *   [X] Refactor `SubscriptionManager` to manage lifecycle/cleanup, remove direct transport dependency.
     *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
-        *   [X] Implement `createClient` function to generate typed proxy from server router type (`packages/core/src/client/client.ts`).
-        *   [X] Implement `query`, `mutate`, `subscribe` call logic using `TypeQLTransport` interface (`packages/core/src/client/client.ts`).
+        *   [X] Implement `createClient` function to generate typed proxy from server router type (`packages/core/src/client/client.ts`). Updated to support optimistic mutation options and interact with `OptimisticStore`.
+        *   [X] Implement `query`, `mutate`, `subscribe` call logic using `TypeQLTransport` interface (`packages/core/src/client/client.ts`). `mutate` updated for optimistic flow.
         *   [ ] Implement client-side subscription handling for delta streams (needs actual transport implementation & observable/iterator return type).
     *   **Core (`@typeql/core` - or keep `@reqdelta/core`)**
-        *   [X] Refine shared types: Updated `Transport` interface and message types for TypeQL (`packages/core/src/core/types.ts`).
-        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `optimisticStore.ts` (before removal), `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`.
+        *   [X] Refine shared types: Updated `Transport` interface and message types for TypeQL (`packages/core/src/core/types.ts`). Added types for optimistic updates (`AckMessage`, `clientSeq`, `serverSeq`, `prevServerSeq`).
+        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`. Updated `updateHistory` and `requestHandler` to use new sequence numbers.
         *   [X] Refactor `createStore.ts` to basic non-optimistic version aligned with TypeQL.
         *   [X] Remove outdated `optimisticStore.ts`.
+        *   [X] Created basic structure for `OptimisticStore` (`packages/core/src/client/optimisticStore.ts`) using Immer.
         *   [ ] Ensure delta utilities are compatible.
 *   **Phase 2: Feature Implementation (TypeQL)**
     *   [X] Implement input validation (e.g., Zod integration in `ProcedureBuilder`).
-    *   [ ] Implement optimistic update mechanism (Needs new design/store).
-    *   [ ] Implement optimistic update mechanism on client `mutate` calls.
-    *   [ ] Implement delta reconciliation logic on client.
-    *   [ ] Implement data consistency/recovery for delta subscriptions (using seq numbers).
+    *   [X] Implement optimistic update mechanism (`OptimisticStore` finalized: rejection, timeout, gap recovery logic added).
+    *   [X] Implement optimistic update mechanism on client `mutate` calls (`client.ts` interacts with store).
+    *   [X] Implement delta reconciliation logic on client (`OptimisticStore` handles this via `applyServerDelta` and `recomputeOptimisticState`).
+    *   [X] Implement data consistency/recovery for delta subscriptions (`OptimisticStore` detects gaps, calls transport `requestMissingDeltas`).
     *   [ ] Implement context passing for server procedures.
     *   [ ] Implement error handling and propagation.
 *   **Phase 3: Transport Adapters & Integrations**
     *   [ ] Create/Adapt transport adapters (`@typeql/transport-*`).
     *   [X] Set up basic `@typeql/react` package structure (`package.json`, `tsconfig.json`, `src/index.ts`). Resolved build/dependency issues using bun.
-    *   [X] Implement core React hooks (`TypeQLProvider`, `useTypeQLClient`) in `@typeql/react`.
-    *   [X] Implement basic `useQuery` hook in `@typeql/react`.
-    *   [X] Implement basic `useMutation` hook in `@typeql/react`.
-    *   [X] Implement basic `useSubscription` hook in `@typeql/react`.
+    *   [X] Implement core React hooks (`TypeQLProvider`, `useTypeQL`) in `@typeql/react`. Added `store` to context. Deprecated `useTypeQLClient`.
+    *   [X] Implement `useQuery` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, **connected to OptimisticStore updates**).
+    *   [X] Implement `useMutation` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, supports optimistic options).
+    *   [X] Implement `useSubscription` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, **connected to OptimisticStore `applyServerDelta`**).
     *   [X] Set up basic `@typeql/transport-websocket` package structure.
-    *   [X] Implement WebSocket transport logic (`createWebSocketTransport`) including connection, request/response correlation, subscription handling placeholders, reconnect logic (exponential backoff), and automatic resubscription after reconnect. Fixed TS errors.
+    *   [X] Implement WebSocket transport logic (`createWebSocketTransport`) including connection, request/response correlation, subscription handling placeholders, reconnect logic, automatic resubscription, `onAckReceived` callback, and `requestMissingDeltas` method.
 *   **Phase 4: Optimization & Testing**
-    *   [ ] Add comprehensive tests for TypeQL architecture.
+    *   [ ] Add comprehensive tests for TypeQL architecture (especially optimistic updates).
     *   [ ] Performance optimization.
 
 *   **Current Status**: **Design pivoted to TypeQL**. Memory Bank updated. Previous ReqDelta implementation largely needs replacement/heavy refactoring. Monorepo structure remains valid.
-*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. Optimistic updates require redesign. Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns for state management within the TypeQL structure.
+*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns for state management within the TypeQL structure. **`useQuery` optimistic update integration assumes TState is compatible with TOutput - may need refinement.**
