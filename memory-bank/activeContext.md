@@ -8,8 +8,12 @@
 *   **Next Steps**:
     *   Update `progress.md` to reflect the significant refactoring required by the design pivot.
     *   Update this file (`activeContext.md`) with the new direction and next implementation steps.
-    *   Commit all Memory Bank changes reflecting the tRPC pivot.
-    *   Begin implementing the core server-side router and procedure definition logic (`@reqdelta/server`).
+    *   Commit all Memory Bank changes reflecting the TypeQL pivot.
+    *   Created placeholder files for TypeQL server logic: `packages/core/src/server/router.ts` and `packages/core/src/server/procedure.ts`. Fixed initial TS errors in procedure placeholders.
+*   **Next Steps**:
+    *   Update `progress.md` reflecting placeholder file creation.
+    *   Commit updated Memory Bank (`activeContext.md`, `progress.md`).
+    *   Begin fleshing out the implementation of `createRouter` and `procedure` builders in the newly created server files.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
