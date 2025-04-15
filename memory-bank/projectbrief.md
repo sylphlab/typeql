@@ -8,9 +8,11 @@ ReqDelta is a transport-agnostic TypeScript library designed to standardize the 
 *   **Unified Message Types**: Standardizes message formats for requests, responses, subscriptions, and incremental updates.
 *   **Type Safety**: Leverages TypeScript generics for end-to-end type safety.
 *   **State Management Integration**: Designed for integration with popular state management libraries (e.g., Nanostores, Redux).
-*   **Optimistic Updates**: Built-in support for client-side optimistic updates with rollback and conflict resolution.
+*   **Optimistic Updates**: Built-in support for client-side optimistic updates (functional style) with rollback and conflict resolution.
 *   **Conflict Resolution**: Manages concurrency conflicts using Sequence IDs and timestamps with configurable strategies.
 *   **Data Consistency**: Includes mechanisms for detecting and recovering lost updates.
+*   **Functional Style**: Encourages a functional programming style with pure functions and immutable data.
+*   **Convenience Helpers**: Provides standard delta types and utility functions for common use cases.
 
 ## System Architecture
 1.  **Core Layer**

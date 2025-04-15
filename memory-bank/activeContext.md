@@ -25,4 +25,8 @@
     *   Core library provides standard delta types and utilities for convenience, while allowing custom implementations.
     *   Core library `@reqdelta/core` will include optimistic update logic, sequence management, conflict resolution framework, and recovery mechanisms.
     *   All documentation (Memory Bank, comments) will be in English.
+    *   Adopt a more functional programming style (pure functions, immutable data, HOCs/composition) for the core library design.
+    *   Provide standard delta types and helper functions (`applyStandardDelta`, etc.) for convenience.
+    *   Keep client/server code within `@reqdelta/core` using separate entry points for tree-shaking.
+    *   Utilize TypeScript's type system directly, avoiding separate schema definitions (like GraphQL SDL).
 *   **Blockers**: None.

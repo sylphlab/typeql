@@ -1,6 +1,6 @@
 # System Patterns for ReqDelta
 
-*   **Core Pattern**: Request/Response for initial state, Publish/Subscribe for incremental updates.
+*   **Core Pattern**: Request/Response for initial state, Publish/Subscribe for incremental updates, leveraging Functional Programming principles (pure functions, immutable data, composition).
 *   **Transport Abstraction**:
     *   Core library defines a minimal `Transport` interface.
     *   Specific transport implementations (WebSocket, postMessage, HTTP, etc.) are provided as separate npm packages (e.g., `reqdelta-transport-websocket`).
@@ -13,16 +13,20 @@
     }
     ```
 *   **Message Structure**: Standardized message types defined in `@reqdelta/core` (`packages/core/src/core/types.ts`). Includes `request`, `response`, `subscribe`, `unsubscribe`, `update` with fields like `type`, `id`, `topic`, `payload`, `error`, `delta`.
-*   **State Management (Client)**: Client-side store (`createStore` in `@reqdelta/core`) manages state, loading, errors, and applies deltas. Integration adapters (planned for `@reqdelta/core` or separate packages) for external stores (Nanostores, Redux).
-*   **Subscription Management (Server)**: Server-side manager (`SubscriptionManager` in `@reqdelta/core`) tracks client subscriptions per topic and dispatches updates.
-*   **Delta Strategies**: Support within `@reqdelta/core` for both custom application-specific deltas and standardized JSON Patch (RFC 6902).
-*   **Type Safety**: Leverage TypeScript generics within `@reqdelta/core` for end-to-end type safety.
-*   **Optimistic Updates Pattern**:
-    *   **Dual State (Client)**: Maintain `confirmedState` (server-acknowledged) and `optimisticState` (includes local, unconfirmed updates).
-    *   **Snapshotting**: Before applying an optimistic update locally, snapshot the current `optimisticState`.
-    *   **Pending Queue**: Store optimistic updates (with their delta and snapshot) in a queue, keyed by `clientSeq`.
-    *   **Rollback**: If server rejects an update (`ack` message with `success: false`), revert `optimisticState` to the corresponding snapshot and remove the update from the pending queue. Re-apply subsequent pending updates onto the reverted state.
-    *   **Confirmation**: If server confirms (`ack` message with `success: true`), apply the delta to `confirmedState` and remove from the pending queue.
+*   **State Management (Client)**: Client-side store (`createStore` factory function in `@reqdelta/core`) built using functional composition (higher-order functions/enhancers like `withTransport`, `withDeltaHandling`, `withOptimisticUpdates`). Core manages immutable state. Integration adapters planned.
+*   **Subscription Management (Server)**: Server-side manager (`SubscriptionManager` in `@reqdelta/core`) tracks client subscriptions per topic and dispatches updates. Designed functionally.
+*   **Delta Strategies**:
+    *   Provides standard delta types (`StandardDelta`) and a pure function `applyStandardDelta` within `@reqdelta/core`.
+    *   Supports custom application-specific deltas and application logic via function parameters.
+    *   JSON Patch support planned.
+*   **Type Safety**: Leverage TypeScript generics and direct type usage (no separate schema language) within `@reqdelta/core` for end-to-end type safety.
+*   **Optimistic Updates Pattern (Functional)**:
+    *   Implemented via a higher-order function/enhancer (`withOptimisticUpdates`).
+    *   Maintains immutable `confirmedState` and derives `optimisticState` by applying pending operations.
+    *   **Snapshotting**: State snapshots can be captured conceptually before applying optimistic deltas (though the functional approach might manage this via closures or state history).
+    *   **Pending Queue**: Store pending operations (with relevant info like `clientSeq`, original operation, potentially `operationToDelta` function) internally.
+    *   **Rollback/Rebase**: On server rejection or conflicting server update, recalculate `optimisticState` from `confirmedState` and remaining pending operations.
+    *   **Confirmation**: When server confirms (`ack`), update `confirmedState` using `applyDelta` and remove the operation from the pending queue.
 *   **Sequence ID Management**:
     *   **Client**: Maintains a monotonically increasing `clientSeq` for optimistic updates sent to the server.
     *   **Server**: Maintains a globally (or per-topic) monotonically increasing `serverSeq` assigned to successfully processed and ordered updates.
