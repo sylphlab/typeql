@@ -22,10 +22,11 @@
     *   Refined `SubscriptionManager` and `createRequestHandler`.
     *   Set up the `@typeql/react` package and resolved initial build/dependency issues.
     *   Implemented basic React Context (`TypeQLContext`), `TypeQLProvider`, and `useTypeQLClient` hook in `@typeql/react/src/index.ts`.
-    *   Implemented basic `useQuery` hook in `@typeql/react/src/index.ts`, including state management and effect handling. (Note: Path inference/validation and dependency serialization need refinement).
-    *   Update `progress.md` and `techContext.md`.
+    *   Implemented basic `useQuery` hook in `@typeql/react/src/index.ts`.
+    *   Implemented basic `useMutation` hook in `@typeql/react/src/index.ts`. Fixed export conflicts.
+    *   Update `progress.md` reflecting React hook implementation.
     *   Commit changes.
-    *   Next major step: Implement `useMutation` and `useSubscription` hooks in `@typeql/react`. Refine `useQuery` dependency management. Define a concrete transport implementation.
+    *   Next major step: Implement `useSubscription` hook in `@typeql/react`. Define a concrete transport implementation (e.g., WebSocket). Refactor client stores (`createStore`, `optimisticStore`).
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.

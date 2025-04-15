@@ -62,7 +62,8 @@ type inferQueryOutput<TProcedure> = TProcedure extends { query: (input: any) => 
  * Basic hook to perform a TypeQL query.
  * NOTE: Path resolution and dependency management need significant refinement.
  */
-export function useQuery<
+// Removed export keyword
+function useQuery<
     TRouter extends AnyRouter,
     TPath extends string, // Placeholder for path inference/validation
     TProcedure extends /* Lookup procedure type based on path */ any,
@@ -135,9 +136,78 @@ export function useQuery<
     return { data, isLoading, error };
 }
 
+// --- Mutation Hook (Basic Implementation) ---
 
-console.log("@typeql/react basic context, hook, and useQuery loaded.");
+// Helper type to extract mutation procedures
+type inferMutationInput<TProcedure> = TProcedure extends { mutate: (input: infer TInput) => any } ? TInput : never;
+type inferMutationOutput<TProcedure> = TProcedure extends { mutate: (input: any) => Promise<infer TOutput> } ? TOutput : never;
+
+/**
+ * Basic hook to perform a TypeQL mutation.
+ */
+// Removed export keyword
+function useMutation<
+    TRouter extends AnyRouter,
+    TProcedure extends /* Lookup procedure type */ any,
+    TInput = inferMutationInput<TProcedure>,
+    TOutput = inferMutationOutput<TProcedure>
+>(
+    procedure: TProcedure,
+    // TODO: Add options like onSuccess, onError, onMutate (for optimistic updates)
+): {
+    mutate: (input: TInput) => Promise<TOutput | undefined>; // Function to trigger mutation
+    isLoading: boolean;
+    error: Error | null;
+    data: TOutput | undefined; // Result of the last successful mutation
+} {
+    const client = useTypeQLClient<TRouter>(); // Get client
+    const [isLoading, setIsLoading] = React.useState(false);
+    const [error, setError] = React.useState<Error | null>(null);
+    const [data, setData] = React.useState<TOutput | undefined>(undefined);
+
+    // isMounted check to prevent state updates after unmount
+    const isMounted = React.useRef(true);
+    React.useEffect(() => {
+        isMounted.current = true;
+        return () => { isMounted.current = false; };
+    }, []);
+
+    const mutate = React.useCallback(async (input: TInput): Promise<TOutput | undefined> => {
+        setIsLoading(true);
+        setError(null);
+        setData(undefined);
+
+        try {
+            const mutationFn = (procedure as any)?.mutate;
+            if (typeof mutationFn !== 'function') {
+                throw new Error("Invalid procedure object passed to useMutation.");
+            }
+            const result = await mutationFn(input);
+            if (isMounted.current) {
+                setData(result as TOutput);
+                setIsLoading(false);
+                // TODO: Call onSuccess option if provided
+                return result as TOutput;
+            }
+        } catch (err: any) {
+             if (isMounted.current) {
+                const errorObj = err instanceof Error ? err : new Error(String(err));
+                setError(errorObj);
+                setIsLoading(false);
+                // TODO: Call onError option if provided
+             }
+            // Do not re-throw here by default, let the caller check the error state
+            // Or re-throw if that's the desired API? For now, don't re-throw.
+        }
+        return undefined; // Return undefined on error or unmount
+    }, [procedure, client]); // Client dependency might not be needed if procedure ref is stable
+
+    return { mutate, isLoading, error, data };
+}
+
+
+console.log("@typeql/react basic context, hook, and useQuery/useMutation loaded.");
 
 // Export the provider and hook
-export { TypeQLProvider, useTypeQLClient };
+export { TypeQLProvider, useTypeQLClient, useQuery, useMutation };
 // Context itself is usually not exported directly

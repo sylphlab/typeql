@@ -41,7 +41,7 @@
     *   [X] Set up basic `@typeql/react` package structure (`package.json`, `tsconfig.json`, `src/index.ts`). Resolved build/dependency issues using bun.
     *   [X] Implement core React hooks (`TypeQLProvider`, `useTypeQLClient`) in `@typeql/react`.
     *   [X] Implement basic `useQuery` hook in `@typeql/react`.
-    *   [ ] Implement `useMutation` hook.
+    *   [X] Implement basic `useMutation` hook in `@typeql/react`.
     *   [ ] Implement `useSubscription` hook.
 *   **Phase 4: Optimization & Testing**
     *   [ ] Add comprehensive tests for TypeQL architecture.
