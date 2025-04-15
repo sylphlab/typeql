@@ -10,7 +10,9 @@ import { // Changed to regular import for TypeQLClientError
     UnsubscribeFn,
     // SubscriptionHandlers, // Removed
     ProcedureResultMessage,
-    SubscriptionResult, // Added
+    // SubscriptionResult, // Removed
+    SubscriptionDataMessage, // Added
+    SubscriptionErrorMessage, // Added
     TypeQLClientError, // Keep custom error here
 } from '../core/types';
 import { generateId } from '../core/utils';
@@ -123,7 +125,8 @@ type CreateProcedureClient<TProcedure extends AnyProcedure, TState = any> = // A
     // Mutate accepts an options object now
     ? { mutate: (opts: MutationCallOptions<TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never, TState>) => Promise<TProcedure['_def']['outputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['outputSchema']> : never> }
     : TProcedure['_def']['type'] extends 'subscription'
-    ? { subscribe: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never) => { iterator: AsyncIterableIterator<SubscriptionResult<TProcedure['_def']['subscriptionOutputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['subscriptionOutputSchema']> : unknown>>; unsubscribe: UnsubscribeFn } }
+    // Update return type to match the modified TypeQLTransport interface
+    ? { subscribe: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never) => { iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>; unsubscribe: UnsubscribeFn } }
     : never;
 
 /**

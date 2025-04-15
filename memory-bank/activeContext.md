@@ -17,7 +17,7 @@
     *   Implemented initial request handler logic in `packages/core/src/server/requestHandler.ts` (`createRequestHandler`).
     *   Implemented initial client proxy structure in `packages/core/src/client/client.ts` (`createClient`).
     *   Updated `Transport` interface and related message types in `packages/core/src/core/types.ts` to align better with TypeQL (request/result, subscription lifecycle).
-    *   Fixed resulting TypeScript errors in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, and `updateHistory.ts` after TypeQL type refactoring.
+    *   Fixed resulting TypeScript errors in `subscriptionManager.ts`, `optimisticStore.ts`, ~~`createStore.ts`~~, and `updateHistory.ts` after TypeQL type refactoring.
     *   Integrated the `TypeQLTransport` interface into the client proxy (`packages/core/src/client/client.ts`).
     *   Refined `SubscriptionManager` and `createRequestHandler`.
     *   Set up the `@typeql/react` package and resolved initial build/dependency issues.
@@ -26,8 +26,8 @@
     *   Implemented basic `useMutation` hook in `@typeql/react/src/index.ts`.
     *   Implemented basic `useSubscription` hook in `@typeql/react/src/index.ts`.
     *   Set up the `@typeql/transport-websocket` package and implemented basic transport logic.
-    *   Refactored `packages/core/src/client/createStore.ts` into a basic, non-optimistic store aligned with TypeQL architecture.
-    *   Removed `packages/core/src/client/optimisticStore.ts` as its logic was incompatible and needs complete redesign for TypeQL's model. Optimistic updates will be a separate future feature.
+    *   ~~Refactored `packages/core/src/client/createStore.ts` into a basic, non-optimistic store aligned with TypeQL architecture.~~ - **Removed file (Obsolete)**
+    *   ~~Removed `packages/core/src/client/optimisticStore.ts` as its logic was incompatible and needs complete redesign for TypeQL's model. Optimistic updates will be a separate future feature.~~ - **Replaced by new implementation**
     *   Update `progress.md` reflecting store refactoring and removal.
     *   Commit changes.
     *   Refined React hooks (`useQuery`, `useMutation`, `useSubscription`) in `@typeql/react` with TSDoc, placeholder options, and consistent error handling.
@@ -44,14 +44,13 @@
             *   [X] Gap Recovery: Added `requestMissingDeltas` to `TypeQLTransport` interface (`types.ts`). Implemented it in WebSocket transport (`transport-websocket/src/index.ts`) to send `request_missing` message. Updated `applyServerDelta` in store to call the `requestMissingDeltas` option (`optimisticStore.ts`).
             *   [X] Timeout Logic: Implemented timeout setting in `addPendingMutation` and clearing in `confirmPendingMutation`/`rejectPendingMutation`/pruning (`optimisticStore.ts`).
         *   [X] React Hooks Integration:
-            *   [X] `useSubscription`: Modified `onData` to call `store.applyServerDelta` if store exists (`react/src/index.ts`).
+            *   [X] `useSubscription`: Modified `onData` to call `store.applyServerDelta` if store exists (`react/src/index.ts`). **Fixed iterator handling to pass full message.**
             *   [X] `useQuery`: Subscribes to store updates via `store.subscribe` and updates local data state with `store.getOptimisticState` (`react/src/index.ts`).
-*   **Current Focus**: Optimistic update feature integration is complete. Next steps based on `progress.md`:
-    1.  Implement client-side subscription handling for delta streams (requires transport implementation).
-    2.  Implement context passing for server procedures.
-    3.  Implement error handling and propagation.
-    4.  Create/Adapt transport adapters (`@typeql/transport-*`).
-    5.  Add comprehensive tests.
+*   **Current Focus**: Optimistic update feature integration and basic error handling are complete. Obsolete `createStore.ts` removed. Next steps based on `progress.md`:
+    1.  Create/Adapt transport adapters (`@typeql/transport-*`).
+    2.  Add comprehensive tests.
+    3.  Review client-side error propagation beyond React hooks.
+    4.  Address remaining known issues (conflict resolution, server client identification, `useQuery` state compatibility).
 *   **Future Priorities**:
     1.  Implement Preact transport (`@typeql/transport-preact` - TBC name).
     2.  Implement VSCode transport (`@typeql/transport-vscode` - TBC name).
@@ -59,7 +58,7 @@
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
-    *   Previous FP-focused implementation (`createStore`, `RequestHandler`) will be heavily refactored or replaced to fit the new model.
+    *   Previous FP-focused implementation (~~`createStore`~~, `RequestHandler`) will be heavily refactored or replaced to fit the new model. `createStore` removed.
     *   Project remains an npm workspace monorepo.
     *   Transports remain separate packages.
     *   Core library `@typeql/core` will contain shared types, delta utilities.

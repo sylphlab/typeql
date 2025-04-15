@@ -9,9 +9,10 @@ import type {
     UnsubscribeFn,
     UnsubscribeMessage,
     SubscriptionLifecycleMessage, // Import the union type for received messages
-    SubscriptionResult, // Added
+    // SubscriptionResult, // Removed as per interface change
     SubscriptionDataMessage, // Added back for internal use
     SubscriptionErrorMessage, // Added back for internal use
+    SubscriptionEndMessage, // Added for iterator completion signaling
     AckMessage, // Import AckMessage type
     RequestMissingMessage // Import RequestMissingMessage type
 } from '@typeql/core';
@@ -496,38 +497,41 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
               const subId = message.id;
               console.log(`[TypeQL WS Transport] Attempting to subscribe (ID: ${subId})`);
 
+              // Define the type for messages yielded by the iterator - Now matches new interface
+              type IteratorYieldType = SubscriptionDataMessage | SubscriptionErrorMessage;
+ 
               // --- Async Iterator Logic ---
-              let resolveNextPromise: ((value: IteratorResult<SubscriptionResult<TData>>) => void) | null = null;
+              let resolveNextPromise: ((value: IteratorResult<IteratorYieldType>) => void) | null = null;
               let rejectNextPromise: ((reason?: any) => void) | null = null;
-              let messageQueue: SubscriptionResult<TData>[] = [];
+              let messageQueue: IteratorYieldType[] = [];
               let isFinished = false;
               let isActive = false; // Track if subscription is active on the server
 
               const handlers: InternalSubscriptionHandlers = { // Use internal handlers type
                   onData: (dataMsg) => {
-                      // Ensure data is correctly typed before pushing/resolving
-                      const result: SubscriptionResult<TData> = { type: 'data', data: dataMsg.data as TData };
+                      // Yield the *entire* SubscriptionDataMessage
                       if (resolveNextPromise) {
-                          resolveNextPromise({ value: result, done: false });
+                          resolveNextPromise({ value: dataMsg, done: false }); // Yield the original message
                           resolveNextPromise = null;
                           rejectNextPromise = null;
                       } else {
-                          messageQueue.push(result);
+                          messageQueue.push(dataMsg); // Push the original message
                       }
                   },
                   onError: (error) => {
-                      const result: SubscriptionResult<TData> = { type: 'error', error };
+                      // Construct the SubscriptionErrorMessage
+                      const result: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error };
                       isFinished = true;
                       isActive = false; // Mark inactive on error
                       if (rejectNextPromise) {
                           // Reject the pending promise if the iterator is waiting
                           rejectNextPromise(new Error(error.message)); // Wrap error object in an Error
                       } else if (resolveNextPromise) {
-                          // Or yield the error if waiting for data (less common for errors)
-                          resolveNextPromise({ value: result, done: false });
+                          // Or yield the error if waiting for data
+                          resolveNextPromise({ value: result, done: false }); // Yield the error message
                       } else {
-                          // Otherwise, queue it (though usually errors terminate)
-                          messageQueue.push(result);
+                          // Otherwise, queue it
+                          messageQueue.push(result); // Push the error message
                       }
                       // Clean up after error
                       activeSubscriptions.delete(subId);
@@ -563,27 +567,24 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                             if (sendMessage(message)) {
                                  // Don't mark active here, wait for onStart or first data
                                  console.log(`[TypeQL WS Transport] Subscribe message sent (ID: ${subId})`);
-                                 // handlers.onStart?.(); // Let transport handle this internally if needed
                             } else {
                                  throw new Error("Failed to send subscribe message");
                             }
                        } else {
                             console.warn(`[TypeQL WS Transport] WebSocket not open after connect attempt for subscription ${subId}. Will retry on reconnect.`);
-                            // Error will be handled via reconnect logic triggering onclose/onerror, eventually calling handlers.onError
                        }
                   } catch (err: any) {
                      console.error(`[TypeQL WS Transport] Error during initial subscribe connection/send (ID: ${subId}):`, err);
-                     // Immediately signal error through the iterator
                      handlers.onError({ message: `Subscription failed: ${err.message || err}` });
-                     // No need to delete from activeSubscriptions here, onError handles it
                   }
               };
 
               // Start the connection/sending process asynchronously
               connectAndSendSubscribe();
 
-              const iterator: AsyncIterableIterator<SubscriptionResult<TData>> = {
-                  async next(): Promise<IteratorResult<SubscriptionResult<TData>>> {
+              // Iterator type signature matches the new interface
+              const iterator: AsyncIterableIterator<IteratorYieldType> = {
+                  async next(): Promise<IteratorResult<IteratorYieldType>> {
                       if (messageQueue.length > 0) {
                           return { value: messageQueue.shift()!, done: false };
                       }
@@ -591,7 +592,7 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                           return { value: undefined, done: true };
                       }
                       // Wait for the next message or completion
-                      return new Promise<IteratorResult<SubscriptionResult<TData>>>((resolve, reject) => {
+                      return new Promise<IteratorResult<IteratorYieldType>>((resolve, reject) => {
                           resolveNextPromise = resolve;
                           rejectNextPromise = reject; // Store reject for error handling
                       });
@@ -600,18 +601,15 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                       return this;
                   },
                   // Optional: Implement return() and throw() for cleanup on early termination
-                  async return(): Promise<IteratorResult<SubscriptionResult<TData>>> {
+                  async return(): Promise<IteratorResult<IteratorYieldType>> {
                       console.log(`[TypeQL WS Transport] Iterator return called (ID: ${subId})`);
                       unsubscribe(); // Ensure cleanup
-                      // State is cleaned up within unsubscribe's call to handlers.onEnd/onError
                       return { value: undefined, done: true };
                   },
-                  async throw(error?: any): Promise<IteratorResult<SubscriptionResult<TData>>> {
+                  async throw(error?: any): Promise<IteratorResult<IteratorYieldType>> {
                       console.error(`[TypeQL WS Transport] Iterator throw called (ID: ${subId}):`, error);
-                      // Simulate an error coming from the source
                       handlers.onError({ message: `Iterator cancelled: ${error?.message || error}` });
                       unsubscribe(); // Ensure cleanup
-                      // State is cleaned up within unsubscribe's call to handlers.onError
                       return { value: undefined, done: true }; // Signal termination after handling error
                   }
               };

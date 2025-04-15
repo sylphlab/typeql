@@ -132,13 +132,7 @@ export type UnsubscribeFn = () => void;
 
 // Removed SubscriptionHandlers interface as it's replaced by AsyncIterable
 
-/**
- * Represents the result yielded by the subscription's async iterator.
- * It can be data or an error. The iterator completes normally on 'end'.
- */
-export type SubscriptionResult<TData = unknown> =
-    | { type: 'data'; data: TData }
-    | { type: 'error'; error: SubscriptionErrorMessage['error'] };
+// Removed SubscriptionResult type as iterator will yield full messages
 
 
 /**
@@ -162,8 +156,8 @@ export interface TypeQLTransport {
      * @returns An object containing the AsyncIterableIterator and an unsubscribe function.
      */
     subscribe<TData = unknown>(message: SubscribeMessage): {
-        /** Async iterator yielding data or errors. Completes when the subscription ends. */
-        iterator: AsyncIterableIterator<SubscriptionResult<TData>>;
+        /** Async iterator yielding full data or error messages. Completes when the subscription ends. */
+        iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>;
         /** Function to call to explicitly stop the subscription. */
         unsubscribe: UnsubscribeFn;
     };

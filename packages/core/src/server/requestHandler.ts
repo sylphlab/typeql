@@ -5,7 +5,52 @@ import type { AnyRouter, ProcedureRouterRecord } from './router';
 import type { AnyProcedure, ProcedureContext, ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure';
 import { ZodError } from 'zod';
 import type { SubscriptionManager } from './subscriptionManager'; // Import manager type
-import type { TypeQLTransport, SubscriptionDataMessage } from '../core/types'; // Import transport and message types
+import type { TypeQLTransport, SubscriptionDataMessage, ProcedureResultMessage, SubscriptionErrorMessage } from '../core/types'; // Import transport and message types
+
+// --- Error Formatting Helper ---
+
+/** Standard error codes */
+type ErrorCode = 'BAD_REQUEST' | 'UNAUTHORIZED' | 'FORBIDDEN' | 'NOT_FOUND' | 'METHOD_NOT_SUPPORTED' | 'TIMEOUT' | 'CONFLICT' | 'PRECONDITION_FAILED' | 'PAYLOAD_TOO_LARGE' | 'UNSUPPORTED_MEDIA_TYPE' | 'UNPROCESSABLE_CONTENT' | 'TOO_MANY_REQUESTS' | 'CLIENT_CLOSED_REQUEST' | 'INTERNAL_SERVER_ERROR';
+
+interface FormattedError {
+    message: string;
+    code: ErrorCode;
+    // Optionally include original error in dev?
+    // originalError?: unknown;
+}
+
+/** Formats various errors into a standard structure */
+function formatError(error: unknown, defaultCode: ErrorCode = 'INTERNAL_SERVER_ERROR'): FormattedError {
+    let message = 'An unexpected error occurred';
+    let code = defaultCode;
+
+    if (error instanceof ZodError) {
+        message = 'Input validation failed'; // Keep message generic for client
+        code = 'BAD_REQUEST';
+        // console.error("Zod Validation Error:", error.flatten()); // Log details server-side
+    } else if (error instanceof Error) {
+        message = error.message;
+        // Allow specific error types to suggest codes?
+        // if (error instanceof MyCustomError) code = error.code;
+    } else if (typeof error === 'string') {
+        message = error;
+    }
+
+    // Ensure code is a valid ErrorCode
+    const validCodes: Record<ErrorCode, boolean> = {
+        'BAD_REQUEST': true, 'UNAUTHORIZED': true, 'FORBIDDEN': true, 'NOT_FOUND': true,
+        'METHOD_NOT_SUPPORTED': true, 'TIMEOUT': true, 'CONFLICT': true, 'PRECONDITION_FAILED': true,
+        'PAYLOAD_TOO_LARGE': true, 'UNSUPPORTED_MEDIA_TYPE': true, 'UNPROCESSABLE_CONTENT': true,
+        'TOO_MANY_REQUESTS': true, 'CLIENT_CLOSED_REQUEST': true, 'INTERNAL_SERVER_ERROR': true
+    };
+    if (!validCodes[code]) {
+        code = 'INTERNAL_SERVER_ERROR';
+    }
+
+
+    return { message, code };
+}
+
 
 // --- Request/Response Types (Simplified for now) ---
 
@@ -85,7 +130,8 @@ export interface RequestHandlerOptions<TContext extends ProcedureContext> {
  */
 export function createRequestHandler<TContext extends ProcedureContext>(
     opts: RequestHandlerOptions<TContext>
-): (call: ProcedureCall, transport?: TypeQLTransport /* Pass transport if available */) => Promise<ProcedureResult | void> { // Return void for handled subscriptions
+    // Return type now uses ProcedureResultMessage for consistency
+): (call: ProcedureCall, transport?: TypeQLTransport /* Pass transport if available */) => Promise<ProcedureResultMessage | void> { // Return void for handled subscriptions
     const { router, createContext, subscriptionManager } = opts;
 
     // Create a sequence manager for this request handler instance
@@ -94,23 +140,26 @@ export function createRequestHandler<TContext extends ProcedureContext>(
     let lastServerSeqMap = new Map<string, number>(); // Track last seq per subscription ID
 
     // This handler needs access to the specific client's transport for subscriptions
-    return async (call: ProcedureCall, transport?: TypeQLTransport): Promise<ProcedureResult | void> => {
+    return async (call: ProcedureCall, transport?: TypeQLTransport): Promise<ProcedureResultMessage | void> => {
+        const startTime = Date.now();
         console.log(`[TypeQL Handler] Handling ${call.type} call for path: ${call.path} (ID: ${call.id})`);
 
         const pathSegments = call.path.split('.');
         const procedure = findProcedure(router._def.procedures, pathSegments);
 
         if (!procedure) {
-            console.error(`[TypeQL Handler] Procedure not found for path: ${call.path}`);
-            return { error: { message: `Procedure not found: ${call.path}`, code: 'NOT_FOUND' } };
+            const error = formatError(`Procedure not found: ${call.path}`, 'NOT_FOUND');
+            console.error(`[TypeQL Handler] ${error.code} for path ${call.path}: ${error.message}`);
+            return { id: call.id, result: { type: 'error', error } };
         }
 
         const procDef = procedure._def as ProcedureDef<TContext, any, any, any>; // Cast for internal use
 
         // Check if the procedure type matches the call type
         if (procDef.type !== call.type) {
-             console.error(`[TypeQL Handler] Mismatched procedure type for path: ${call.path}. Expected ${procDef.type}, got ${call.type}`);
-             return { error: { message: `Cannot call ${procDef.type} procedure using ${call.type}`, code: 'BAD_REQUEST' } };
+             const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`, 'BAD_REQUEST');
+             console.error(`[TypeQL Handler] ${error.code} for path ${call.path}: ${error.message}`);
+             return { id: call.id, result: { type: 'error', error } };
         }
 
         try {
@@ -130,51 +179,56 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 try {
                     parsedInput = procDef.inputSchema.parse(call.input);
                     console.log(`[TypeQL Handler] Input parsed successfully for path: ${call.path}`);
-                } catch (error) {
-                    if (error instanceof ZodError) {
-                        console.error(`[TypeQL Handler] Input validation failed for path ${call.path}:`, error.errors);
-                        return { error: { message: 'Input validation failed', code: 'BAD_REQUEST', /* errors: error.flatten() */ } };
-                    }
-                    throw error; // Re-throw unexpected errors
+                } catch (validationError) {
+                    const error = formatError(validationError, 'BAD_REQUEST'); // ZodError handled by formatError
+                    console.error(`[TypeQL Handler] ${error.code} for path ${call.path} (Input): ${error.message}`);
+                    return { id: call.id, result: { type: 'error', error } };
                 }
             }
 
             // 3. Handle based on procedure type
             if (procDef.type === 'query' || procDef.type === 'mutation') {
-                // Execute Resolver (Query/Mutation)
-                const options: ProcedureOptions<TContext, unknown> = { ctx, input: parsedInput };
-                const result = await procDef.resolver!(options);
-
-                 // 4. Parse Output (Optional)
-            let finalOutput: unknown = result;
-            if (procDef.outputSchema) {
+                let result: unknown;
                 try {
-                    finalOutput = procDef.outputSchema.parse(result);
-                     console.log(`[TypeQL Handler] Output parsed successfully for path: ${call.path}`);
-                } catch (error) {
-                     if (error instanceof ZodError) {
-                        // This is an internal server error, as the resolver returned unexpected data
-                        console.error(`[TypeQL Handler] Output validation failed for path ${call.path}:`, error.errors);
-                        // Should not expose detailed validation errors to client here
-                        return { error: { message: 'Internal server error: Invalid procedure output', code: 'INTERNAL_SERVER_ERROR' } };
-                     }
-                     throw error;
+                    // Execute Resolver (Query/Mutation)
+                    const options: ProcedureOptions<TContext, unknown> = { ctx, input: parsedInput };
+                    result = await procDef.resolver!(options); // Use non-null assertion after check
+                } catch (resolverError) {
+                    const error = formatError(resolverError, 'INTERNAL_SERVER_ERROR');
+                    console.error(`[TypeQL Handler] ${error.code} during resolver execution for path ${call.path}: ${error.message}`);
+                    return { id: call.id, result: { type: 'error', error } };
                 }
-            }
 
-                 console.log(`[TypeQL Handler] ${call.type} call successful for path: ${call.path}`);
-                 return { data: finalOutput }; // Return ProcedureResult for query/mutation
+                // 4. Parse Output (Optional)
+                let finalOutput: unknown = result;
+                if (procDef.outputSchema) {
+                    try {
+                        finalOutput = procDef.outputSchema.parse(result);
+                        console.log(`[TypeQL Handler] Output parsed successfully for path: ${call.path}`);
+                    } catch (validationError) {
+                        // This is an internal server error, as the resolver returned unexpected data
+                        const error = formatError(validationError, 'INTERNAL_SERVER_ERROR');
+                        console.error(`[TypeQL Handler] ${error.code} for path ${call.path} (Output): ${error.message}`);
+                        // Should not expose detailed validation errors to client here
+                        return { id: call.id, result: { type: 'error', error: { ...error, message: 'Internal server error: Invalid procedure output' } } };
+                    }
+                }
+
+                const duration = Date.now() - startTime;
+                console.log(`[TypeQL Handler] ${call.type} call successful for path: ${call.path} (ID: ${call.id}, Duration: ${duration}ms)`);
+                return { id: call.id, result: { type: 'data', data: finalOutput } }; // Return ProcedureResultMessage
 
             } else if (procDef.type === 'subscription') {
                  // --- Subscription Handling ---
                  if (!transport) {
-                     // Transport is required to manage subscriptions
-                     console.error(`[TypeQL Handler] Transport required for subscription path: ${call.path}`);
-                     return { error: { message: 'Transport unavailable for subscription', code: 'INTERNAL_SERVER_ERROR' } };
+                     const error = formatError('Transport unavailable for subscription', 'INTERNAL_SERVER_ERROR');
+                     console.error(`[TypeQL Handler] ${error.code} for path ${call.path}: ${error.message}`);
+                     return { id: call.id, result: { type: 'error', error } }; // Return error via ProcedureResultMessage
                  }
                  if (!procDef.subscriptionResolver) {
-                      console.error(`[TypeQL Handler] Missing subscriptionResolver for path: ${call.path}`);
-                      return { error: { message: 'Subscription resolver not implemented', code: 'INTERNAL_SERVER_ERROR' } };
+                      const error = formatError('Subscription resolver not implemented', 'INTERNAL_SERVER_ERROR');
+                      console.error(`[TypeQL Handler] ${error.code} for path ${call.path}: ${error.message}`);
+                      return { id: call.id, result: { type: 'error', error } }; // Return error via ProcedureResultMessage
                  }
 
                  const subId = call.id; // ID is now present on ProcedureCall
@@ -183,35 +237,66 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                  const clientId = `client_${subId}`; // Placeholder client ID
 
                  // Function for the resolver to publish data
-                 const publish = (data: unknown) => {
-                     // TODO: Optional output parsing using procDef.subscriptionOutputSchema?
+                 const publish = (rawData: unknown) => {
+                     let dataToPublish = rawData;
+                     // Optional output parsing
+                     if (procDef.subscriptionOutputSchema) {
+                         try {
+                             dataToPublish = procDef.subscriptionOutputSchema.parse(rawData);
+                         } catch (validationError) {
+                             const error = formatError(validationError, 'INTERNAL_SERVER_ERROR');
+                             console.error(`[TypeQL Handler] Subscription output validation failed for subId ${subId}: ${error.message}`);
+                             // Send error message instead of data
+                             const errorMsg: SubscriptionErrorMessage = {
+                                 type: 'subscriptionError',
+                                 id: subId,
+                                 error: { ...error, message: 'Internal server error: Invalid subscription output' }
+                             };
+                             if (transport?.send) {
+                                 Promise.resolve(transport.send(errorMsg)).catch(sendErr => {
+                                     console.error(`[TypeQL Handler] Error sending subscription error message for subId ${subId}:`, sendErr);
+                                 });
+                             }
+                             return; // Stop publishing this invalid data
+                         }
+                     }
 
-                      // Get next sequence number
-                      const currentServerSeq = serverSequenceManager.getNext();
-                      const prevServerSeqValue = lastServerSeqMap.get(String(subId)); // Get previous seq for this specific sub
-                      lastServerSeqMap.set(String(subId), currentServerSeq); // Update last seq for this sub
+                     // Get next sequence number
+                     const currentServerSeq = serverSequenceManager.getNext();
+                     const prevServerSeqValue = lastServerSeqMap.get(String(subId));
+                     lastServerSeqMap.set(String(subId), currentServerSeq);
 
-                      // Construct message, conditionally adding prevServerSeq
-                      const dataMsg: SubscriptionDataMessage = {
-                          type: 'subscriptionData',
-                          id: subId, // Correlate with the original subscription request ID
-                          data: data,
-                          serverSeq: currentServerSeq, // Add sequence number
-                          ...(prevServerSeqValue !== undefined && { prevServerSeq: prevServerSeqValue }) // Only add if defined
-                      };
-                       // Use the transport's 'send' method (if available) defined in the updated interface
-                       if (transport?.send) {
-                           console.log(`[TypeQL Handler] Publishing data for subId ${subId} via transport.send:`, data);
-                           // Use Promise.resolve() to handle potential void return from transport.send
-                           Promise.resolve(transport.send(dataMsg)).catch((sendErr: any) => {
-                                console.error(`[TypeQL Handler] Error sending subscription data via transport.send for subId ${subId}:`, sendErr);
-                                // Optional: Rollback sequence number? Might complicate things.
-                           });
-                      } else {
-                          console.error(`[TypeQL Handler] Cannot publish data for subId ${subId}: Transport lacks 'send' method.`);
-                          // Rollback sequence number if send fails immediately?
-                          // serverSequenceManager.reset(currentServerSeq - 1); // Complicated logic, avoid for now
-                      }
+                     const dataMsg: SubscriptionDataMessage = {
+                         type: 'subscriptionData',
+                         id: subId,
+                         data: dataToPublish, // Use potentially parsed data
+                         serverSeq: currentServerSeq,
+                         ...(prevServerSeqValue !== undefined && { prevServerSeq: prevServerSeqValue })
+                     };
+
+                     if (transport?.send) {
+                         console.debug(`[TypeQL Handler] Publishing data for subId ${subId} (Seq: ${currentServerSeq})`);
+                         Promise.resolve(transport.send(dataMsg)).catch((sendErr: any) => {
+                             console.error(`[TypeQL Handler] Error sending subscription data via transport.send for subId ${subId}:`, sendErr);
+                             // Attempt to send an error message to the client about the failure
+                             const error = formatError(sendErr, 'INTERNAL_SERVER_ERROR');
+                             const errorMsg: SubscriptionErrorMessage = {
+                                 type: 'subscriptionError',
+                                 id: subId,
+                                 error: { ...error, message: `Failed to send update: ${error.message}` }
+                             };
+                             // Nested catch for sending the error message itself
+                             // Check if transport.send exists before calling
+                             if (transport?.send) {
+                                 Promise.resolve(transport.send(errorMsg)).catch(errMsgErr => {
+                                     console.error(`[TypeQL Handler] CRITICAL: Failed even to send error message for subId ${subId}:`, errMsgErr);
+                                 });
+                             }
+                             // Consider cleanup or marking subscription as potentially broken?
+                         });
+                     } else {
+                         console.error(`[TypeQL Handler] Cannot publish data for subId ${subId}: Transport lacks 'send' method.`);
+                     }
                  };
 
                  const subOptions: SubscriptionOptions<TContext, unknown, unknown> = { ctx, input: parsedInput, publish };
@@ -240,17 +325,20 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                       console.log(`[TypeQL Handler] Subscription setup successful for path: ${call.path} (ID: ${subId})`);
                       return; // Return void or undefined for successful subscription setup
 
-                 } catch (subError: any) {
-                      console.error(`[TypeQL Handler] Error setting up subscription ${call.path}:`, subError);
-                      return { error: { message: subError.message || 'Subscription setup failed', code: 'INTERNAL_SERVER_ERROR' } };
+                 } catch (subSetupError: any) {
+                     const error = formatError(subSetupError, 'INTERNAL_SERVER_ERROR');
+                     console.error(`[TypeQL Handler] ${error.code} during subscription setup for path ${call.path}: ${error.message}`);
+                     // Send error back as a ProcedureResultMessage for the initial setup failure
+                     return { id: call.id, result: { type: 'error', error } };
                  }
             }
 
-        } catch (error: any) {
-            // Catch errors during context creation or input parsing
-            console.error(`[TypeQL Handler] Error processing request for ${call.path}:`, error);
-            // Ensure return type matches Promise<ProcedureResult | void>
-            return { error: { message: error.message || 'An unexpected error occurred', code: 'INTERNAL_SERVER_ERROR' } };
+        } catch (outerError: any) {
+            // Catch errors during context creation or initial checks
+            const error = formatError(outerError, 'INTERNAL_SERVER_ERROR');
+            console.error(`[TypeQL Handler] ${error.code} processing request for ${call.path}: ${error.message}`);
+            // Ensure return type matches Promise<ProcedureResultMessage | void>
+            return { id: call.id, result: { type: 'error', error } };
         }
     };
 }

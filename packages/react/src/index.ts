@@ -12,7 +12,7 @@ import {
     SubscriptionDataMessage, // Keep for store interaction if needed
     SubscriptionErrorMessage,
     ProcedureResultMessage,
-    SubscriptionResult, // Added
+    // SubscriptionResult, // Removed
     // Import store type correctly
     OptimisticStore,
     // Import mutation call options type
@@ -567,10 +567,14 @@ export function useMutation<
 
 // --- Subscription Hook ---
 
-// Helper type to infer the output type from the client's subscribe method's iterator
-type inferSubscriptionOutput<TProcedure> = TProcedure extends { subscribe: (...args: any[]) => { iterator: AsyncIterableIterator<SubscriptionResult<infer TOutput>> } }
-    ? TOutput
-    : unknown;
+// Helper type to infer the data type from the SubscriptionDataMessage yielded by the iterator
+// Note: This assumes the iterator yields SubscriptionDataMessage | SubscriptionErrorMessage
+type inferSubscriptionDataType<TProcedure> =
+    TProcedure extends { subscribe: (...args: any[]) => { iterator: AsyncIterableIterator<infer TMessage> } }
+        ? TMessage extends SubscriptionDataMessage // Check if the yielded type is SubscriptionDataMessage
+            ? TMessage['data'] // Extract the 'data' type
+            : unknown // Fallback if not SubscriptionDataMessage
+        : unknown;
 
 // Helper type to infer the input type from the client's subscribe method
 type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput) => any }
@@ -643,10 +647,11 @@ export interface UseSubscriptionResult<TOutput> {
  * @returns An object containing the subscription state (`status`, `error`, `data`, `unsubscribe`).
  */
 export function useSubscription<
-    // Procedure should have a subscribe method returning { iterator, unsubscribe }
-    TProcedure extends { subscribe: (input: any) => { iterator: AsyncIterableIterator<SubscriptionResult<any>>, unsubscribe: UnsubscribeFn } },
+    // Procedure should have a subscribe method returning { iterator, unsubscribe } yielding full messages
+    TProcedure extends { subscribe: (input: any) => { iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>, unsubscribe: UnsubscribeFn } },
     TInput = inferSubscriptionInput<TProcedure>,
-    TOutput = inferSubscriptionOutput<TProcedure>
+    // Use the updated helper to infer the data type
+    TOutput = inferSubscriptionDataType<TProcedure>
 >(
     procedure: TProcedure,
     input: TInput,
@@ -707,7 +712,8 @@ export function useSubscription<
         }
 
         let unsub: UnsubscribeFn | null = null;
-        let iterator: AsyncIterableIterator<SubscriptionResult<TOutput>> | null = null;
+        // Iterator now yields the full message types
+        let iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage> | null = null;
         let isCancelled = false; // Flag to prevent processing after cleanup
 
         const startSubscription = async () => {
@@ -721,7 +727,7 @@ export function useSubscription<
                 // Start the subscription - client proxy handles path resolution
                 const subResult = procedure.subscribe(input);
                 unsub = subResult.unsubscribe;
-                iterator = subResult.iterator as AsyncIterableIterator<SubscriptionResult<TOutput>>; // Assert type
+                iterator = subResult.iterator; // No assertion needed, type matches
                 if (isMountedRef.current && !isCancelled) {
                     setUnsubscribeFn(() => unsub); // Store the actual unsubscribe function
                 } else {
@@ -736,23 +742,24 @@ export function useSubscription<
                 for await (const result of iterator) {
                     if (!isMountedRef.current || isCancelled) break; // Stop if component unmounted or cancelled
 
-                    if (result.type === 'data') {
+                    // Iterator now yields SubscriptionDataMessage or SubscriptionErrorMessage
+                    if (result.type === 'subscriptionData') {
                         if (status !== 'active') setStatus('active'); // Move to active on first data
                         setError(null); // Clear error on data
 
-                        // If store exists, apply delta there (needs full message)
+                        const dataPayload = result.data as TOutput; // Extract data payload
+
+                        // If store exists, apply the full message
                         if (store) {
                             try {
-                                // TODO: This still requires the full SubscriptionDataMessage.
-                                // The iterator currently only yields the 'data' part.
-                                // This needs adjustment in the transport layer's iterator implementation.
-                                console.warn("[useSubscription] Store integration needs full SubscriptionDataMessage, but iterator only provides data. Store update skipped.");
-                                // store.applyServerDelta(???); // Cannot apply delta without full message
+                                // Pass the complete SubscriptionDataMessage to the store
+                                store.applyServerDelta(result);
+                                console.debug("[useSubscription] Applied server delta to store:", result.serverSeq);
 
-                                // Call user's onData even if store exists for now
-                                onDataRef.current?.(result.data);
-                                // Update local state regardless of store for now
-                                setData(result.data);
+                                // Call user's onData with the extracted payload
+                                onDataRef.current?.(dataPayload);
+                                // Update local state with the extracted payload
+                                setData(dataPayload);
 
                             } catch (storeError: any) {
                                  console.error("[useSubscription] Error applying server delta to store:", storeError);
@@ -760,25 +767,30 @@ export function useSubscription<
                                  if (isMountedRef.current && !isCancelled) {
                                      setError(err);
                                      setStatus('error');
+                                     // Pass the original error structure to the callback
                                      onErrorRef.current?.({ message: `Store error: ${err.message || err}` });
                                  }
                                  break; // Stop iteration on store error
                             }
                         } else {
-                            // No store, update local state and call handler
-                            setData(result.data);
-                            onDataRef.current?.(result.data);
+                            // No store, update local state and call handler with extracted payload
+                            setData(dataPayload);
+                            onDataRef.current?.(dataPayload);
                         }
-                    } else if (result.type === 'error') {
+                    } else if (result.type === 'subscriptionError') {
+                        // Handle the error message yielded by the iterator
                         console.error("[useSubscription] Subscription error received:", result.error);
                         if (isMountedRef.current && !isCancelled) {
-                            const err = new TypeQLClientError(result.error.message, result.error.code);
-                            setError(err);
+                            // Create a client-side error object for the hook's state
+                            const clientError = new TypeQLClientError(result.error.message, result.error.code);
+                            setError(clientError);
                             setStatus('error');
+                            // Pass the original error structure from the message to the callback
                             onErrorRef.current?.(result.error);
                         }
                         break; // Stop iteration on error
                     }
+                    // Note: The loop naturally ends when the iterator is done (server sends 'end')
                 }
 
                 // Iteration finished normally (server sent 'end' or iterator completed)
