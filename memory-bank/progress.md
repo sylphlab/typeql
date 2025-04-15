@@ -15,7 +15,7 @@
     *   [X] Server-side update history (`packages/core/src/server/updateHistory.ts`) - *Adaptable for delta subscriptions*
 *   **Phase 1: TypeQL Core Implementation**
     *   **Server (`@typeql/server` - or refactor `@reqdelta/server`)**
-        *   [ ] Define core router/procedure building blocks (`createRouter`, `query`, `mutation`, `subscription`) - *Placeholder files created (`router.ts`, `procedure.ts`)*
+        *   [X] Define core router/procedure building blocks (`createRouter`, `query`, `mutation`, `subscription`) - *Placeholder files created and corrected (`router.ts`, `procedure.ts`)*
         *   [ ] Implement type inference mechanism for procedures.
         *   [ ] Implement basic request handling logic based on procedure type.
         *   [ ] Implement subscription mechanism focusing on delta stream generation.
