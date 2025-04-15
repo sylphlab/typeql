@@ -11,7 +11,8 @@
   "author": "",
   "license": "ISC",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/react"
   ],
   "devDependencies": {
     "@types/node": "^22.14.1",

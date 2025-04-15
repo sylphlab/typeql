@@ -1,0 +1,18 @@
+{
+  "extends": "../../tsconfig.base.json", // Assuming a base tsconfig exists or will be created
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "jsx": "react-jsx", // Use modern JSX transform
+    "lib": ["DOM", "ESNext"], // Include DOM types for React
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true // Important for project references
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../core" } // Reference the core package
+  ]
+}

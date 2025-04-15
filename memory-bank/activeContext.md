@@ -17,13 +17,13 @@
     *   Implemented initial request handler logic in `packages/core/src/server/requestHandler.ts` (`createRequestHandler`).
     *   Implemented initial client proxy structure in `packages/core/src/client/client.ts` (`createClient`).
     *   Updated `Transport` interface and related message types in `packages/core/src/core/types.ts` to align better with TypeQL (request/result, subscription lifecycle).
-    *   Fixed resulting TypeScript errors in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, and `updateHistory.ts` after TypeQL type refactoring. (Note: `optimisticStore.ts` and `createStore.ts` still require significant logic refactoring).
+    *   Fixed resulting TypeScript errors in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, and `updateHistory.ts` after TypeQL type refactoring.
     *   Integrated the `TypeQLTransport` interface into the client proxy (`packages/core/src/client/client.ts`).
-    *   Refined `SubscriptionManager` to focus on lifecycle/cleanup and removed direct transport dependency.
-    *   Updated `createRequestHandler` to handle subscription setup using `SubscriptionManager` and defined a `publish` function that assumes the `transport` context object has a method for server-to-client messaging (e.g., `sendMessage`). Fixed related TS errors.
-    *   Update `progress.md` reflecting these server-side integration refinements.
+    *   Refined `SubscriptionManager` and `createRequestHandler`.
+    *   Set up the `@typeql/react` package: created directory, `package.json`, `tsconfig.json`, placeholder `src/index.ts`. Added to root `package.json` workspaces. Created `tsconfig.base.json`. Fixed core `tsconfig.json` (`composite: true`). Renamed `@reqdelta/core` to `@typeql/core` in its `package.json`. Successfully ran `bun install` after resolving workspace issues.
+    *   Update `progress.md` and `techContext.md` reflecting react package setup.
     *   Commit changes.
-    *   Next major step: Define a concrete transport implementation (e.g., WebSocket) or start designing client-side state management helpers (e.g., React hooks) that utilize the client proxy. Need to clarify how `clientId` is determined and passed server-side.
+    *   Next major step: Start implementing basic React Context/Provider and `useTypeQLClient` hook in `@typeql/react`.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.

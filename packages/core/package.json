@@ -1,7 +1,7 @@
 {
-  "name": "@reqdelta/core",
+  "name": "@typeql/core",
   "version": "0.0.1",
-  "description": "Core library for ReqDelta - ReqRes + PubSub incremental updates.",
+  "description": "Core library for TypeQL - TypeScript-first realtime API framework.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
@@ -9,9 +9,8 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
-    "reqres",
-    "pubsub",
-    "delta",
+    "typeql",
+    "rpc",
     "typescript",
     "realtime",
     "state-sync"

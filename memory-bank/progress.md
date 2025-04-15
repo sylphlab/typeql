@@ -38,10 +38,11 @@
     *   [ ] Implement error handling and propagation.
 *   **Phase 3: Transport Adapters & Integrations**
     *   [ ] Create/Adapt transport adapters (`@typeql/transport-*`).
-    *   [ ] Create client-side integration helpers/hooks (e.g., `@typeql/react`).
+    *   [X] Set up basic `@typeql/react` package structure (`package.json`, `tsconfig.json`, `src/index.ts`).
+    *   [ ] Implement core React hooks (`TypeQLProvider`, `useTypeQLClient`, etc.).
 *   **Phase 4: Optimization & Testing**
     *   [ ] Add comprehensive tests for TypeQL architecture.
     *   [ ] Performance optimization.
 
 *   **Current Status**: **Design pivoted to TypeQL**. Memory Bank updated. Previous ReqDelta implementation largely needs replacement/heavy refactoring. Monorepo structure remains valid.
-*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. Conflict resolution details TBD.
+*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. `createStore.ts` and `optimisticStore.ts` require major refactoring. Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions.

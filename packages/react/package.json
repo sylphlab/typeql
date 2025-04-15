@@ -1,0 +1,37 @@
+{
+  "name": "@typeql/react",
+  "version": "0.0.0",
+  "description": "React integration for TypeQL",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc -w",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "typeql",
+    "react",
+    "hooks",
+    "api",
+    "rpc",
+    "typescript"
+  ],
+  "author": "",
+  "license": "ISC",
+  "peerDependencies": {
+    "react": "^17.0.0 || ^18.0.0"
+  },
+  "dependencies": {
+    "@typeql/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^18.0.0",
+    "react": "^18.0.0",
+    "typescript": "^5.0.0" 
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

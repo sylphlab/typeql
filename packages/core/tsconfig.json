@@ -46,7 +46,8 @@
     "sourceMap": true, // Generate .js.map files for debugging
     "outDir": "./dist", // Output directory for compiled JS
     "rootDir": "./src", // Source directory
-    "lib": ["ES2016", "DOM"] // Added DOM for console access etc.
+    "lib": ["ES2016", "DOM"], // Added DOM for console access etc.
+    "composite": true // Added for project references
   },
   "include": ["src/**/*"], // Include all files in src
   "exclude": ["node_modules", "dist", "examples"] // Exclude build output and examples
