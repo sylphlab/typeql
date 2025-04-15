@@ -25,10 +25,11 @@
     *   Implemented basic `useQuery` hook in `@typeql/react/src/index.ts`.
     *   Implemented basic `useMutation` hook in `@typeql/react/src/index.ts`.
     *   Implemented basic `useSubscription` hook in `@typeql/react/src/index.ts`.
-    *   Set up the `@typeql/transport-websocket` package: created directory, `package.json`, `tsconfig.json`, placeholder `src/index.ts`. Added to root workspaces. Ran `bun install` successfully.
-    *   Update `progress.md` and `techContext.md` reflecting WebSocket transport package setup.
+    *   Set up the `@typeql/transport-websocket` package.
+    *   Implemented basic WebSocket transport logic in `@typeql/transport-websocket/src/index.ts` (`createWebSocketTransport`). Includes connection handling (`connectWebSocket`, `disconnectWebSocket`), message serialization/deserialization placeholders, request/response correlation via `pendingRequests` map, and subscription management via `activeSubscriptions` map. Added basic error handling and connection status updates. Fixed TS errors.
+    *   Update `progress.md` reflecting WebSocket transport implementation.
     *   Commit changes.
-    *   Next major step: Implement the actual WebSocket transport logic in `@typeql/transport-websocket`. Refactor client stores (`createStore`, `optimisticStore`). Refine React hooks.
+    *   Next major step: Refactor client stores (`createStore`, `optimisticStore`) to use the new TypeQL architecture and transport. Refine React hooks (error handling, options, type inference). Implement WebSocket reconnect logic.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
