@@ -1,0 +1,28 @@
+{
+  "name": "@reqdelta/core",
+  "version": "0.0.1",
+  "description": "Core library for ReqDelta - ReqRes + PubSub incremental updates.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "reqres",
+    "pubsub",
+    "delta",
+    "typescript",
+    "realtime",
+    "state-sync"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.14.1",
+    "typescript": "^5.8.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

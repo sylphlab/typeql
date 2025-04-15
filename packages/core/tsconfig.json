@@ -1,0 +1,53 @@
+{
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2016", // Target modern ECMAScript
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "isolatedModules": true,
+
+    /* Strictness */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noPropertyAccessFromIndexSignature": true,
+    // "allowUnusedLabels": false, // Default: true
+    // "allowUnreachableCode": false, // Default: true
+
+    /* If NOT transpiling with TypeScript: */
+    // "moduleResolution": "Bundler", // or "NodeNext"
+    // "module": "Preserve", // or "NodeNext"
+    // "noEmit": true,
+
+    /* If your code runs in the DOM: */
+    // "lib": ["es2022", "dom", "dom.iterable"],
+
+    /* If you're building for downstream consumers: */
+    "module": "CommonJS", // Or "ESNext" if targeting ESM
+    "declaration": true, // Generate .d.ts files
+    "declarationMap": true, // Generate sourcemaps for .d.ts files
+    "sourceMap": true, // Generate .js.map files for debugging
+    "outDir": "./dist", // Output directory for compiled JS
+    "rootDir": "./src", // Source directory
+    "lib": ["ES2016", "DOM"] // Added DOM for console access etc.
+  },
+  "include": ["src/**/*"], // Include all files in src
+  "exclude": ["node_modules", "dist", "examples"] // Exclude build output and examples
+}

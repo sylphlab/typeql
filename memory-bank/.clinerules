@@ -1,0 +1,9 @@
+# Project Specific Rules & Patterns for ReqDelta
+
+*   **Naming Conventions**: Follow standard TypeScript/Node.js conventions (camelCase for variables/functions, PascalCase for types/classes).
+*   **Error Handling**: Use specific error types where appropriate. Clearly document error conditions.
+*   **Async/Await**: Prefer async/await over raw Promises for cleaner asynchronous code.
+*   **Modularity**: Keep modules focused and single-responsibility where possible.
+*   **Documentation**: Add TSDoc comments for all exported functions, types, and interfaces.
+*   **Testing**: Aim for high test coverage, especially for core logic and delta application.
+*   **Transport Interface Implementation**: Ensure custom transports correctly handle message serialization/deserialization if needed by the underlying protocol.
