@@ -46,47 +46,24 @@
         *   [X] React Hooks Integration:
             *   [X] `useSubscription`: Modified `onData` to call `store.applyServerDelta` if store exists (`react/src/index.ts`).
             *   [X] `useQuery`: Subscribes to store updates via `store.subscribe` and updates local data state with `store.getOptimisticState` (`react/src/index.ts`).
-*   **Current Focus**: Completed optimistic update feature integration. Next: Update progress and commit.
-*   **Future Priorities (Post-Optimistic Updates)**:
+*   **Current Focus**: Optimistic update feature integration is complete. Next steps based on `progress.md`:
+    1.  Implement client-side subscription handling for delta streams (requires transport implementation).
+    2.  Implement context passing for server procedures.
+    3.  Implement error handling and propagation.
+    4.  Create/Adapt transport adapters (`@typeql/transport-*`).
+    5.  Add comprehensive tests.
+*   **Future Priorities**:
     1.  Implement Preact transport (`@typeql/transport-preact` - TBC name).
     2.  Implement VSCode transport (`@typeql/transport-vscode` - TBC name).
-*   **Optimistic Updates Design Outline (Completed in this session)**:
-    1.  **State Management**:
-        *   [X] New/Enhanced Store structure created (`OptimisticStore` in `optimisticStore.ts`).
-        *   [X] Manages `confirmedState` and `optimisticState`.
-        *   [X] Requires `clientSeq` generation (`clientSeqManager`) and tracking (`pendingMutations` array).
-        *   [X] Basic rollback/recompute logic implemented (`recomputeOptimisticState`). Needs refinement for rejections.
-        *   [X] Listener mechanism added (`subscribe`, `notifyListeners`).
-    2.  **`useMutation` Hook (`@typeql/react`)**:
-        *   [X] `optimistic.predictedChange` option added to `UseMutationOptions`.
-        *   [X] Hook gets store instance from context (`useTypeQL`).
-        *   [X] Hook passes `optimistic` config from options to client proxy's `mutate` call.
-        *   [X] Client proxy (`client.ts`) uses `optimistic.predictedChange` to call `store.addPendingMutation`.
-        *   [ ] Store's listener mechanism needs to be used by hooks (`useQuery`, potentially others) to reflect state changes.
-    3.  **Core Types (`@typeql/core`)**:
-        *   [X] Extended `ProcedureCallMessage` with `clientSeq`.
-        *   [X] Defined `AckMessage`.
-        *   [X] Updated `SubscriptionDataMessage` with `serverSeq`, `prevServerSeq`.
-    4.  **Delta Application (`OptimisticStore`)**:
-        *   [X] Basic delta application logic (`applyServerDelta`) handles `serverSeq`.
-        *   [X] Basic sequence gap detection implemented.
-        *   [X] Missing Delta Request: `requestMissingDeltas` added to transport options/interface, called by store.
-        *   [X] Reconciliation via `recomputeOptimisticState` confirmed.
-        *   [X] Rejection Handling: `rejectPendingMutation` added and called on timeout/error.
-        *   [X] Timeout Logic: Implemented via `setTimeout`/`clearTimeout`.
-    5.  **Transport Layer (`transport-websocket`)**:
-        *   [X] `clientSeq` sent by client proxy.
-        *   [X] `onAckReceived` callback added to options and called in `handleMessage`.
-        *   [X] Client creation automatically wires `store.confirmPendingMutation` to `transport.onAckReceived`. Doc note removed.
-        *   [X] `requestMissingDeltas` implemented to send `request_missing` message.
+*   **Optimistic Updates Design Outline (Completed)**: *[Details removed for brevity as feature is complete]*
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
     *   Previous FP-focused implementation (`createStore`, `RequestHandler`) will be heavily refactored or replaced to fit the new model.
     *   Project remains an npm workspace monorepo.
     *   Transports remain separate packages.
-    *   Core library `@reqdelta/core` will contain shared types, delta utilities.
+    *   Core library `@typeql/core` will contain shared types, delta utilities.
     *   `@reqdelta/server` will contain router/procedure logic.
     *   `@reqdelta/client` will contain client proxy creation and state management helpers.
     *   All documentation (Memory Bank, comments) will be in English.
-*   **Blockers**: None, but significant refactoring required.
+*   **Blockers**: None.

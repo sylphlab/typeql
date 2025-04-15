@@ -31,7 +31,7 @@
         *   [X] Refactor `createStore.ts` to basic non-optimistic version aligned with TypeQL.
         *   [X] Remove outdated `optimisticStore.ts`.
         *   [X] Created basic structure for `OptimisticStore` (`packages/core/src/client/optimisticStore.ts`) using Immer.
-        *   [ ] Ensure delta utilities are compatible.
+        *   [X] Ensure delta utilities are compatible.
 *   **Phase 2: Feature Implementation (TypeQL)**
     *   [X] Implement input validation (e.g., Zod integration in `ProcedureBuilder`).
     *   [X] Implement optimistic update mechanism (`OptimisticStore` finalized: rejection, timeout, gap recovery logic added).
@@ -44,14 +44,14 @@
     *   [ ] Create/Adapt transport adapters (`@typeql/transport-*`).
     *   [X] Set up basic `@typeql/react` package structure (`package.json`, `tsconfig.json`, `src/index.ts`). Resolved build/dependency issues using bun.
     *   [X] Implement core React hooks (`TypeQLProvider`, `useTypeQL`) in `@typeql/react`. Added `store` to context. Deprecated `useTypeQLClient`.
-    *   [X] Implement `useQuery` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, **connected to OptimisticStore updates**).
+    *   [X] Implement `useQuery` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, connected to OptimisticStore updates).
     *   [X] Implement `useMutation` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, supports optimistic options).
-    *   [X] Implement `useSubscription` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, **connected to OptimisticStore `applyServerDelta`**).
+    *   [X] Implement `useSubscription` hook in `@typeql/react`. (Refined, integrated with `useTypeQL`, connected to OptimisticStore `applyServerDelta`).
     *   [X] Set up basic `@typeql/transport-websocket` package structure.
     *   [X] Implement WebSocket transport logic (`createWebSocketTransport`) including connection, request/response correlation, subscription handling placeholders, reconnect logic, automatic resubscription, `onAckReceived` callback, and `requestMissingDeltas` method.
 *   **Phase 4: Optimization & Testing**
     *   [ ] Add comprehensive tests for TypeQL architecture (especially optimistic updates).
     *   [ ] Performance optimization.
 
-*   **Current Status**: **Design pivoted to TypeQL**. Memory Bank updated. Previous ReqDelta implementation largely needs replacement/heavy refactoring. Monorepo structure remains valid.
-*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns for state management within the TypeQL structure. **`useQuery` optimistic update integration assumes TState is compatible with TOutput - may need refinement.**
+*   **Current Status**: **Design pivoted to TypeQL**. Core optimistic update features implemented and integrated with React hooks and WebSocket transport.
+*   **Known Issues**: Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns for state management within the TypeQL structure. `useQuery` optimistic update integration assumes TState is compatible with TOutput - may need refinement. Client-side subscription handling for delta streams needs full implementation. Context passing and error handling need implementation.
