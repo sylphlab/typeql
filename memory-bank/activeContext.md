@@ -16,9 +16,13 @@
     *   Implemented client and server sequence managers (`packages/core/src/core/seqManager.ts`) and exported them.
     *   Implemented server-side update history (`packages/core/src/server/updateHistory.ts`) and exported it.
     *   Updated `progress.md`.
+    *   Server-side handler for `MissingUpdatesRequestMessage` exists in `requestHandler.ts`.
+    *   Updated Memory Bank files (`projectbrief`, `systemPatterns`, `activeContext`, `progress`) to reflect functional programming design shift.
+    *   Committed Memory Bank updates reflecting FP design shift.
+    *   Updated `progress.md` marking server-side recovery handler as implemented (pending FP review).
 *   **Next Steps**:
     *   Commit updated Memory Bank (`progress.md`, `activeContext.md`).
-    *   Implement server-side handler for `MissingUpdatesRequestMessage` (likely in `RequestHandler` or similar).
+    *   Implement client-side request logic for missing updates (gap detection and sending `MissingUpdatesRequestMessage`), likely within a store enhancer/HOC for functional style.
 *   **Active Decisions**:
     *   Project is an npm workspace monorepo.
     *   Transports are separate packages.

@@ -16,8 +16,9 @@
 *   **Phase 2: Optimistic Updates & Consistency (@reqdelta/core) - *Implement using FP style***
     *   [X] Implement sequence number management (`packages/core/src/core/seqManager.ts`) - ***Review/refactor for FP style***
     *   [X] Implement server-side update history (`packages/core/src/server/updateHistory.ts`) - ***Review/refactor for FP style***
+    *   [X] Implement server-side handler for missing updates requests (`packages/core/src/server/requestHandler.ts`) - ***Review/refactor for FP style***
     *   [ ] Implement conflict resolution strategies/interface (`packages/core/src/client/conflictResolver.ts`) - *Placeholder exists, implement functionally*
-    *   [ ] Implement update recovery mechanism (client request logic within store enhancer, server handler)
+    *   [ ] Implement client-side request logic for missing updates (within `createStore` enhancer)
 *   **Phase 3: Enhancements & Integrations (@reqdelta/core) - *Implement using FP style***
     *   [ ] Add JSON Patch support (`packages/core/src/deltas/jsonPatch.ts`) - *Implement functionally*
     *   [ ] Add integrations for Nanostores (`packages/core/src/integrations/nanostores.ts`)
@@ -33,4 +34,4 @@
     *   [ ] Performance optimization
 
 *   **Current Status**: Monorepo setup complete. Basic Phase 1 core components implemented. Memory Bank updated with optimistic update requirements. Preparing for first commit.
-*   **Known Issues**: Conflict resolution logic (`resolveConflict`) is a placeholder. Server-side update history (`updateHistory.ts`) not fully integrated/functional style. Sequence gap handling needs update queuing. `createStandardStore` convenience function not yet implemented. Build/test infrastructure not yet set up. Core components need review/refactor for functional programming style.
+*   **Known Issues**: Conflict resolution logic (`resolveConflict`) is a placeholder. Client-side recovery request logic not implemented. Sequence gap handling needs update queuing. `createStandardStore` convenience function not yet implemented. Build/test infrastructure not yet set up. Core components need review/refactor for functional programming style.
