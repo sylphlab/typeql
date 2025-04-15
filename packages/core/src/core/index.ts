@@ -5,5 +5,7 @@ export {
     setIn,
     applyStandardDelta,
     standardOperationToDelta,
-    standardMatchesPendingOperation
+    standardMatchesPendingOperation,
+    defaultCloneState
 } from './utils';
+export * from './seqManager'; // Export seq managers and types

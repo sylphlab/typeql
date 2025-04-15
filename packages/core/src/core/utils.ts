@@ -287,3 +287,34 @@ export function standardMatchesPendingOperation<Item extends { id: string }, Sta
 
     return false; // Default to no match
 }
+
+// --- State Cloning Utility ---
+
+/**
+ * Default state cloning function. Uses structuredClone if available,
+ * otherwise falls back to JSON.parse(JSON.stringify).
+ * WARN: JSON fallback does not preserve Dates, RegExps, Functions, Maps, Sets, etc.
+ * @param state The state to clone.
+ * @returns A deep copy of the state, or undefined if input is undefined.
+ */
+export const defaultCloneState = <State>(state: State | undefined): State | undefined => {
+    if (state === undefined) {
+        return undefined;
+    }
+    if (typeof structuredClone === 'function') {
+        try {
+            return structuredClone(state);
+        } catch (e) {
+             console.error("[ReqDelta] structuredClone failed:", e, "Falling back to JSON clone.");
+             // Fallback if structuredClone fails for some reason (e.g., contains functions)
+        }
+    }
+    // Basic fallback - WARNING: Doesn't handle Date, RegExp, functions, etc.
+    try {
+        return JSON.parse(JSON.stringify(state));
+    } catch(e) {
+        console.error("[ReqDelta] JSON clone failed:", e, "Returning original state (mutation risk!). Provide a custom 'cloneState' function.");
+        // If even JSON fails, return original as last resort, but warn heavily.
+        return state;
+    }
+};

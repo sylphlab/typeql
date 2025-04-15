@@ -11,9 +11,10 @@
     *   Commit all Memory Bank changes reflecting the TypeQL pivot.
     *   Created placeholder files for TypeQL server logic: `packages/core/src/server/router.ts` and `packages/core/src/server/procedure.ts`. Refactored `procedure.ts` to fix TS errors and improve builder structure.
 *   **Next Steps**:
-    *   Update `progress.md` reflecting placeholder file creation/fixing.
-    *   Commit updated Memory Bank (`activeContext.md`, `progress.md`).
-    *   Begin fleshing out the implementation of `createRouter` and `procedure` builders in the newly created server files, focusing on the type inference and core builder logic.
+    *   Refined and confirmed the core implementation of `ProcedureBuilder` in `packages/core/src/server/procedure.ts`. Generic type propagation is working as intended.
+    *   Update `progress.md` reflecting the completion of the initial procedure builder implementation.
+    *   Commit changes to `procedure.ts` and Memory Bank.
+    *   Next major step: Plan and potentially implement input/output validation/parsing (e.g., using Zod) within the procedure builder (`.input()`, `.output()`, `.subscriptionOutput()`).
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.

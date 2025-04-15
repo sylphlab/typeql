@@ -16,8 +16,8 @@
 *   **Phase 1: TypeQL Core Implementation**
     *   **Server (`@typeql/server` - or refactor `@reqdelta/server`)**
         *   [X] Define core router/procedure building blocks (`createRouter`, `query`, `mutation`, `subscription`) - *Placeholder files created and corrected (`router.ts`, `procedure.ts`)*
-        *   [ ] Implement type inference mechanism for procedures.
-        *   [ ] Implement basic request handling logic based on procedure type.
+        *   [X] Implement core type inference mechanism for procedures (`packages/core/src/server/procedure.ts` - `ProcedureBuilder` refined).
+        *   [ ] Implement basic request handling logic based on procedure type (in `router.ts` likely).
         *   [ ] Implement subscription mechanism focusing on delta stream generation.
     *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
         *   [ ] Implement `createClient` function to generate typed proxy from server router type.

@@ -12,5 +12,24 @@ export function createClientSequenceManager() {
     };
 }
 
-// Placeholder for potential server-side sequence management if needed in core
-// export function createServerSequenceManager() { ... }
+/**
+ * Creates a manager for server-side sequence numbers.
+ * This provides a simple global counter. A more complex implementation
+ * might manage sequences per topic.
+ * @param initialSeq The sequence number to start from (default: 0).
+ */
+export function createServerSequenceManager(initialSeq: number = 0) {
+    let serverSeq = initialSeq;
+    return {
+        /** Gets the next available server sequence number. */
+        getNext: () => ++serverSeq,
+        /** Gets the current highest assigned server sequence number. */
+        getCurrent: () => serverSeq,
+        /** Resets the sequence number (e.g., for testing or specific scenarios). */
+        reset: (newStart: number = 0) => { serverSeq = newStart; },
+    };
+}
+
+// Export types for convenience
+export type ClientSequenceManager = ReturnType<typeof createClientSequenceManager>;
+export type ServerSequenceManager = ReturnType<typeof createServerSequenceManager>;

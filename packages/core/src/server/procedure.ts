@@ -249,6 +249,4 @@ console.log("packages/core/src/server/procedure.ts loaded");
 // --- End Builder Logic ---
 
 
-console.log("packages/core/src/server/procedure.ts loaded");
-
 // Removed deprecated code block
