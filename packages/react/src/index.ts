@@ -5,6 +5,8 @@
 import React, { createContext, useContext, useMemo } from 'react';
 // Correct import paths using workspace alias
 import { createClient, AnyRouter } from '@typeql/core'; // Import AnyRouter type as well
+// Import necessary types from @typeql/core for subscription hook
+import type { SubscriptionHandlers, UnsubscribeFn, SubscriptionDataMessage } from '@typeql/core';
 
 // --- Context ---
 
@@ -205,9 +207,121 @@ function useMutation<
     return { mutate, isLoading, error, data };
 }
 
+// --- Subscription Hook (Basic Implementation) ---
 
-console.log("@typeql/react basic context, hook, and useQuery/useMutation loaded.");
+// Helper type to extract subscription procedures
+type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput, handlers: any) => any } ? TInput : never;
+// How to infer the TOutput (data type) from the handlers? This is tricky.
+// Maybe require explicit TOutput generic or infer from onData handler?
+// For now, let's assume the caller knows the output type or use `unknown`.
+// type inferSubscriptionOutput<TProcedure> = ???
+
+/**
+ * Basic hook to subscribe to a TypeQL subscription.
+ */
+// Removed export keyword
+function useSubscription<
+    TRouter extends AnyRouter,
+    TProcedure extends /* Lookup procedure type */ any,
+    TInput = inferSubscriptionInput<TProcedure>,
+    TOutput = unknown // Placeholder for data type
+>(
+    procedure: TProcedure,
+    input: TInput,
+    handlers: { // Pass handlers directly
+        onData: (data: TOutput) => void;
+        onError?: (error: Error) => void;
+        onEnd?: () => void;
+    },
+    options?: { enabled?: boolean }
+): {
+    status: 'idle' | 'subscribing' | 'subscribed' | 'error' | 'ended';
+    error: Error | null;
+} {
+    const client = useTypeQLClient<TRouter>();
+    const [status, setStatus] = React.useState<'idle' | 'subscribing' | 'subscribed' | 'error' | 'ended'>(
+        options?.enabled !== false ? 'subscribing' : 'idle'
+    );
+    const [error, setError] = React.useState<Error | null>(null);
+
+    // Memoize handlers to prevent unnecessary re-subscriptions if they are defined inline
+    const stableHandlers = React.useRef(handlers);
+    React.useEffect(() => {
+        stableHandlers.current = handlers;
+    }, [handlers]);
+
+    // Serialize input for dependency array
+    const inputKey = useMemo(() => {
+        try {
+            return JSON.stringify(input);
+        } catch {
+            return String(input); // Fallback
+        }
+    }, [input]);
+
+    React.useEffect(() => {
+        if (options?.enabled === false) {
+            setStatus('idle');
+            setError(null);
+            return; // Do nothing if not enabled
+        }
+
+        setStatus('subscribing');
+        setError(null);
+
+        // Ensure SubscriptionHandlers type is correctly used
+        const subscriptionHandlers: SubscriptionHandlers = {
+            onData: (message: SubscriptionDataMessage) => { // Explicitly type message
+                // Assuming message.data is the actual payload
+                if (status !== 'subscribed') setStatus('subscribed'); // Move to subscribed on first data
+                stableHandlers.current.onData(message.data as TOutput); // Access message.data
+            },
+            onError: (err) => { // Error object from typeql/core might be { message: string; code?: string }
+                const errorObj = err instanceof Error ? err : new Error(String(err.message || 'Subscription error'));
+                setError(errorObj);
+                setStatus('error');
+                stableHandlers.current.onError?.(errorObj);
+            },
+            onEnd: () => {
+                setStatus('ended');
+                stableHandlers.current.onEnd?.();
+            },
+            // onStart: () => setStatus('subscribed'), // Potentially use onStart if transport provides it
+        };
+
+        let unsubscribe: UnsubscribeFn = () => {}; // Initialize with empty function
+
+        try {
+            const subscribeFn = (procedure as any)?.subscribe;
+            if (typeof subscribeFn !== 'function') {
+                 throw new Error("Invalid procedure object passed to useSubscription.");
+            }
+            // Call subscribe and store the cleanup function
+            unsubscribe = subscribeFn(input, subscriptionHandlers);
+             // Consider moving setStatus('subscribed') here if transport confirms start immediately,
+             // otherwise wait for first onData. For now, wait for onData.
+        } catch (err: any) {
+             const errorObj = err instanceof Error ? err : new Error(String(err));
+             setError(errorObj);
+             setStatus('error');
+             stableHandlers.current.onError?.(errorObj);
+        }
+
+        // Cleanup function for the effect
+        return () => {
+            setStatus('idle'); // Reset status on unmount or dependency change
+            setError(null);
+            unsubscribe(); // Call the unsubscribe function returned by transport.subscribe
+        };
+
+    }, [procedure, inputKey, options?.enabled]); // Re-subscribe if procedure or input changes
+
+    return { status, error };
+}
+
+
+console.log("@typeql/react basic context, hook, and useQuery/useMutation/useSubscription loaded.");
 
 // Export the provider and hook
-export { TypeQLProvider, useTypeQLClient, useQuery, useMutation };
+export { TypeQLProvider, useTypeQLClient, useQuery, useMutation, useSubscription };
 // Context itself is usually not exported directly

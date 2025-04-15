@@ -42,7 +42,7 @@
     *   [X] Implement core React hooks (`TypeQLProvider`, `useTypeQLClient`) in `@typeql/react`.
     *   [X] Implement basic `useQuery` hook in `@typeql/react`.
     *   [X] Implement basic `useMutation` hook in `@typeql/react`.
-    *   [ ] Implement `useSubscription` hook.
+    *   [X] Implement basic `useSubscription` hook in `@typeql/react`.
 *   **Phase 4: Optimization & Testing**
     *   [ ] Add comprehensive tests for TypeQL architecture.
     *   [ ] Performance optimization.
