@@ -20,10 +20,12 @@
     *   Fixed resulting TypeScript errors in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, and `updateHistory.ts` after TypeQL type refactoring.
     *   Integrated the `TypeQLTransport` interface into the client proxy (`packages/core/src/client/client.ts`).
     *   Refined `SubscriptionManager` and `createRequestHandler`.
-    *   Set up the `@typeql/react` package: created directory, `package.json`, `tsconfig.json`, placeholder `src/index.ts`. Added to root `package.json` workspaces. Created `tsconfig.base.json`. Fixed core `tsconfig.json` (`composite: true`). Renamed `@reqdelta/core` to `@typeql/core` in its `package.json`. Successfully ran `bun install` after resolving workspace issues.
-    *   Update `progress.md` and `techContext.md` reflecting react package setup.
+    *   Set up the `@typeql/react` package and resolved initial build/dependency issues.
+    *   Implemented basic React Context (`TypeQLContext`), `TypeQLProvider`, and `useTypeQLClient` hook in `@typeql/react/src/index.ts`.
+    *   Implemented basic `useQuery` hook in `@typeql/react/src/index.ts`, including state management and effect handling. (Note: Path inference/validation and dependency serialization need refinement).
+    *   Update `progress.md` and `techContext.md`.
     *   Commit changes.
-    *   Next major step: Start implementing basic React Context/Provider and `useTypeQLClient` hook in `@typeql/react`.
+    *   Next major step: Implement `useMutation` and `useSubscription` hooks in `@typeql/react`. Refine `useQuery` dependency management. Define a concrete transport implementation.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.

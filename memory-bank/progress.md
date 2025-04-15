@@ -38,8 +38,11 @@
     *   [ ] Implement error handling and propagation.
 *   **Phase 3: Transport Adapters & Integrations**
     *   [ ] Create/Adapt transport adapters (`@typeql/transport-*`).
-    *   [X] Set up basic `@typeql/react` package structure (`package.json`, `tsconfig.json`, `src/index.ts`).
-    *   [ ] Implement core React hooks (`TypeQLProvider`, `useTypeQLClient`, etc.).
+    *   [X] Set up basic `@typeql/react` package structure (`package.json`, `tsconfig.json`, `src/index.ts`). Resolved build/dependency issues using bun.
+    *   [X] Implement core React hooks (`TypeQLProvider`, `useTypeQLClient`) in `@typeql/react`.
+    *   [X] Implement basic `useQuery` hook in `@typeql/react`.
+    *   [ ] Implement `useMutation` hook.
+    *   [ ] Implement `useSubscription` hook.
 *   **Phase 4: Optimization & Testing**
     *   [ ] Add comprehensive tests for TypeQL architecture.
     *   [ ] Performance optimization.
