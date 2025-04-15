@@ -1,40 +1,39 @@
-# System Patterns for ReqDelta
+# System Patterns for ReqDelta (tRPC-Inspired)
 
-*   **Core Pattern**: Request/Response for initial state, Publish/Subscribe for incremental updates, leveraging Functional Programming principles (pure functions, immutable data, composition).
+*   **Core Pattern**: End-to-end typesafe API leveraging TypeScript inference, inspired by tRPC. Focus on Queries, Mutations, and **Incremental Delta Subscriptions**.
+*   **Server Architecture (`@reqdelta/server`)**:
+    *   **Routers**: Define API structure using nested routers (`createRouter`).
+    *   **Procedures**: Define endpoints within routers as `query`, `mutation`, or `subscription` procedures.
+        *   Procedures are TypeScript functions acting as resolvers.
+        *   Input types inferred or validated (e.g., using Zod).
+        *   Output types inferred from return values.
+    *   **`query`**: Returns data snapshot.
+    *   **`mutation`**: Executes action, returns result. Can trigger backend processes that generate deltas.
+    *   **`subscription`**: Returns an observable/async iterator that yields an *initial state* (optional) followed by a stream of *incremental delta updates*. Server logic connects backend change events to delta generation.
+    *   **Context**: Procedures receive request context (e.g., user info).
+    *   **AppRouter Type Export**: The final merged router's *type* (`AppRouter = typeof appRouter;`) is exported for the client.
+*   **Client Architecture (`@reqdelta/client`)**:
+    *   **Client Proxy**: Created using `createClient<AppRouter>({...})`, importing only the *type* of the server's AppRouter.
+    *   **Typed Proxy Object**: Provides a fully typed object mirroring the server router structure (e.g., `client.todos.list.query()`, `client.todos.add.mutate(...)`, `client.todos.onUpdate.subscribe(...)`).
+    *   **`query` Call**: Fetches data via transport.
+    *   **`mutate` Call**: Executes mutation via transport. Supports `optimisticUpdate` option for local state modification.
+    *   **`subscribe` Call**: Initiates subscription via transport. Returns an object providing access to potential initial data and an observable/async iterator for the **delta stream**.
+    *   **State Management / Delta Application**: Client needs mechanisms (e.g., hooks like `useReqDeltaSubscription`, helper functions) to manage local state (`confirmedState`, `optimisticState`) and apply incoming deltas using `applyDelta`. Optimistic updates are reconciled automatically when corresponding deltas arrive.
 *   **Transport Abstraction**:
-    *   Core library defines a minimal `Transport` interface.
-    *   Specific transport implementations (WebSocket, postMessage, HTTP, etc.) are provided as separate npm packages (e.g., `reqdelta-transport-websocket`).
-    *   Users can provide their own custom `Transport` implementations.
-*   **Core Transport Interface**:
-    ```typescript
-    export interface Transport {
-      sendMessage(payload: any): Promise<void> | void;
-      onMessage(callback: (payload: any) => void): (() => void) | void; // Returns an optional cleanup function
-    }
-    ```
-*   **Message Structure**: Standardized message types defined in `@reqdelta/core` (`packages/core/src/core/types.ts`). Includes `request`, `response`, `subscribe`, `unsubscribe`, `update` with fields like `type`, `id`, `topic`, `payload`, `error`, `delta`.
-*   **State Management (Client)**: Client-side store (`createStore` factory function in `@reqdelta/core`) built using functional composition (higher-order functions/enhancers like `withTransport`, `withDeltaHandling`, `withOptimisticUpdates`). Core manages immutable state. Integration adapters planned.
-*   **Subscription Management (Server)**: Server-side manager (`SubscriptionManager` in `@reqdelta/core`) tracks client subscriptions per topic and dispatches updates. Designed functionally.
-*   **Delta Strategies**:
-    *   Provides standard delta types (`StandardDelta`) and a pure function `applyStandardDelta` within `@reqdelta/core`.
-    *   Supports custom application-specific deltas and application logic via function parameters.
-    *   JSON Patch support planned.
-*   **Type Safety**: Leverage TypeScript generics and direct type usage (no separate schema language) within `@reqdelta/core` for end-to-end type safety.
-*   **Optimistic Updates Pattern (Functional)**:
-    *   Implemented via a higher-order function/enhancer (`withOptimisticUpdates`).
-    *   Maintains immutable `confirmedState` and derives `optimisticState` by applying pending operations.
-    *   **Snapshotting**: State snapshots can be captured conceptually before applying optimistic deltas (though the functional approach might manage this via closures or state history).
-    *   **Pending Queue**: Store pending operations (with relevant info like `clientSeq`, original operation, potentially `operationToDelta` function) internally.
-    *   **Rollback/Rebase**: On server rejection or conflicting server update, recalculate `optimisticState` from `confirmedState` and remaining pending operations.
-    *   **Confirmation**: When server confirms (`ack`), update `confirmedState` using `applyDelta` and remove the operation from the pending queue.
-*   **Sequence ID Management**:
-    *   **Client**: Maintains a monotonically increasing `clientSeq` for optimistic updates sent to the server.
-    *   **Server**: Maintains a globally (or per-topic) monotonically increasing `serverSeq` assigned to successfully processed and ordered updates.
-    *   **Messages**: Client optimistic updates include `clientSeq`. Server `ack` messages include `clientSeq` (for correlation) and `serverSeq`. Server `update` messages include `serverSeq` and `prevServerSeq`.
-*   **Conflict Resolution**:
-    *   **Detection**: Conflicts detected based on server logic (e.g., state mismatch, business rules) upon receiving a client's optimistic update. Also detected by client if `serverSeq` gap occurs.
-    *   **Strategies**: Configurable resolution (e.g., client-wins, server-wins, last-write-wins based on timestamp, custom function). Interface defined in `@reqdelta/core`. Default strategy TBD (likely server-wins or error).
-*   **Data Consistency & Recovery**:
-    *   **Gap Detection**: Client detects missing updates by comparing incoming `update.prevServerSeq` with its last known `serverSeq`.
-    *   **Recovery Request**: Client sends a specific message requesting updates within a `serverSeq` range.
-    *   **Server History**: Server maintains a configurable buffer (`UpdateHistory`) of recent `update` messages to serve recovery requests.
+    *   Core library defines `Transport` interface or similar link concept.
+    *   Separate transport packages (`@reqdelta/transport-*`) implement specific protocols (WebSocket preferred for subscriptions).
+    *   Handles message serialization/deserialization and routing procedure calls.
+*   **Type Safety**: Relies entirely on TypeScript inference from the server router definition. No code generation needed.
+*   **Delta Strategy**:
+    *   Core provides `StandardDelta` types and `applyStandardDelta` helper.
+    *   Server procedures are responsible for generating appropriate deltas based on backend changes.
+    *   Client uses `applyDelta` (default or custom) to merge deltas into local state.
+*   **Optimistic Updates**:
+    *   Client calls `mutate` with an `optimisticUpdate` function.
+    *   This function calculates and applies a *predicted delta* locally.
+    *   Server processes mutation, generates actual delta(s), pushes via subscription.
+    *   Client receives actual delta(s), applies them via `applyDelta`, automatically reconciling/overwriting the optimistic state. Conflict resolution logic needed if optimistic prediction differs significantly from server outcome (TBD).
+*   **Data Consistency (Subscriptions)**:
+    *   Delta messages include `serverSeq` and `prevServerSeq`.
+    *   Client detects gaps and requests missing deltas via a dedicated mechanism/procedure call.
+    *   Server maintains history buffer to serve missing deltas.

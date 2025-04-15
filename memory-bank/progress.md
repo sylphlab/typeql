@@ -1,37 +1,44 @@
-# Progress for ReqDelta (Monorepo)
+# Progress for TypeQL (formerly ReqDelta) - **DESIGN PIVOT**
 
-*   **Phase 1: Core Functionality (@reqdelta/core) - *Refactor planned for FP style***
-    *   [X] Implement basic message types (`packages/core/src/core/types.ts`)
-    *   [X] Implement basic `Transport` interface (`packages/core/src/core/types.ts`)
-    *   [X] Implement basic client `createStore` (`packages/core/src/client/createStore.ts`) - ***To be refactored using FP style (HOCs/composition)***
-    *   [X] Implement server `SubscriptionManager` (`packages/core/src/server/subscriptionManager.ts`) - ***Review/refactor for FP style***
-    *   [X] Implement server `RequestHandler` (`packages/core/src/server/requestHandler.ts`) - ***Review/refactor for FP style***
-    *   [X] Implement simple `generateId` util (`packages/core/src/core/utils.ts`)
-    *   [X] Create index export files (`packages/core/src/index.ts`, etc.)
-    *   [X] Setup basic monorepo structure (root `package.json`, `packages/core/package.json`)
-    *   [X] Setup basic core build process (`packages/core/tsconfig.json`)
-    *   [X] Add Standard Delta/Operation types (`packages/core/src/core/types.ts`)
-    *   [X] Add Standard Delta utilities (`getIn`, `setIn`, `applyStandardDelta`, `standardOperationToDelta`, `standardMatchesPendingOperation`, `defaultCloneState`) (`packages/core/src/core/utils.ts`)
-    *   [X] Refactor `createStore` to include Optimistic Update logic (`packages/core/src/client/createStore.ts`) - ***To be refactored using FP style***
-*   **Phase 2: Optimistic Updates & Consistency (@reqdelta/core) - *Implement using FP style***
-    *   [X] Implement sequence number management (`packages/core/src/core/seqManager.ts`) - ***Review/refactor for FP style***
-    *   [X] Implement server-side update history (`packages/core/src/server/updateHistory.ts`) - ***Review/refactor for FP style***
-    *   [X] Implement server-side handler for missing updates requests (`packages/core/src/server/requestHandler.ts`) - ***Review/refactor for FP style***
-    *   [ ] Implement conflict resolution strategies/interface (`packages/core/src/client/conflictResolver.ts`) - *Placeholder exists, implement functionally*
-    *   [ ] Implement client-side request logic for missing updates (within `createStore` enhancer)
-*   **Phase 3: Enhancements & Integrations (@reqdelta/core) - *Implement using FP style***
-    *   [ ] Add JSON Patch support (`packages/core/src/deltas/jsonPatch.ts`) - *Implement functionally*
-    *   [ ] Add integrations for Nanostores (`packages/core/src/integrations/nanostores.ts`)
-    *   [ ] Add integrations for Redux (`packages/core/src/integrations/redux.ts`)
-    *   [ ] Improve error handling and reconnection logic
-*   **Phase 4: Transport Adapters & Optimization**
-    *   [ ] Create `@reqdelta/transport-vscode` package (`packages/transport-vscode`)
-    *   [ ] Create `@reqdelta/transport-websocket` package (`packages/transport-websocket`)
-    *   [ ] Create `@reqdelta/transport-http` package (`packages/transport-http`)
-    *   [ ] Implement batch updates
-    *   [ ] Implement update compression
-    *   [ ] Add comprehensive tests
-    *   [ ] Performance optimization
+*   **Phase 0: Initial ReqDelta Implementation (Largely Superseded)**
+    *   [X] Basic message types (`packages/core/src/core/types.ts`) - *Likely adaptable*
+    *   [X] Basic `Transport` interface (`packages/core/src/core/types.ts`) - *Likely adaptable*
+    *   [X] Basic client `createStore` (`packages/core/src/client/createStore.ts`) - ***To be replaced by TypeQL client logic***
+    *   [X] Server `SubscriptionManager` (`packages/core/src/server/subscriptionManager.ts`) - ***To be replaced/refactored for TypeQL subscriptions***
+    *   [X] Server `RequestHandler` (`packages/core/src/server/requestHandler.ts`) - ***To be replaced by TypeQL router/procedure logic***
+    *   [X] `generateId` util (`packages/core/src/core/utils.ts`) - *Likely reusable*
+    *   [X] Monorepo structure setup - *Still valid*
+    *   [X] Core build process (`packages/core/tsconfig.json`) - *Still valid*
+    *   [X] Standard Delta/Operation types (`packages/core/src/core/types.ts`) - *Adaptable*
+    *   [X] Standard Delta utilities (`applyStandardDelta`, etc.) (`packages/core/src/core/utils.ts`) - *Likely reusable*
+    *   [X] Sequence number management (`packages/core/src/core/seqManager.ts`) - *Adaptable for delta subscriptions*
+    *   [X] Server-side update history (`packages/core/src/server/updateHistory.ts`) - *Adaptable for delta subscriptions*
+*   **Phase 1: TypeQL Core Implementation**
+    *   **Server (`@typeql/server` - or refactor `@reqdelta/server`)**
+        *   [ ] Define core router/procedure building blocks (`createRouter`, `query`, `mutation`, `subscription`).
+        *   [ ] Implement type inference mechanism for procedures.
+        *   [ ] Implement basic request handling logic based on procedure type.
+        *   [ ] Implement subscription mechanism focusing on delta stream generation.
+    *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
+        *   [ ] Implement `createClient` function to generate typed proxy from server router type.
+        *   [ ] Implement basic `query`, `mutate`, `subscribe` call logic via transport.
+        *   [ ] Implement client-side subscription handling for delta streams.
+    *   **Core (`@typeql/core` - or keep `@reqdelta/core`)**
+        *   [ ] Refine shared types (messages might change significantly).
+        *   [ ] Ensure delta utilities are compatible.
+*   **Phase 2: Feature Implementation (TypeQL)**
+    *   [ ] Implement optimistic update mechanism on client `mutate` calls.
+    *   [ ] Implement delta reconciliation logic on client.
+    *   [ ] Implement data consistency/recovery for delta subscriptions (using seq numbers).
+    *   [ ] Implement input validation (e.g., Zod integration).
+    *   [ ] Implement context passing for server procedures.
+    *   [ ] Implement error handling and propagation.
+*   **Phase 3: Transport Adapters & Integrations**
+    *   [ ] Create/Adapt transport adapters (`@typeql/transport-*`).
+    *   [ ] Create client-side integration helpers/hooks (e.g., `@typeql/react`).
+*   **Phase 4: Optimization & Testing**
+    *   [ ] Add comprehensive tests for TypeQL architecture.
+    *   [ ] Performance optimization.
 
-*   **Current Status**: Monorepo setup complete. Basic Phase 1 core components implemented. Memory Bank updated with optimistic update requirements. Preparing for first commit.
-*   **Known Issues**: Conflict resolution logic (`resolveConflict`) is a placeholder. Client-side recovery request logic not implemented. Sequence gap handling needs update queuing. `createStandardStore` convenience function not yet implemented. Build/test infrastructure not yet set up. Core components need review/refactor for functional programming style.
+*   **Current Status**: **Design pivoted to TypeQL**. Memory Bank updated. Previous ReqDelta implementation largely needs replacement/heavy refactoring. Monorepo structure remains valid.
+*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. Conflict resolution details TBD.

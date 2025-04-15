@@ -1,18 +1,19 @@
-# ReqDelta: ReqRes + PubSub Incremental Update Library Design
+# TypeQL (formerly ReqDelta): TypeScript-First Realtime API Framework
 
 ## Core Concept
-ReqDelta is a transport-agnostic TypeScript library designed to standardize the communication pattern for Request/Response initial state fetching and Publish/Subscribe incremental updates.
+TypeQL is a transport-agnostic TypeScript framework providing end-to-end typesafe APIs, inspired by GraphQL's capabilities but built entirely on TypeScript types and inference, eliminating the need for schema definition languages or code generation. It focuses on Query, Mutation, and **realtime, incremental Delta Subscription** operations.
 
 ## Main Features
-*   **Transport Agnostic**: Supports any communication protocol (WebSocket, postMessage, HTTP, etc.).
-*   **Unified Message Types**: Standardizes message formats for requests, responses, subscriptions, and incremental updates.
-*   **Type Safety**: Leverages TypeScript generics for end-to-end type safety.
-*   **State Management Integration**: Designed for integration with popular state management libraries (e.g., Nanostores, Redux).
-*   **Optimistic Updates**: Built-in support for client-side optimistic updates (functional style) with rollback and conflict resolution.
-*   **Conflict Resolution**: Manages concurrency conflicts using Sequence IDs and timestamps with configurable strategies.
-*   **Data Consistency**: Includes mechanisms for detecting and recovering lost updates.
-*   **Functional Style**: Encourages a functional programming style with pure functions and immutable data.
-*   **Convenience Helpers**: Provides standard delta types and utility functions for common use cases.
+*   **TypeScript as Schema**: Uses TypeScript types directly (`typeOf<T>()` or similar) to define data structures and API contracts.
+*   **End-to-End Type Safety**: Automatically inferred types from server API definition (`createService`) to client proxy (`createTypeQLClient`), ensuring compile-time safety.
+*   **Code-First API Definition**: Define backend APIs (`queries`, `mutations`, `subscriptions`) using declarative TypeScript functions (`query()`, `mutation()`, `subscription()`) and standard function resolvers.
+*   **Incremental Delta Subscriptions**: Subscription procedures are specifically designed to return an observable stream of **granular delta updates** (after an optional initial state), enabling efficient real-time synchronization.
+*   **Optimistic Updates**: Integrated client-side mechanism for `mutation` calls, allowing local state updates that are automatically reconciled by subsequent delta subscription updates.
+*   **Transport Agnostic**: Core logic is decoupled from the transport layer (WebSocket, HTTP, etc.) via adapters.
+*   **Plugin Architecture (Conceptual)**: Features like delta types, optimistic update helpers, caching, and transport layers can be composed or configured.
+*   **Simplified DX**: Aims for a developer experience superior to GraphQL within the TypeScript ecosystem, avoiding common pain points like schema definition and code generation.
+*   **Standard Delta Utilities**: Core library provides standard delta types (`StandardDelta`) and application logic (`applyStandardDelta`).
+*   **Data Consistency**: Includes sequence number mechanisms for detecting and recovering lost delta updates in subscriptions.
 
 ## System Architecture
 1.  **Core Layer**
