@@ -12,7 +12,8 @@
   "license": "ISC",
   "workspaces": [
     "packages/*",
-    "packages/react"
+    "packages/react",
+    "packages/transport-websocket"
   ],
   "devDependencies": {
     "@types/node": "^22.14.1",

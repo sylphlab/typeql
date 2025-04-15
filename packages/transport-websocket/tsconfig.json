@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "lib": ["ESNext"], // Suitable for Node.js/browser WebSocket usage
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../core" } // Reference the core package
+  ]
+}

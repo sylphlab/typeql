@@ -43,6 +43,7 @@
     *   [X] Implement basic `useQuery` hook in `@typeql/react`.
     *   [X] Implement basic `useMutation` hook in `@typeql/react`.
     *   [X] Implement basic `useSubscription` hook in `@typeql/react`.
+    *   [X] Set up basic `@typeql/transport-websocket` package structure (`package.json`, `tsconfig.json`, `src/index.ts`).
 *   **Phase 4: Optimization & Testing**
     *   [ ] Add comprehensive tests for TypeQL architecture.
     *   [ ] Performance optimization.
