@@ -1,55 +1,118 @@
 // packages/core/src/server/router.ts
 
-// Placeholder for router creation logic
-// Inspired by tRPC's router structure
+// packages/core/src/server/router.ts
 
-export type AnyRouter = Record<string, any>; // Very basic placeholder
+import type { AnyProcedure, ProcedureContext } from './procedure';
 
-export interface RouterDef<TContext, TMeta> {
-    // Placeholder structure
+// --- Router Definition ---
+
+/** Record map of procedures or nested routers */
+export type ProcedureRouterRecord = Record<string, AnyProcedure | AnyRouter>;
+
+/** Internal definition of a router */
+export interface RouterDef<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> {
     _def: {
         router: true;
-        procedures: Record<string, any>; // Placeholder for procedure definitions
-        inputs: Record<string, any>;
-        outputs: Record<string, any>;
-        meta?: TMeta;
-        context?: TContext;
+        procedures: TRecord; // Store the actual procedures/nested routers
+        // contextMarker?: TContext; // Marker for context type inference
+        // meta?: TMeta; // Placeholder for metadata
     };
+    // // These markers might not be strictly necessary if client inference works via router structure
+    // _ctx_in?: TContext;
+    // // _meta_in?: TMeta;
 }
+
+/** Represents any router instance */
+export type AnyRouter = Router<any, any>;
 
 
 /**
- * Placeholder for creating a TypeQL router.
- * Merges multiple routers or defines procedures.
+ * The main router class/object.
+ * Holds the definition containing procedures and context type.
  */
-export function createRouter<
-    TContext = any, // Placeholder for context type
-    TMeta = any      // Placeholder for metadata type
->(): { /* Placeholder for router builder methods */ define: (procedures: Record<string, any>) => RouterDef<TContext, TMeta> } {
-    console.log("[TypeQL Server] Initializing router builder...");
-    // Actual implementation will involve merging procedures, handling middleware etc.
-    return {
-        define: (procedures) => {
-            console.log("[TypeQL Server] Defining procedures within router...");
-            return {
-                _def: {
-                    router: true,
-                    procedures,
-                    inputs: {}, // To be populated
-                    outputs: {}, // To be populated
-                    meta: undefined,
-                    context: undefined,
-                }
-            } as unknown as RouterDef<TContext, TMeta>; // Placeholder cast
-        }
-        // Placeholder for .merge(), .middleware(), etc.
+class Router<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> {
+    // Expose the internal definition for type inference
+    public readonly _def: RouterDef<TContext, TRecord>['_def'];
+
+    constructor(def: RouterDef<TContext, TRecord>['_def']) {
+        this._def = def;
+    }
+
+    // Potential future methods:
+    // merge(...routers: AnyRouter[]): AnyRouter;
+    // middleware(...middlewares: any[]): Router<TContext, TRecord>;
+}
+
+// --- Router Creation ---
+
+// We don't need a complex builder like procedures initially.
+// A simple function to define procedures is sufficient for now.
+
+/**
+ * Creates a TypeQL router.
+ * Define procedures directly within the passed object.
+ *
+ * @example
+ * const userRouter = createRouter<MyContext>()({
+ *   getUser: t.query.input(..).resolve(..),
+ *   updateUser: t.mutation.input(..).resolve(..),
+ * });
+ *
+ * const appRouter = createRouter<MyContext>()({
+ *   user: userRouter, // Nest routers
+ *   health: t.query.resolve(() => 'ok'),
+ * });
+ *
+ * export type AppRouter = typeof appRouter; // Export type for client
+ */
+export function createRouter<TContext extends ProcedureContext>(): <TRecord extends ProcedureRouterRecord>(
+    procedures: TRecord
+) => Router<TContext, TRecord> {
+    console.log("[TypeQL Server] Router factory created.");
+    return <TRecord extends ProcedureRouterRecord>(procedures: TRecord): Router<TContext, TRecord> => {
+        console.log("[TypeQL Server] Defining router procedures...");
+        const def: RouterDef<TContext, TRecord>['_def'] = {
+            router: true,
+            procedures: procedures,
+        };
+        return new Router<TContext, TRecord>(def);
     };
 }
 
-/**
- * Placeholder type for the final application router.
- * Client imports this type ONLY.
- */
-export type AppRouter = RouterDef<any, any>; // Placeholder
+// Example usage (for illustration)
+/*
+import { initTypeQL } from './procedure';
+import * as z from 'zod';
+
+interface MyContext extends ProcedureContext { isAdmin: boolean }
+const t = initTypeQL<MyContext>();
+
+const healthCheckProcedure = t.query.resolve(() => ({ status: 'ok', timestamp: Date.now() }));
+
+const itemRouter = createRouter<MyContext>()({
+  get: t.query
+    .input(z.object({ id: z.string() }))
+    .resolve(({ input }) => ({ id: input.id, name: `Item ${input.id}` })),
+  list: t.query
+    .resolve(() => [{ id: '1', name: 'Item 1' }, { id: '2', name: 'Item 2' }]),
+});
+
+const mainRouter = createRouter<MyContext>()({
+  health: healthCheckProcedure,
+  item: itemRouter, // Nested router
+  adminOnly: t.query.resolve(({ ctx }) => {
+    if (!ctx.isAdmin) throw new Error("Unauthorized");
+    return { secret: 'data' };
+  }),
+});
+
+// This is the type the client would import
+export type AppRouter = typeof mainRouter;
+
+// Verify types (compile-time check)
+const procedures = mainRouter._def.procedures;
+const itemProcedures = procedures.item._def.procedures;
+const getItemInputSchema = itemProcedures.get._def.inputSchema; // Should exist and be Zod schema
+*/
 
 console.log("packages/core/src/server/router.ts loaded");

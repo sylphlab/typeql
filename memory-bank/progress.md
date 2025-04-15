@@ -17,7 +17,8 @@
     *   **Server (`@typeql/server` - or refactor `@reqdelta/server`)**
         *   [X] Define core router/procedure building blocks (`createRouter`, `query`, `mutation`, `subscription`) - *Placeholder files created and corrected (`router.ts`, `procedure.ts`)*
         *   [X] Implement core type inference mechanism for procedures (`packages/core/src/server/procedure.ts` - `ProcedureBuilder` refined).
-        *   [ ] Implement basic request handling logic based on procedure type (in `router.ts` likely).
+        *   [X] Implement basic router structure (`packages/core/src/server/router.ts` - `createRouter`, `Router` class).
+        *   [ ] Implement basic request handling logic based on procedure type (e.g., create handler function).
         *   [ ] Implement subscription mechanism focusing on delta stream generation.
     *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
         *   [ ] Implement `createClient` function to generate typed proxy from server router type.
