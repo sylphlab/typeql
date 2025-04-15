@@ -1,45 +1,45 @@
-# ReqDelta: ReqRes + PubSub 增量更新庫設計方案
+# ReqDelta: ReqRes + PubSub Incremental Update Library Design
 
-## 核心概念
-ReqDelta 是一個傳輸層無關的 TypeScript 庫，旨在標準化 Request/Response 初始狀態請求與 Publish/Subscribe 增量更新的通信模式。
+## Core Concept
+ReqDelta is a transport-agnostic TypeScript library designed to standardize the communication pattern for Request/Response initial state fetching and Publish/Subscribe incremental updates.
 
-## 主要特點
-*   傳輸層無關：支持任何通信協議（WebSocket、postMessage、HTTP 等）
-*   統一的消息類型：標準化請求、回應、訂閱和增量更新的消息格式
-*   類型安全：利用 TypeScript 泛型提供端到端的類型安全
-*   狀態管理整合：支持與流行的狀態管理庫（如 Nanostores、Redux 等）集成
-*   **樂觀更新 (Optimistic Updates)**：內建支持客戶端樂觀更新，提供回滾和衝突解決機制。
-*   **衝突解決 (Conflict Resolution)**：通過序列號 (Sequence IDs) 和時間戳管理並發衝突，提供可配置的解決策略。
-*   **數據一致性**：包含檢測和恢復丟失更新的機制。
+## Main Features
+*   **Transport Agnostic**: Supports any communication protocol (WebSocket, postMessage, HTTP, etc.).
+*   **Unified Message Types**: Standardizes message formats for requests, responses, subscriptions, and incremental updates.
+*   **Type Safety**: Leverages TypeScript generics for end-to-end type safety.
+*   **State Management Integration**: Designed for integration with popular state management libraries (e.g., Nanostores, Redux).
+*   **Optimistic Updates**: Built-in support for client-side optimistic updates with rollback and conflict resolution.
+*   **Conflict Resolution**: Manages concurrency conflicts using Sequence IDs and timestamps with configurable strategies.
+*   **Data Consistency**: Includes mechanisms for detecting and recovering lost updates.
 
-## 系統架構
-1.  **核心層**
-    *   類型定義：定義通用消息類型和接口
-    *   抽象傳輸接口：提供插件式通信層
-    *   通用工具類和函數：處理通用邏輯
-2.  **客戶端層**
-    *   Store 創建器：管理狀態、加載狀態和錯誤處理
-    *   增量更新處理器：應用增量更新到本地狀態
-    *   與其他庫的整合適配器：連接流行的狀態管理庫
-3.  **服務器層**
-    *   訂閱管理器：管理客戶端訂閱並派發更新
-    *   請求處理器：處理初始狀態請求
-    *   增量更新生成器：構建並發送增量更新
-4.  **傳輸層適配器 (獨立包)**
-    *   核心庫僅定義 `Transport` 接口。
-    *   具體的適配器（如 WebSocket, VSCode postMessage, HTTP）將作為獨立的 `reqdelta-transport-*` npm 包提供。
+## System Architecture
+1.  **Core Layer**
+    *   Type Definitions: Defines common message types and interfaces.
+    *   Abstract Transport Interface: Provides a pluggable communication layer.
+    *   Common Utilities: Handles generic logic and functions.
+2.  **Client Layer**
+    *   Store Creator: Manages state, loading status, and error handling.
+    *   Delta Processor: Applies incremental updates to the local state.
+    *   Integration Adapters: Connects to popular state management libraries.
+3.  **Server Layer**
+    *   Subscription Manager: Manages client subscriptions and dispatches updates.
+    *   Request Handler: Processes initial state requests.
+    *   Delta Generator: Constructs and sends incremental updates.
+4.  **Transport Adapters (Separate Packages)**
+    *   Core library only defines the `Transport` interface.
+    *   Specific adapters (e.g., WebSocket, VSCode postMessage, HTTP) will be provided as separate `reqdelta-transport-*` npm packages.
 
-## 消息格式
-1.  **請求初始狀態 (Client → Server)**
+## Message Format
+1.  **Request Initial State (Client → Server)**
     ```typescript
     {
       type: 'request',
       id: 'random-id',
       topic: 'topic-name',
-      payload?: any // 可選參數
+      payload?: any // Optional payload
     }
     ```
-2.  **響應初始狀態 (Server → Client)**
+2.  **Response Initial State (Server → Client)**
     ```typescript
     {
       type: 'response',
@@ -49,7 +49,7 @@ ReqDelta 是一個傳輸層無關的 TypeScript 庫，旨在標準化 Request/Re
       error?: string
     }
     ```
-3.  **訂閱更新 (Client → Server)**
+3.  **Subscribe to Updates (Client → Server)**
     ```typescript
     {
       type: 'subscribe',
@@ -57,7 +57,7 @@ ReqDelta 是一個傳輸層無關的 TypeScript 庫，旨在標準化 Request/Re
       topic: 'topic-name'
     }
     ```
-4.  **取消訂閱 (Client → Server)**
+4.  **Unsubscribe from Updates (Client → Server)**
     ```typescript
     {
       type: 'unsubscribe',
@@ -65,25 +65,25 @@ ReqDelta 是一個傳輸層無關的 TypeScript 庫，旨在標準化 Request/Re
       topic: 'topic-name'
     }
     ```
-5.  **增量更新 (Server → Client)**
+5.  **Incremental Update (Server → Client)**
     ```typescript
     {
       type: 'update',
       topic: 'topic-name',
-      delta: any // 增量更新數據
+      delta: any // Incremental update data
     }
     ```
 
-## 增量更新策略
-庫支持兩種主要的增量更新策略：
-*   **自定義增量更新**：特定於應用的增量更新類型，如：
+## Delta Update Strategies
+The library supports two main delta update strategies:
+*   **Custom Delta Updates**: Application-specific delta types, e.g.:
     ```typescript
     type ChatDelta =
       | { type: 'add_message'; message: Message }
       | { type: 'edit_message'; id: string; text: string }
       | { type: 'delete_message'; id: string };
     ```
-*   **JSON Patch (RFC 6902)**：Standard JSON modification format, suitable for general cases.
+*   **JSON Patch (RFC 6902)**: Standard JSON modification format, suitable for general cases.
 
 ## Optimistic Updates & Conflict Resolution
 *   **Core Mechanism**: Client maintains both a "confirmed state" and an "optimistic state". State is snapshotted before applying local updates to allow rollback on server rejection or conflict.
@@ -92,63 +92,63 @@ ReqDelta 是一個傳輸層無關的 TypeScript 庫，旨在標準化 Request/Re
 *   **Conflict Handling**: Provides configurable strategies (e.g., client-wins, server-wins, custom) and interfaces to handle conflicts between optimistic updates and server updates.
 *   **Recovery Mechanism**: Client can detect gaps in `serverSeq` and request missing updates. Server needs to maintain a history buffer of recent updates to fulfill recovery requests.
 
-## 項目結構 (Monorepo)
+## Project Structure (Monorepo)
 ```
 /
 ├── packages/
-│   ├── core/                 # @reqdelta/core 核心庫
+│   ├── core/                 # @reqdelta/core Core Library
 │   │   ├── src/
 │   │   │   ├── core/
-│   │   │   │   ├── types.ts
-│   │   │   │   └── utils.ts
+│   │   │   │   ├── types.ts         # Core type definitions
+│   │   │   │   └── utils.ts         # Common utility functions
 │   │   │   ├── client/
-│   │   │   │   ├── createStore.ts
+│   │   │   │   ├── createStore.ts   # Client state management
 │   │   │   │   └── index.ts
 │   │   │   ├── server/
-│   │   │   │   ├── subscriptionManager.ts
-│   │   │   │   ├── requestHandler.ts
+│   │   │   │   ├── subscriptionManager.ts # Subscription management
+│   │   │   │   ├── requestHandler.ts       # Request handling
 │   │   │   │   └── index.ts
 │   │   │   ├── deltas/
-│   │   │   │   ├── jsonPatch.ts
-│   │   │   │   ├── customDelta.ts
+│   │   │   │   ├── jsonPatch.ts      # JSON Patch support
+│   │   │   │   ├── customDelta.ts    # Custom delta format
 │   │   │   │   └── index.ts
-│   │   │   └── integrations/
+│   │   │   └── integrations/         # Integrations with other libraries
 │   │   │       ├── nanostores.ts
 │   │   │       ├── redux.ts
 │   │   │       └── index.ts
 │   │   ├── package.json
 │   │   └── tsconfig.json
-│   ├── transport-websocket/  # @reqdelta/transport-websocket (示例)
+│   ├── transport-websocket/  # @reqdelta/transport-websocket (Example)
 │   │   ├── src/
 │   │   ├── package.json
 │   │   └── tsconfig.json
-│   └── ...                   # 其他 transport 或集成包
+│   └── ...                   # Other transport or integration packages
 ├── examples/
-│   ├── vscode-extension/     # VSCode 擴展示例
-│   └── web-app/              # Web 應用示例
-├── package.json              # Monorepo 根 package.json (定義 workspace)
-└── tsconfig.base.json        # (可選) 基礎 tsconfig
+│   ├── vscode-extension/     # VSCode Extension Example
+│   └── web-app/              # Web App Example
+├── package.json              # Monorepo root package.json (defines workspace)
+└── tsconfig.base.json        # (Optional) Base tsconfig
 ```
 
-## 工作流程
-**客戶端初始化流程**
-1.  創建傳輸適配器實例
-2.  使用 `createStore` 創建帶有初始狀態的商店
-3.  自動請求初始狀態
-4.  自動訂閱增量更新
+## Workflow
+**Client Initialization Flow**
+1.  Create a transport adapter instance.
+2.  Create a store with initial state using `createStore`.
+3.  Automatically request initial state.
+4.  Automatically subscribe to incremental updates.
 
-**服務器初始化流程**
-1.  創建傳輸適配器實例
-2.  初始化訂閱管理器和請求處理器
-3.  註冊請求處理器以回應初始狀態請求
-4.  監聽客戶端連接和訂閱請求
+**Server Initialization Flow**
+1.  Create a transport adapter instance.
+2.  Initialize the subscription manager and request handler.
+3.  Register the request handler to respond to initial state requests.
+4.  Listen for client connections and subscription requests.
 
-**增量更新流程**
-1.  服務器檢測到數據變化
-2.  服務器創建增量更新對象
-3.  服務器使用訂閱管理器向相關訂閱客戶端發送更新
-4.  客戶端接收並應用增量更新到本地狀態
-5.  客戶端通知訂閱者狀態已更新
+**Incremental Update Flow**
+1.  Server detects data change.
+2.  Server creates an incremental update object (delta).
+3.  Server uses the subscription manager to send the update to relevant subscribed clients.
+4.  Client receives and applies the delta to its local state.
+5.  Client notifies its subscribers that the state has updated.
 
 ## Development Roadmap
 **Phase 1: Core Functionality (@reqdelta/core)**
@@ -174,9 +174,9 @@ ReqDelta 是一個傳輸層無關的 TypeScript 庫，旨在標準化 Request/Re
 *   Implement batch updates and update compression.
 *   Performance optimization and comprehensive testing.
 
-## 安裝和使用 (示例)
+## Installation and Usage (Example)
 ```bash
-# 安裝核心庫和特定 transport
+# Install the core library and a specific transport
 npm install @reqdelta/core @reqdelta/transport-websocket
 ```
 

@@ -1,2 +1,9 @@
 export * from './types';
-export * from './utils';
+export {
+    generateId,
+    getIn,
+    setIn,
+    applyStandardDelta,
+    standardOperationToDelta,
+    standardMatchesPendingOperation
+} from './utils';
