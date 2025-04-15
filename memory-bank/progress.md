@@ -15,9 +15,9 @@
     *   [X] Refactor `createStore` to include Optimistic Update logic (`packages/core/src/client/createStore.ts`)
 *   **Phase 2: Optimistic Updates & Consistency (@reqdelta/core)**
     *   [X] Implement sequence number management (`packages/core/src/core/seqManager.ts`)
-    *   [ ] Implement server-side update history (`packages/core/src/server/updateHistory.ts`)
+    *   [X] Implement server-side update history (`packages/core/src/server/updateHistory.ts`)
     *   [ ] Implement conflict resolution strategies/interface (`packages/core/src/client/conflictResolver.ts`) - *Placeholder exists*
-    *   [ ] Implement update recovery mechanism (client request, server handler)
+    *   [ ] Implement update recovery mechanism (client request in createStore, server handler)
 *   **Phase 3: Enhancements & Integrations (@reqdelta/core)**
     *   [ ] Add JSON Patch support (`packages/core/src/deltas/jsonPatch.ts`)
     *   [ ] Add integrations for Nanostores (`packages/core/src/integrations/nanostores.ts`)

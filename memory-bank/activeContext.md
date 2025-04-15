@@ -1,6 +1,6 @@
 # Active Context for ReqDelta
 
-*   **Current Focus**: Continuing Phase 2 implementation, specifically server-side update history.
+*   **Current Focus**: Continuing Phase 2 implementation, specifically the server-side handler for missing update requests.
 *   **Recent Changes**:
     *   Created initial Memory Bank files & refactored to Monorepo structure.
     *   Implemented basic Phase 1 components (`types`, `utils`, `createStore`, `SubscriptionManager`, `RequestHandler`, index files) within `@reqdelta/core`.
@@ -14,10 +14,11 @@
     *   Updated `progress.md` reflecting these additions.
     *   Committed standard delta/utils implementation and `createStore` refactor.
     *   Implemented client and server sequence managers (`packages/core/src/core/seqManager.ts`) and exported them.
+    *   Implemented server-side update history (`packages/core/src/server/updateHistory.ts`) and exported it.
     *   Updated `progress.md`.
 *   **Next Steps**:
     *   Commit updated Memory Bank (`progress.md`, `activeContext.md`).
-    *   Implement server-side update history (`packages/core/src/server/updateHistory.ts`).
+    *   Implement server-side handler for `MissingUpdatesRequestMessage` (likely in `RequestHandler` or similar).
 *   **Active Decisions**:
     *   Project is an npm workspace monorepo.
     *   Transports are separate packages.
