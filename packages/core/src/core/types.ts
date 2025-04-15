@@ -1,130 +1,145 @@
 /**
- * Represents the standardized message structure for ReqDelta communication.
- */
-export type MessageBase<T extends string, P = unknown> = {
-  /** The type of the message. */
-  type: T;
-  /** A unique identifier for request/response correlation or subscription management. */
-  id?: string;
-  /** The topic this message relates to. */
-  topic?: string;
-  /** The main data payload of the message. */
-  payload?: P;
-};
+// --- TypeQL Transport & Message Types ---
+
+/** Common structure for request/response correlation */
+interface CorrelatedMessage {
+    /** Unique ID for correlating requests and responses. */
+    id: number | string;
+}
+
+// --- Request/Response (Query/Mutation) ---
+
+/** Message sent from Client to Server for a query or mutation. */
+export interface ProcedureCallMessage extends CorrelatedMessage {
+    type: 'query' | 'mutation';
+    /** Path to the procedure (e.g., 'user.get'). */
+    path: string;
+    /** Input data for the procedure (if any). */
+    input?: unknown;
+}
+
+/** Represents a successful procedure result from the server. */
+interface ProcedureSuccessResult {
+    type: 'data';
+    /** The data returned by the procedure. */
+    data: unknown;
+}
+
+/** Represents an error result from the server. */
+interface ProcedureErrorResult {
+    type: 'error';
+    /** Error details. */
+    error: {
+        message: string;
+        code?: string; // e.g., 'BAD_REQUEST', 'UNAUTHORIZED', 'INTERNAL_SERVER_ERROR'
+        // path?: string; // Optional path where error occurred
+        // stack?: string; // Optional stack trace in dev
+    };
+}
+
+/** Message sent from Server to Client with the result of a query or mutation. */
+export interface ProcedureResultMessage extends CorrelatedMessage {
+    result: ProcedureSuccessResult | ProcedureErrorResult;
+}
+
+
+// --- Subscriptions ---
+
+/** Message sent from Client to Server to start a subscription. */
+export interface SubscribeMessage extends CorrelatedMessage {
+    type: 'subscription';
+    /** Path to the subscription procedure. */
+    path: string;
+    /** Input data for the subscription (if any). */
+    input?: unknown;
+}
+
+/** Message sent from Client to Server to stop a subscription. */
+export interface UnsubscribeMessage extends CorrelatedMessage {
+    type: 'subscriptionStop';
+    // ID refers to the original SubscribeMessage ID
+}
+
+/** Message sent from Server to Client with data for an active subscription. */
+export interface SubscriptionDataMessage extends CorrelatedMessage {
+    type: 'subscriptionData';
+    // ID refers to the original SubscribeMessage ID
+    /** The data payload (e.g., initial state or delta). */
+    data: unknown;
+    /** Optional sequence number for delta subscriptions. */
+    seq?: number;
+}
+
+/** Message sent from Server to Client indicating a subscription has ended normally. */
+export interface SubscriptionEndMessage extends CorrelatedMessage {
+    type: 'subscriptionEnd';
+    // ID refers to the original SubscribeMessage ID
+}
+
+/** Message sent from Server to Client indicating an error occurred on the subscription. */
+export interface SubscriptionErrorMessage extends CorrelatedMessage {
+    type: 'subscriptionError';
+    // ID refers to the original SubscribeMessage ID
+    /** Error details. */
+    error: {
+        message: string;
+        code?: string;
+        // path?: string;
+    };
+}
+
+/** Union of all messages involved in the subscription lifecycle (client->server and server->client). */
+export type SubscriptionLifecycleMessage =
+    | SubscribeMessage
+    | UnsubscribeMessage
+    | SubscriptionDataMessage
+    | SubscriptionEndMessage
+    | SubscriptionErrorMessage;
+
+// --- Transport Interface ---
+
+/** Function to unsubscribe from a subscription. */
+export type UnsubscribeFn = () => void;
+
+/** Callbacks for handling subscription events from the server. */
+export interface SubscriptionHandlers {
+    /** Called when data is received for the subscription. */
+    onData: (message: SubscriptionDataMessage) => void;
+    /** Called when an error occurs on the subscription. */
+    onError: (error: SubscriptionErrorMessage['error']) => void;
+    /** Called when the subscription ends normally. */
+    onEnd: () => void;
+    // onStart?: () => void; // Optional: Called when server acknowledges subscription start
+}
 
 /**
- * Message sent from Client to Server to request initial state for a topic.
+ * Interface defining the contract for transport layer adapters in TypeQL.
+ * Transport adapters handle the low-level communication.
  */
-export type RequestMessage<P = unknown> = MessageBase<'request', P> & Required<Pick<MessageBase<'request'>, 'id' | 'topic'>>;
+export interface TypeQLTransport {
+    /**
+     * Sends a query or mutation request and returns the result.
+     * Handles serialization, sending, correlation, and deserialization.
+     * @param message The procedure call message.
+     * @returns A promise resolving with the procedure result message.
+     */
+    request(message: ProcedureCallMessage): Promise<ProcedureResultMessage>;
 
-/**
- * Message sent from Server to Client in response to a RequestMessage.
- */
-export type ResponseMessage<P = unknown> = MessageBase<'response', P> & Required<Pick<MessageBase<'response'>, 'id' | 'topic'>> & {
-  /** Optional error message if the request failed. */
-  error?: string;
-};
+    /**
+     * Initiates a subscription and registers handlers for incoming data/events.
+     * Handles serialization, sending the subscribe message, and routing incoming
+     * subscription messages (data, error, end) to the correct handlers based on ID.
+     * @param message The subscription initiation message.
+     * @param handlers Callbacks for subscription events.
+     * @returns A function to call to unsubscribe and clean up the subscription.
+     */
+    subscribe(message: SubscribeMessage, handlers: SubscriptionHandlers): UnsubscribeFn;
 
-/**
- * Message sent from Client to Server to subscribe to updates for a topic.
- */
-export type SubscribeMessage = MessageBase<'subscribe'> & Required<Pick<MessageBase<'subscribe'>, 'id' | 'topic'>>;
-
-/**
- * Message sent from Client to Server to unsubscribe from updates for a topic.
- */
-export type UnsubscribeMessage = MessageBase<'unsubscribe'> & Required<Pick<MessageBase<'unsubscribe'>, 'id' | 'topic'>>;
-
-/**
- * Message sent from Server to Client with incremental updates for a topic.
- */
-export type UpdateMessage<D = unknown> = MessageBase<'update', D> & Required<Pick<MessageBase<'update'>, 'topic'>> & { // Also corrected MessageBase here to include Delta type
-  /** The incremental delta data. */
-  delta: D;
-  /** Server-assigned sequence number for this update. */
-  serverSeq?: number; // Made optional for initial phase, required for phase 2
-  /** The sequence number of the update immediately preceding this one. Used for gap detection. */
-  prevServerSeq?: number; // Optional
-  /** Timestamp (e.g., Date.now()) when the update was generated on the server. */
-  timestamp?: number; // Optional for now
-};
-
-/**
- * Message sent from Client to Server submitting an optimistic update.
- */
-export type ClientUpdateMessage<D = unknown> = MessageBase<'client_update', D> & Required<Pick<MessageBase<'client_update'>, 'topic'>> & {
-    /** Client-assigned sequence number for this update. */
-    clientSeq: number;
-    /** The optimistic delta data. */
-    delta: D;
-    /** Timestamp (e.g., Date.now()) when the update was generated on the client. */
-    timestamp: number;
-};
-
-/**
- * Message sent from Server to Client acknowledging a ClientUpdateMessage.
- */
-export type ServerAckMessage = MessageBase<'ack'> & Required<Pick<MessageBase<'ack'>, 'id'>> & { // ID corresponds to clientSeq
-    /** The client sequence number being acknowledged. */
-    clientSeq: number;
-    /** Indicates if the server successfully applied the update. */
-    success: boolean;
-    /** If success is false, provides a reason for the failure/conflict. */
-    conflictReason?: string;
-    /** Server-assigned sequence number if the update was successful. */
-    serverSeq?: number;
-    /** Timestamp (e.g., Date.now()) when the ack was generated on the server. */
-    serverTimestamp: number;
-};
-
-/**
- * Message sent from Client to Server requesting missing updates in a sequence range.
- */
-export type MissingUpdatesRequestMessage = MessageBase<'missing_updates'> & Required<Pick<MessageBase<'missing_updates'>, 'topic'>> & {
-    /** The last server sequence number the client successfully processed. */
-    fromSeq: number;
-    /** The server sequence number the client detected (creating the gap). */
-    toSeq: number;
-};
-
-
-/**
- * Union type representing all possible ReqDelta messages.
- * Includes new types for optimistic updates and consistency.
- */
-export type ReqDeltaMessage<ReqP = any, ResP = any, Delta = any> =
-  | RequestMessage<ReqP>
-  | ResponseMessage<ResP>
-  | SubscribeMessage
-  | UnsubscribeMessage
-  | UpdateMessage<Delta>
-  | ClientUpdateMessage<Delta> // Added
-  | ServerAckMessage           // Added
-  | MissingUpdatesRequestMessage; // Added
-
-/**
- * Interface defining the contract for transport layer adapters.
- * Transport adapters are responsible for sending and receiving messages
- * over a specific communication channel (e.g., WebSocket, postMessage).
- */
-export interface Transport {
-  /**
-   * Sends a message payload over the transport channel.
-   * Can be synchronous or asynchronous.
-   * @param payload The message payload to send (should be serializable).
-   */
-  sendMessage(payload: ReqDeltaMessage): Promise<void> | void;
-
-  /**
-   * Registers a callback to be invoked when a message is received.
-   * @param callback The function to call with the received payload.
-   * @returns An optional cleanup function to unregister the callback or perform other cleanup.
-   */
-  onMessage(callback: (payload: ReqDeltaMessage) => void): (() => void) | void;
-
-  // Optional connection status
-  readonly connected?: boolean;
-  onConnectionChange?(handler: (connected: boolean) => void): (() => void) | void;
+    // Optional connection status management (similar to previous Transport)
+    readonly connected?: boolean;
+    onConnectionChange?(handler: (connected: boolean) => void): (() => void) | void;
+    connect?(): Promise<void> | void; // Optional connect method
+    disconnect?(): Promise<void> | void; // Optional disconnect method
 }
 
 

@@ -1,158 +1,94 @@
-import { Transport, UpdateMessage } from '../core/types';
+import type { TypeQLTransport, SubscriptionDataMessage, SubscribeMessage } from '../core/types';
+import type { SubscriptionResolver } from './procedure'; // Corrected import path/presence
 
 /**
- * Represents a subscriber client connection.
- * Includes a unique ID and the transport mechanism to send messages back.
+ * Represents an active subscription.
  */
-interface Subscriber {
-  clientId: string;
-  transport: Transport; // Or a specific server-side transport representation
+interface ActiveSubscription {
+  clientId: string; // Identifier for the client connection
+  subscriptionId: number | string; // ID from the original SubscribeMessage
+  cleanupFn: ReturnType<SubscriptionResolver>; // Function to call on unsubscribe/disconnect
 }
 
 /**
- * Manages client subscriptions to various topics on the server side.
- * Allows adding, removing subscriptions, and retrieving subscribers for a topic.
+ * Manages client subscriptions based on TypeQL's SubscribeMessage ID.
+ * Allows adding, removing subscriptions, and retrieving subscribers.
+ * NOTE: This manager might need significant refactoring to align with TypeQL's path-based procedures
+ * rather than simple topics. This needs further refinement based on transport layer specifics.
  */
 export class SubscriptionManager {
-  // Map where keys are topics and values are Sets of client IDs subscribed to that topic.
-  private subscriptions: Map<string, Set<string>> = new Map();
-  // Map where keys are client IDs and values are Subscriber objects (containing transport).
-  private clients: Map<string, Subscriber> = new Map();
+  // Map where keys are subscription IDs (from SubscribeMessage) and values are ActiveSubscription objects.
+  private subscriptions: Map<number | string, ActiveSubscription> = new Map();
+  // TODO: Need a way to associate client connections (transports) with client IDs if needed globally,
+  // or pass transport directly during subscription. This simplified version assumes transport is known at subscribe time.
 
   /**
-   * Registers a new client connection.
-   * @param clientId A unique identifier for the client.
-   * @param transport The transport object associated with the client, used for sending messages.
+   * Registers a new subscription initiated by a client.
+   * @param subMessage The original SubscribeMessage containing the ID and path.
+   * @param clientId An identifier for the client connection.
+   * @param cleanupFn The cleanup function returned by the subscription resolver.
    */
-  addClient(clientId: string, transport: Transport): void {
-    if (this.clients.has(clientId)) {
-      console.warn(`[ReqDelta Server] Client with ID ${clientId} already exists. Overwriting.`);
+  addSubscription(
+      subMessage: SubscribeMessage,
+      clientId: string,
+      cleanupFn: ReturnType<SubscriptionResolver>
+  ): void {
+    const subId = subMessage.id;
+    if (this.subscriptions.has(subId)) {
+      console.warn(`[TypeQL SubManager] Subscription with ID ${subId} already exists. Overwriting.`);
+       // Ensure old cleanup is called before overwriting
+       this.removeSubscription(subId);
     }
-    this.clients.set(clientId, { clientId, transport });
-    console.log(`[ReqDelta Server] Client connected: ${clientId}`);
+    this.subscriptions.set(subId, { clientId, subscriptionId: subId, cleanupFn });
+    console.log(`[TypeQL Server] Client ${clientId} started subscription ${subId} for path ${subMessage.path}`);
   }
 
   /**
-   * Removes a client connection and all its subscriptions.
-   * @param clientId The ID of the client to remove.
+   * Removes a subscription and executes its cleanup function.
+   * @param subscriptionId The ID of the subscription to remove.
    */
-  removeClient(clientId: string): void {
-    if (!this.clients.has(clientId)) {
-      return; // Client not found
-    }
-    this.clients.delete(clientId);
-    // Remove client from all topic subscriptions
-    this.subscriptions.forEach((subscribers, topic) => {
-      if (subscribers.delete(clientId)) {
-        console.log(`[ReqDelta Server] Client ${clientId} unsubscribed from topic ${topic} due to disconnect.`);
-        // Optional: Clean up empty topics
-        if (subscribers.size === 0) {
-          this.subscriptions.delete(topic);
-          console.log(`[ReqDelta Server] Topic ${topic} has no subscribers, removing.`);
-        }
-      }
-    });
-    console.log(`[ReqDelta Server] Client disconnected: ${clientId}`);
-  }
-
-  /**
-   * Subscribes a client to a specific topic.
-   * @param clientId The ID of the client subscribing.
-   * @param topic The topic to subscribe to.
-   */
-  subscribe(clientId: string, topic: string): void {
-    if (!this.clients.has(clientId)) {
-      console.warn(`[ReqDelta Server] Attempted to subscribe non-existent client ID: ${clientId} to topic: ${topic}`);
-      return;
-    }
-    if (!this.subscriptions.has(topic)) {
-      this.subscriptions.set(topic, new Set());
-    }
-    const subscribers = this.subscriptions.get(topic)!;
-    if (!subscribers.has(clientId)) {
-      subscribers.add(clientId);
-      console.log(`[ReqDelta Server] Client ${clientId} subscribed to topic: ${topic}`);
-    } else {
-       console.log(`[ReqDelta Server] Client ${clientId} already subscribed to topic: ${topic}`);
-    }
-  }
-
-  /**
-   * Unsubscribes a client from a specific topic.
-   * @param clientId The ID of the client unsubscribing.
-   * @param topic The topic to unsubscribe from.
-   */
-  unsubscribe(clientId: string, topic: string): void {
-     if (!this.clients.has(clientId)) {
-       // This might happen if unsubscribe message arrives after disconnect
-       console.log(`[ReqDelta Server] Attempted to unsubscribe non-existent or already disconnected client ID: ${clientId} from topic: ${topic}`);
-       return;
-     }
-    const subscribers = this.subscriptions.get(topic);
-    if (subscribers && subscribers.delete(clientId)) {
-      console.log(`[ReqDelta Server] Client ${clientId} unsubscribed from topic: ${topic}`);
-      // Optional: Clean up empty topics
-      if (subscribers.size === 0) {
-        this.subscriptions.delete(topic);
-        console.log(`[ReqDelta Server] Topic ${topic} has no subscribers, removing.`);
-      }
-    } else {
-       console.log(`[ReqDelta Server] Client ${clientId} was not subscribed to topic: ${topic} or topic doesn't exist.`);
-    }
-  }
-
-  /**
-   * Retrieves all active subscribers (client transport) for a given topic.
-   * @param topic The topic to get subscribers for.
-   * @returns An array of Subscriber objects.
-   */
-  getSubscribers(topic: string): Subscriber[] {
-    const subscriberIds = this.subscriptions.get(topic);
-    if (!subscriberIds) {
-      return []; // No subscribers for this topic
-    }
-    const subscribers: Subscriber[] = [];
-    subscriberIds.forEach(clientId => {
-      const client = this.clients.get(clientId);
-      if (client) {
-        subscribers.push(client);
-      } else {
-        // Should ideally not happen if cleanup is correct, but good to handle
-        console.warn(`[ReqDelta Server] Client ID ${clientId} found in topic ${topic} subscriptions but not in client list. Cleaning up.`);
-        subscriberIds.delete(clientId); // Remove inconsistent entry
-      }
-    });
-    return subscribers;
-  }
-
-  /**
-   * Sends an update message to all subscribers of a specific topic.
-   * @param topic The topic the update belongs to.
-   * @param delta The delta data to send.
-   */
-  publishUpdate<D = any>(topic: string, delta: D): void {
-    const subscribers = this.getSubscribers(topic);
-    if (subscribers.length === 0) {
-      return; // No one to send to
-    }
-
-    const updateMsg: UpdateMessage<D> = {
-      type: 'update',
-      topic: topic,
-      delta: delta,
-    };
-
-    console.log(`[ReqDelta Server] Publishing update to ${subscribers.length} subscribers for topic: ${topic}`);
-    subscribers.forEach(subscriber => {
+  removeSubscription(subscriptionId: number | string): void {
+    const subscription = this.subscriptions.get(subscriptionId);
+    if (subscription) {
+      this.subscriptions.delete(subscriptionId);
+      console.log(`[TypeQL SubManager] Removed subscription ${subscriptionId} for client ${subscription.clientId}.`);
+      // Execute cleanup
       try {
-         // Transport might return a promise or be sync
-         Promise.resolve(subscriber.transport.sendMessage(updateMsg)).catch(err => {
-            console.error(`[ReqDelta Server] Error sending update to client ${subscriber.clientId} for topic "${topic}":`, err);
-            // Optional: Handle send errors, e.g., mark client for removal if transport fails repeatedly
+         Promise.resolve(subscription.cleanupFn()).catch(err => {
+             console.error(`[TypeQL SubManager] Error during cleanup for subscription ${subscriptionId}:`, err);
          });
       } catch (err) {
-         console.error(`[ReqDelta Server] Error sending update to client ${subscriber.clientId} for topic "${topic}":`, err);
+          console.error(`[TypeQL SubManager] Error during cleanup for subscription ${subscriptionId}:`, err);
+      }
+    } else {
+      console.warn(`[TypeQL SubManager] Attempted to remove non-existent subscription ID: ${subscriptionId}`);
+    }
+  }
+
+   /**
+   * Removes all subscriptions associated with a specific client ID and executes their cleanup.
+   * @param clientId The ID of the client whose subscriptions should be removed.
+   */
+  removeClientSubscriptions(clientId: string): void {
+    let count = 0;
+    const subsToRemove: (number | string)[] = [];
+    this.subscriptions.forEach((subscription, subId) => {
+      if (subscription.clientId === clientId) {
+        subsToRemove.push(subId);
       }
     });
+
+    subsToRemove.forEach(subId => {
+      this.removeSubscription(subId); // This handles cleanup and deletion
+      count++;
+    });
+
+    if (count > 0) {
+      console.log(`[TypeQL SubManager] Removed ${count} subscriptions for disconnected client ${clientId}.`);
+    }
   }
+
+
+  // Removed getSubscriber - if needed, can be added back.
+  // Removed publishSubscriptionData - Publishing is now handled by the caller (requestHandler) via context.
 }

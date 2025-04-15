@@ -19,13 +19,15 @@
         *   [X] Implement core type inference mechanism for procedures (`packages/core/src/server/procedure.ts` - `ProcedureBuilder` refined).
         *   [X] Implement basic router structure (`packages/core/src/server/router.ts` - `createRouter`, `Router` class).
         *   [X] Implement basic request handling logic for Query/Mutation (`packages/core/src/server/requestHandler.ts` - `createRequestHandler`).
-        *   [ ] Implement subscription mechanism focusing on delta stream generation (placeholder exists in handler).
+        *   [X] Refine subscription handling in `RequestHandler` (uses `SubscriptionManager`, defines `publish`).
+        *   [X] Refactor `SubscriptionManager` to manage lifecycle/cleanup, remove direct transport dependency.
     *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
         *   [X] Implement `createClient` function to generate typed proxy from server router type (`packages/core/src/client/client.ts`).
-        *   [X] Implement basic `query`, `mutate`, `subscribe` call logic via **placeholder** transport (`packages/core/src/client/client.ts`).
-        *   [ ] Implement client-side subscription handling for delta streams (needs actual transport & observable/iterator return type).
+        *   [X] Implement `query`, `mutate`, `subscribe` call logic using `TypeQLTransport` interface (`packages/core/src/client/client.ts`).
+        *   [ ] Implement client-side subscription handling for delta streams (needs actual transport implementation & observable/iterator return type).
     *   **Core (`@typeql/core` - or keep `@reqdelta/core`)**
-        *   [ ] Refine shared types (messages might change significantly).
+        *   [X] Refine shared types: Updated `Transport` interface and message types for TypeQL (`packages/core/src/core/types.ts`).
+        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`.
         *   [ ] Ensure delta utilities are compatible.
 *   **Phase 2: Feature Implementation (TypeQL)**
     *   [X] Implement input validation (e.g., Zod integration in `ProcedureBuilder`).

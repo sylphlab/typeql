@@ -1,8 +1,10 @@
 // packages/core/src/server/requestHandler.ts
 
 import type { AnyRouter, ProcedureRouterRecord } from './router';
-import type { AnyProcedure, ProcedureContext, ProcedureDef, ProcedureOptions } from './procedure';
+import type { AnyProcedure, ProcedureContext, ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure';
 import { ZodError } from 'zod';
+import type { SubscriptionManager } from './subscriptionManager'; // Import manager type
+import type { TypeQLTransport, SubscriptionDataMessage } from '../core/types'; // Import transport and message types
 
 // --- Request/Response Types (Simplified for now) ---
 
@@ -14,6 +16,8 @@ export interface ProcedureCall {
     input?: unknown;
     /** Type of procedure */
     type: 'query' | 'mutation' | 'subscription';
+    /** Unique ID for correlation, originates from client request/subscription */
+    id: number | string;
 }
 
 /** Represents the result of a query or mutation call */
@@ -66,22 +70,25 @@ function findProcedure(
 
 export interface RequestHandlerOptions<TContext extends ProcedureContext> {
     router: AnyRouter;
-    createContext: () => Promise<TContext> | TContext; // Function to create context per request
-    // onError?: (error: any) => void; // Optional global error handler
+    subscriptionManager: SubscriptionManager; // Add SubscriptionManager
+    // How to get the specific transport/client connection for this request? Needs context.
+    createContext: (opts: { transport?: TypeQLTransport; /* other context sources */ }) => Promise<TContext> | TContext;
+    // onError?: (error: any) => void;
 }
 
 /**
  * Creates a function that handles incoming procedure calls against a specific router.
  *
  * @param opts Options including the router and context creation function.
- * @returns An async function that takes a ProcedureCall and returns a ProcedureResult.
+ * @returns An async function that handles a ProcedureCall. For subscriptions, the return might differ or trigger side effects.
  */
 export function createRequestHandler<TContext extends ProcedureContext>(
     opts: RequestHandlerOptions<TContext>
-): (call: ProcedureCall) => Promise<ProcedureResult> {
-    const { router, createContext } = opts;
+): (call: ProcedureCall, transport?: TypeQLTransport /* Pass transport if available */) => Promise<ProcedureResult | void> { // Return void for handled subscriptions
+    const { router, createContext, subscriptionManager } = opts;
 
-    return async (call: ProcedureCall): Promise<ProcedureResult> => {
+    // This handler needs access to the specific client's transport for subscriptions
+    return async (call: ProcedureCall, transport?: TypeQLTransport): Promise<ProcedureResult | void> => {
         console.log(`[TypeQL Handler] Handling ${call.type} call to path: ${call.path}`);
 
         const pathSegments = call.path.split('.');
@@ -100,20 +107,12 @@ export function createRequestHandler<TContext extends ProcedureContext>(
              return { error: { message: `Cannot call ${procDef.type} procedure using ${call.type}`, code: 'BAD_REQUEST' } };
         }
 
-        // Handle subscriptions separately (basic placeholder for now)
-        if (call.type === 'subscription') {
-            // TODO: Implement actual subscription setup and management
-            console.warn(`[TypeQL Handler] Subscription handling for '${call.path}' not fully implemented.`);
-             // This handler likely needs modification to support streaming/async iterators for subscriptions
-             // For now, return an error or specific response indicating subscription setup required.
-            return { error: { message: 'Subscription setup not yet supported via this handler', code: 'NOT_IMPLEMENTED' } };
-        }
-
         try {
-            // 1. Create Context
-            const ctx = await createContext();
+            // 1. Create Context (conditionally passing transport)
+            const contextInput = transport ? { transport } : {};
+            const ctx = await createContext(contextInput);
 
-            // 2. Parse Input
+            // 2. Parse Input (Common for all types initially)
             let parsedInput: unknown = call.input; // Default to raw input
             if (procDef.inputSchema) {
                 try {
@@ -128,11 +127,13 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 }
             }
 
-            // 3. Execute Resolver (Query/Mutation)
-            const options: ProcedureOptions<TContext, unknown> = { ctx, input: parsedInput };
-            const result = await procDef.resolver!(options); // We know resolver exists for query/mutation
+            // 3. Handle based on procedure type
+            if (procDef.type === 'query' || procDef.type === 'mutation') {
+                // Execute Resolver (Query/Mutation)
+                const options: ProcedureOptions<TContext, unknown> = { ctx, input: parsedInput };
+                const result = await procDef.resolver!(options);
 
-            // 4. Parse Output (Optional, primarily for ensuring correct shape)
+                 // 4. Parse Output (Optional)
             let finalOutput: unknown = result;
             if (procDef.outputSchema) {
                 try {
@@ -149,12 +150,76 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 }
             }
 
-            console.log(`[TypeQL Handler] Call successful for path: ${call.path}`);
-            return { data: finalOutput };
+                 console.log(`[TypeQL Handler] ${call.type} call successful for path: ${call.path}`);
+                 return { data: finalOutput }; // Return ProcedureResult for query/mutation
+
+            } else if (procDef.type === 'subscription') {
+                 // --- Subscription Handling ---
+                 if (!transport) {
+                     // Transport is required to manage subscriptions
+                     console.error(`[TypeQL Handler] Transport required for subscription path: ${call.path}`);
+                     return { error: { message: 'Transport unavailable for subscription', code: 'INTERNAL_SERVER_ERROR' } };
+                 }
+                 if (!procDef.subscriptionResolver) {
+                      console.error(`[TypeQL Handler] Missing subscriptionResolver for path: ${call.path}`);
+                      return { error: { message: 'Subscription resolver not implemented', code: 'INTERNAL_SERVER_ERROR' } };
+                 }
+
+                 const subId = call.id; // ID is now present on ProcedureCall
+
+                 // TODO: How to get a unique clientId associated with the transport? For now, use subId as placeholder.
+                 const clientId = `client_${subId}`; // Placeholder client ID
+
+                 // Function for the resolver to publish data
+                 const publish = (data: unknown) => {
+                     // TODO: Optional output parsing using procDef.subscriptionOutputSchema?
+                     const dataMsg: SubscriptionDataMessage = {
+                         type: 'subscriptionData',
+                         id: subId, // Correlate with the original subscription request ID
+                         data: data,
+                         // TODO: Add sequence number if implemented
+                     };
+                     // Use the transport associated with this specific request/connection to send the data back
+                     // ASSUMPTION: The transport needs a method to send server->client messages (e.g., sendMessage or similar)
+                     // This part highlights the need for a clearer transport definition for bidirectional communication.
+                     if (transport && (transport as any).sendMessage) { // Using a hypothetical sendMessage for now
+                         console.log(`[TypeQL Handler] Publishing data for subId ${subId}:`, data);
+                         Promise.resolve((transport as any).sendMessage(dataMsg)).catch((err: any) => {
+                             console.error(`[TypeQL Handler] Error sending subscription data for subId ${subId}:`, err);
+                         });
+                     } else {
+                         console.error(`[TypeQL Handler] Cannot publish data for subId ${subId}: Transport or appropriate send method unavailable.`);
+                     }
+                 };
+
+                 const subOptions: SubscriptionOptions<TContext, unknown, unknown> = { ctx, input: parsedInput, publish };
+
+                 try {
+                      // Execute the subscription resolver to set it up (use non-null assertion as check happened above)
+                      const cleanupFn = await procDef.subscriptionResolver!(subOptions);
+
+                      // Register the active subscription (pass transport for sending data back, assert non-null)
+                      // Assuming addSubscription handles storing the cleanup function needed on unsubscribe
+                      subscriptionManager.addSubscription(
+                           { type: 'subscription', id: subId, path: call.path, input: call.input }, // Reconstruct SubscribeMessage-like info
+                           clientId,
+                           cleanupFn // Pass the actual cleanup function
+                      );
+
+                      // Subscription setup successful, handler doesn't return data directly
+                      console.log(`[TypeQL Handler] Subscription setup successful for path: ${call.path} (ID: ${subId})`);
+                      return; // Return void or undefined for successful subscription setup
+
+                 } catch (subError: any) {
+                      console.error(`[TypeQL Handler] Error setting up subscription ${call.path}:`, subError);
+                      return { error: { message: subError.message || 'Subscription setup failed', code: 'INTERNAL_SERVER_ERROR' } };
+                 }
+            }
 
         } catch (error: any) {
-            console.error(`[TypeQL Handler] Error executing procedure ${call.path}:`, error);
-            // TODO: Map errors to specific codes (e.g., auth errors)
+            // Catch errors during context creation or input parsing
+            console.error(`[TypeQL Handler] Error processing request for ${call.path}:`, error);
+            // Ensure return type matches Promise<ProcedureResult | void>
             return { error: { message: error.message || 'An unexpected error occurred', code: 'INTERNAL_SERVER_ERROR' } };
         }
     };

@@ -1,31 +1,35 @@
-import {
-    Transport,
-    RequestMessage,
-    ResponseMessage,
-    SubscribeMessage,
-    UnsubscribeMessage,
-    UpdateMessage,
-    ClientUpdateMessage,
-    ServerAckMessage,
-    MissingUpdatesRequestMessage,
-    ReqDeltaMessage,
-    StandardDelta,
-    StandardOperation
+// NOTE: This file is based on the OLD ReqDelta architecture and needs SIGNIFICANT REFACTORING
+// to align with the TypeQL structure (paths, request/result, subscription lifecycle, new transport).
+// The changes below are minimal fixes for type errors and placeholders.
+
+import type {
+    TypeQLTransport,
+    ProcedureCallMessage,
+    ProcedureResultMessage,
+    SubscribeMessage, // Keep for initiating
+    UnsubscribeMessage, // Keep this for stopping? Maybe use unsubscribeFn instead? Type needs clarification.
+    SubscriptionDataMessage, // For receiving data
+    SubscriptionHandlers, // Needed for subscribe call
+    SubscriptionErrorMessage, // For receiving errors
+    SubscriptionEndMessage, // For receiving end signal
+    StandardDelta, // Keep if standard deltas are still relevant
+    StandardOperation, // Keep if standard operations are still relevant
+    UnsubscribeFn // Import the unsubscribe function type
+    // Remove old/unused types
 } from '../core/types';
 import {
     generateId,
-    applyStandardDelta, // Default applicator
-    standardOperationToDelta, // Default converter
-    standardMatchesPendingOperation, // Default matcher
-    defaultCloneState as cloneStateUtil // Use alias
+    // Keep standard utils if used, might need adaptation
+    applyStandardDelta,
+    standardOperationToDelta,
+    standardMatchesPendingOperation,
+    defaultCloneState as cloneStateUtil
 } from '../core/utils';
-import { createClientSequenceManager } from '../core/seqManager';
-import type { ConflictResolverConfig } from './conflictResolver';
-// TODO: Import actual resolveConflict logic when implemented
-// import { resolveConflict } from './conflictResolver';
+// Sequence manager likely needs rework for TypeQL's model
+// import { createClientSequenceManager } from '../core/seqManager';
+import type { ConflictResolverConfig } from './conflictResolver'; // Conflict logic needs rework
 
-// Define type locally based on factory return type
-type ClientSequenceManager = ReturnType<typeof createClientSequenceManager>;
+// Sequence manager type removed as implementation is commented out
 
 
 // --- Types ---
@@ -72,41 +76,39 @@ export interface CreateStoreOptions<
     ResP = any // Added ResP for type safety
 > {
     /** The transport adapter instance. */
-    transport: Transport;
+    transport: TypeQLTransport; // Use TypeQLTransport
     /** The topic to subscribe to. */
-    topic: string;
+    // topic: string; // Replaced by path
+    /** Path to the specific procedure this store interacts with (e.g., a subscription or query for initial state). */
+    path: string;
     /** Initial state. Required. */
     initialState: State;
-    /** Optional payload for the initial request. */
-    requestPayload?: ReqP;
+    // requestPayload?: ReqP; // Input payload handled differently
 
     /**
      * Function to apply incoming deltas (server or optimistic) to the current state.
      * Must return the new state. Defaults to `applyStandardDelta`.
      * @param currentState The current state (can be undefined during initial phases).
       * @param delta The incoming delta.
-      * @returns The new state after applying the delta. MUST NOT return undefined unless the intention is to represent an error state or clear the state entirely.
+      * @returns The new state after applying the data/delta. MUST NOT return undefined unless error.
       */
-     applyDelta?: (currentState: State | undefined, delta: Delta) => State;
+    applyUpdate?: (currentState: State | undefined, data: Delta /* or State? */) => State; // Renamed from applyDelta
 
-     // --- Optimistic Update Options (Optional) ---
+     // --- Optimistic Update Options (Optional - Needs Rework) ---
     /**
-     * If provided, enables optimistic updates. Converts a client operation into a delta.
-     * Defaults to `standardOperationToDelta` if Delta/Operation are standard.
-     * Return null to prevent an operation from being processed optimistically or sent.
+     * Placeholder: Converts an operation into a delta for optimistic updates. Needs rework.
      */
-    operationToDelta?: (operation: Operation, currentState: State) => Delta | null;
+    operationToOptimisticData?: (operation: Operation, currentState: State) => Delta | null; // Renamed
     /**
-     * If provided alongside `operationToDelta`, used to match incoming server deltas to pending operations.
-     * Defaults to `standardMatchesPendingOperation` if Delta/Operation are standard.
+     * Placeholder: Matches incoming data to pending operations. Needs rework.
      */
-    matchesPendingOperation?: (delta: Delta, operation: Operation) => boolean;
-    /** Configuration for conflict resolution. Required if optimistic updates are enabled. */
-    conflictConfig?: ConflictResolverConfig<Delta>; // Takes Delta type
+    matchesPendingOperation?: (data: Delta /* or State? */, operation: Operation) => boolean;
+    /** Configuration for conflict resolution. Required if optimistic updates are enabled. Needs rework. */
+    conflictConfig?: ConflictResolverConfig<unknown>; // Delta type unknown here
 
     // --- Other Options ---
-    /** Optional function to generate unique request/message IDs. Defaults to a simple generator. */
-    generateRequestId?: () => string;
+    /** Optional function to generate unique request/message IDs (string or number for TypeQL). */
+    generateRequestId?: () => string | number;
     /** Optional function to deep clone state for snapshots. Defaults to structuredClone or JSON fallback. */
     cloneState?: (state: State | undefined) => State | undefined;
     /** Optional: Timeout in ms for optimistic updates before considering them failed. TODO */
@@ -163,21 +165,21 @@ export function createStore<
     ReqP = any,
     ResP = any
 >(
-    // Ensure options uses the Item generic correctly.
+    // Ensure options uses the Item generic correctly. Needs path instead of topic.
     options: CreateStoreOptions<State, Item, Delta, Operation, ReqP, ResP>
 ): ReqDeltaStore<State, Operation> {
     const {
         transport,
-        topic,
+        path, // Use path instead of topic
         initialState, // Required
-        requestPayload,
+        // requestPayload, // Handled differently
         // --- Delta Application ---
-        applyDelta: userApplyDelta,
-        collectionPath, // Used by default applyStandardDelta
-        // --- Optimistic Config ---
-        operationToDelta: userOperationToDelta,
+        applyUpdate: userApplyUpdate, // Renamed from applyDelta
+        collectionPath, // Used by default standard delta logic (may need rework)
+        // --- Optimistic Config (Needs Rework) ---
+        operationToOptimisticData: userOperationToOptimisticData, // Renamed
         matchesPendingOperation: userMatchesPendingOperation,
-        conflictConfig, // Required for optimistic updates
+        conflictConfig, // Required for optimistic updates, needs rework
         // --- Utils ---
         generateRequestId = generateId,
         cloneState = cloneStateUtil, // Use the imported aliased function
@@ -185,72 +187,77 @@ export function createStore<
         // optimisticTimeout // TODO
     } = options;
 
-    // Determine if optimistic updates are enabled
-    const optimisticEnabled = !!userOperationToDelta;
+    // Determine if optimistic updates are enabled (based on renamed option)
+    const optimisticEnabled = !!userOperationToOptimisticData;
     if (optimisticEnabled && !conflictConfig) {
         // Make it an error instead of a warning? For now, warn.
-        console.warn(`[ReqDelta] Optimistic updates enabled ('operationToDelta' provided) but 'conflictConfig' is missing. Conflicts may not be handled correctly.`);
+        console.warn(`[ReqDelta - Needs Rework] Optimistic updates enabled ('operationToOptimisticData' provided) but 'conflictConfig' is missing. Conflicts may not be handled correctly.`);
     }
 
-    // --- Setup Default Functions ---
-     const applyDelta = userApplyDelta ?? ((currentState: State | undefined, delta: Delta): State => {
-         // Default logic assumes Delta is compatible with StandardDelta<Item, State>
-         const pathAwareDelta = {
-             ...(delta as any), // Cast needed as Delta might not be StandardDelta
-             path: (delta as any).path ?? collectionPath ?? [],
+    // --- Setup Default Functions (Needs Rework) ---
+    // Adapt applyDelta to applyUpdate
+     const applyUpdate = userApplyUpdate ?? ((currentState: State | undefined, data: Delta): State => {
+         // Default logic assumes data is compatible with StandardDelta<Item, State> - This needs review for TypeQL
+         const pathAwareData = {
+             ...(data as any), // Cast needed as Delta might not be StandardDelta
+             path: (data as any).path ?? collectionPath ?? [],
          };
-         const standardDelta = pathAwareDelta as StandardDelta<Item, State>; // Use Item generic here
+         const standardData = pathAwareData as StandardDelta<Item, State>; // Assume it's a standard delta for default
 
          // Handle undefined currentState for default applicator
          if (currentState === undefined) {
-             if (standardDelta.type === 'replace') {
-                 return standardDelta.state;
+             if (standardData.type === 'replace') {
+                 return standardData.state;
              }
-             if (standardDelta.type === 'add' && (standardDelta.path ?? []).length === 0) {
+             if (standardData.type === 'add' && (standardData.path ?? []).length === 0) {
                  // This assumption is weak, but necessary for a default. User should override if state isn't Item[].
-                 return [standardDelta.item] as unknown as State;
+                 return [standardData.item] as unknown as State;
              }
-             console.warn(`[ReqDelta] Default applyDelta cannot apply delta type "${standardDelta.type}" to undefined state. Returning initial state.`);
+             console.warn(`[ReqDelta - Needs Rework] Default applyUpdate cannot apply data type "${standardData.type}" to undefined state. Returning initial state.`);
              return initialState;
          }
 
          // Apply using the standard function if currentState is defined
-         // Ensure Item generic is correctly passed to applyStandardDelta
-         return applyStandardDelta<State, Item>(currentState, standardDelta);
+         // Ensure Item generic is correctly passed to applyStandardDelta (needs review)
+         return applyStandardDelta<State, Item>(currentState, standardData);
     });
 
-    const operationToDelta = userOperationToDelta ?? (optimisticEnabled
-        // Pass Item generic to standardOperationToDelta. It only takes the operation.
+    // Adapt operationToDelta to operationToOptimisticData
+    const operationToOptimisticData = userOperationToOptimisticData ?? (optimisticEnabled
+        // Pass Item generic to standardOperationToDelta. It only takes the operation. Needs review.
         ? (op: Operation, _currentState: State) => standardOperationToDelta<Item, State>(op as StandardOperation<Item>) as Delta | null
         : undefined);
 
+    // Adapt matchesPendingOperation
     const matchesPendingOperation = userMatchesPendingOperation ?? (optimisticEnabled
-        // Pass Item generic to standardMatchesPendingOperation
-        ? (delta: Delta, op: Operation) => standardMatchesPendingOperation<Item, State>(delta as StandardDelta<Item, State>, op as StandardOperation<Item>)
+        // Pass Item generic to standardMatchesPendingOperation. Needs review.
+        ? (data: Delta, op: Operation) => standardMatchesPendingOperation<Item, State>(data as StandardDelta<Item, State>, op as StandardOperation<Item>)
         : undefined);
 
-    // --- Internal State ---
-    const clientSeqManager: ClientSequenceManager | null = optimisticEnabled ? createClientSequenceManager() : null;
+    // --- Internal State (Sequence Manager Removed) ---
+    // const clientSeqManager: ClientSequenceManager | null = optimisticEnabled ? createClientSequenceManager() : null;
+    let clientSeqCounter = 0; // Use temporary counter
     let internalState: StoreState<State> = {
-        confirmedState: initialState,
-        optimisticState: initialState,
+        confirmedState: initialState, // Initialize confirmed state with initial state
+        optimisticState: initialState, // Optimistic state also starts with initial state
         isLoading: false,
         error: undefined,
-        lastServerSeq: 0,
+        lastServerSeq: 0, // Sequence logic needs rework
         isSyncing: false,
-        isConnected: transport.connected ?? true,
-        syncTargetSeq: -1, // Initialize syncTargetSeq
+        isConnected: transport.connected ?? true, // Use TypeQLTransport
+        syncTargetSeq: -1, // Initialize syncTargetSeq (logic needs rework)
     };
 
-    const pendingUpdates = new Map<number, PendingUpdate<State, Delta, Operation>>();
+    const pendingUpdates = new Map<number, PendingUpdate<State, Delta, Operation>>(); // Needs rework for TypeQL mutation tracking
     const listeners = new Set<(state: Readonly<StoreState<State>>) => void>();
-    let cleanupTransportOnMessage: (() => void) | void | undefined;
+    // let cleanupTransportOnMessage: (() => void) | void | undefined; // Replaced by unsubscribeFn
     let cleanupTransportOnConnection: (() => void) | void | undefined;
+    let unsubscribeFn: UnsubscribeFn | undefined; // Store unsubscribe function from transport.subscribe
     let isStoreConnected = true;
-    // Queue for updates received while syncing missing ones
-    let syncQueue: UpdateMessage<Delta>[] = [];
-    // Track the target sequence number during sync recovery
-    let syncTargetSeq = -1;
+    // Queue for updates received while syncing missing ones (logic needs rework)
+    let syncQueue: SubscriptionDataMessage[] = []; // Use new message type
+    // Track the target sequence number during sync recovery (logic needs rework)
+    // let syncTargetSeq = -1; // Covered by internalState.syncTargetSeq
 
     // --- State Management ---
 
@@ -277,12 +284,14 @@ export function createStore<
                  userOnConnectionChange(newTransportConnected);
              }
              if (newTransportConnected && !internalState.isLoading) {
-                 console.log(`[ReqDelta Client] Reconnected for topic "${topic}". Triggering refresh.`);
+                 // Use path variable
+                 console.log(`[ReqDelta - Needs Rework] Reconnected for path "${path}". Triggering refresh.`);
                  requestInitialState(true);
              }
         }
     };
 
+    // TODO: Rework reapplyPendingUpdates for TypeQL
     const reapplyPendingUpdates = (): State => { // Ensure return type is State, not undefined
         let computedOptimisticState = cloneState(internalState.confirmedState);
 
@@ -303,14 +312,14 @@ export function createStore<
             const pending = pendingUpdates.get(clientSeq);
             if (pending) {
                 try {
-                    // Apply delta. computedOptimisticState is guaranteed to be State type here.
-                    computedOptimisticState = applyDelta(computedOptimisticState, pending.delta);
-                    // applyDelta MUST return State, not undefined
+                    // Apply update. computedOptimisticState is guaranteed to be State type here.
+                    computedOptimisticState = applyUpdate(computedOptimisticState, pending.delta); // Use applyUpdate
+                    // applyUpdate MUST return State, not undefined
                     if (computedOptimisticState === undefined) {
-                         throw new Error(`applyDelta returned undefined during rebase of clientSeq ${clientSeq}`);
+                         throw new Error(`applyUpdate returned undefined during rebase of clientSeq ${clientSeq}`);
                     }
                 } catch (err) {
-                    console.error(`[ReqDelta Client] Error reapplying pending delta (clientSeq: ${clientSeq}) during rebase:`, err);
+                    console.error(`[ReqDelta - Needs Rework] Error reapplying pending delta (clientSeq: ${clientSeq}) during rebase:`, err);
                     setState({ error: new Error(`Error reapplying pending delta ${clientSeq}`) });
                     // If rebase fails, return the state *before* the failing delta was applied
                     // This prevents using a potentially corrupt state.
@@ -323,125 +332,86 @@ export function createStore<
     };
 
 
-    // --- Message Processing Functions ---
+    // --- Message Processing Functions (Needs Rework for TypeQL) ---
 
+    // TODO: Rework processSyncQueue for TypeQL
     const processSyncQueue = () => {
-        // Sort queue just in case updates arrived out of order during sync
-        syncQueue.sort((a, b) => (a.serverSeq ?? 0) - (b.serverSeq ?? 0));
+        // Sort queue based on sequence number (if available)
+        syncQueue.sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
         const queueToProcess = [...syncQueue];
         syncQueue = []; // Clear queue before processing
 
-        console.log(`[ReqDelta Client] Processing ${queueToProcess.length} queued updates after sync.`);
+        console.log(`[ReqDelta - Needs Rework] Processing ${queueToProcess.length} queued updates after sync.`);
         let processingError = false;
-        for (const update of queueToProcess) {
-             // Re-check sequence relative to lastServerSeq now
-             const updateSeq = update.serverSeq ?? -1;
+        for (const dataMsg of queueToProcess) {
+             // Re-check sequence relative to lastServerSeq now (Needs Rework)
+             const updateSeq = dataMsg.seq ?? -1;
              if (updateSeq === internalState.lastServerSeq + 1) {
                  // Process normally (will update lastServerSeq and state)
                  // Temporarily set isSyncing false to allow normal processing
                  const wasSyncing = internalState.isSyncing;
                  internalState.isSyncing = false;
-                 handleServerUpdate(update);
+                 handleSubscriptionData(dataMsg); // Use adapted handler
                  internalState.isSyncing = wasSyncing; // Restore if needed
 
-                 // If handleServerUpdate encountered an error, it would set state.error
+                 // If handleSubscriptionData encountered an error, it would set state.error
                  if (internalState.error) {
-                     console.error(`[ReqDelta Client] Error occurred while processing update ${updateSeq} from sync queue. Stopping queue processing.`);
+                     console.error(`[ReqDelta - Needs Rework] Error occurred while processing update ${updateSeq} from sync queue. Stopping queue processing.`);
                      processingError = true;
-                     syncQueue = queueToProcess.slice(queueToProcess.indexOf(update)); // Put remaining back
+                     syncQueue = queueToProcess.slice(queueToProcess.indexOf(dataMsg)); // Put remaining back
                      break;
                  }
              } else if (updateSeq <= internalState.lastServerSeq) {
-                 console.warn(`[ReqDelta Client] Skipping already processed or stale update ${updateSeq} from sync queue.`);
+                 console.warn(`[ReqDelta - Needs Rework] Skipping already processed or stale update ${updateSeq} from sync queue.`);
              } else {
                  // Still a gap? This indicates a problem, maybe re-trigger sync?
-                 console.error(`[ReqDelta Client] Gap still detected after sync while processing queue (expected ${internalState.lastServerSeq + 1}, got ${updateSeq}). Re-triggering sync.`);
+                 console.error(`[ReqDelta - Needs Rework] Gap still detected after sync while processing queue (expected ${internalState.lastServerSeq + 1}, got ${updateSeq}). Re-triggering sync.`);
                  processingError = true;
-                 syncQueue = queueToProcess.slice(queueToProcess.indexOf(update)); // Put remaining back
+                 syncQueue = queueToProcess.slice(queueToProcess.indexOf(dataMsg)); // Put remaining back
                  setState({ error: new Error(`Sync queue processing failed due to gap at ${updateSeq}`), isSyncing: true });
-                 requestMissingUpdates(internalState.lastServerSeq, updateSeq); // Request again, this updates syncTargetSeq
+                 // requestMissingUpdates(internalState.lastServerSeq, updateSeq); // Request again, this updates syncTargetSeq (Needs Rework)
+                 console.warn("requestMissingUpdates needs rework for TypeQL")
                  break; // Stop processing queue
              }
         }
          // If queue processed fully without new errors/gaps, ensure syncing is false
          if (!processingError && syncQueue.length === 0 && internalState.isSyncing) {
-             console.log("[ReqDelta Client] Sync queue processed successfully.");
-             setState({ isSyncing: false });
+             console.log("[ReqDelta - Needs Rework] Sync queue processed successfully.");
+             setState({ isSyncing: false, syncTargetSeq: -1 }); // Reset sync target
          }
     };
 
+    // TODO: Rework handleServerAck equivalent if needed for optimistic mutations in TypeQL
+    // const handleServerAck = (ack: ServerAckMessage) => { ... };
 
-    const handleServerAck = (ack: ServerAckMessage) => {
-        if (!optimisticEnabled) return;
+    // --- Main Update Handler (Adapted for SubscriptionDataMessage) ---
+    const handleSubscriptionData = (dataMsg: SubscriptionDataMessage) => {
+        const data = dataMsg.data as Delta; // Assume data is Delta for now
+        const serverSeq = dataMsg.seq; // Use 'seq' from new message type
+        console.log(`[ReqDelta - Needs Rework] Received subscription data (seq: ${serverSeq}).`);
 
-        const pending = pendingUpdates.get(ack.clientSeq);
-        if (!pending) {
-            console.warn(`[ReqDelta Client] Received ack for unknown clientSeq: ${ack.clientSeq}`);
-            return;
-        }
-
-        pendingUpdates.delete(ack.clientSeq);
-
-        if (ack.success) {
-            console.log(`[ReqDelta Client] Optimistic update ${ack.clientSeq} confirmed by server (serverSeq: ${ack.serverSeq}).`);
-            // Assuming server sends 'update' messages for state changes. Ack just clears queue.
-        } else {
-            console.warn(`[ReqDelta Client] Optimistic update ${ack.clientSeq} rejected by server: ${ack.conflictReason}`);
-            const recalculatedOptimisticState = reapplyPendingUpdates(); // Returns State
-            setState({
-                optimisticState: recalculatedOptimisticState, // Rollback view
-                error: new Error(`Optimistic update ${ack.clientSeq} rejected: ${ack.conflictReason}`),
-            });
-        }
-
-        if (pendingUpdates.size === 0 && internalState.confirmedState !== undefined) {
-              const currentConfirmed = internalState.confirmedState;
-              // Deep compare might be better if feasible
-              if (JSON.stringify(internalState.optimisticState) !== JSON.stringify(currentConfirmed)) {
-                  console.log("[ReqDelta Client] Pending queue empty, converging optimistic state to confirmed state.");
-                  const clonedConfirmed = cloneState(currentConfirmed);
-                  if (clonedConfirmed !== undefined) {
-                     setState({ optimisticState: clonedConfirmed });
-                  } else {
-                     console.error("[ReqDelta Client] Failed to clone confirmed state for convergence. State might be inconsistent.");
-                     // Revert to initial state as a last resort?
-                     setState({ optimisticState: initialState, error: new Error("Convergence clone failed") });
-                  }
-              }
-         }
-    };
-
-     // --- Main Update Handler ---
-     const handleServerUpdate = (update: UpdateMessage<Delta>) => {
-        console.log(`[ReqDelta Client] Received server update (serverSeq: ${update.serverSeq}).`);
-        const serverSeq = update.serverSeq ?? -1;
-
-        // --- Syncing State ---
+        // --- Syncing State (Logic Needs Rework) ---
         if (internalState.isSyncing) {
             // Process update if it's the next expected one during sync
-            if (serverSeq === internalState.lastServerSeq + 1) {
-                console.log(`[ReqDelta Client] Applying update ${serverSeq} during sync.`);
-                // Apply update logic (similar to non-syncing case but adapted)
+            if (serverSeq !== undefined && serverSeq === internalState.lastServerSeq + 1) {
+                console.log(`[ReqDelta - Needs Rework] Applying update ${serverSeq} during sync.`);
+                // Apply update logic
                 let newConfirmedState: State;
                 try {
-                    newConfirmedState = applyDelta(internalState.confirmedState, update.delta);
-                    if (newConfirmedState === undefined) { throw new Error("applyDelta returned undefined during sync update"); }
+                    newConfirmedState = applyUpdate(internalState.confirmedState, data);
+                    if (newConfirmedState === undefined) { throw new Error("applyUpdate returned undefined during sync update"); }
                 } catch (err) {
-                    console.error(`[ReqDelta Client] Error applying server delta ${serverSeq} during sync:`, err);
-                    setState({ error: new Error(`Failed apply update ${serverSeq}: ${err}`), isSyncing: false, /* syncTargetSeq: -1 // Reset target? */ }); // Error state exits sync mode
-                    syncQueue = []; // Clear queue on error during sync
+                    console.error(`[ReqDelta - Needs Rework] Error applying server data (seq ${serverSeq}) during sync:`, err);
+                    setState({ error: new Error(`Failed apply update ${serverSeq}: ${err}`), isSyncing: false, syncTargetSeq: -1 }); // Error state exits sync mode
+                    syncQueue = []; // Clear queue on error
                     return;
                 }
 
-                // Calculate new optimistic state (rebase)
+                // Rebase optimistic state (Needs Rework)
                 let finalOptimisticState: State = newConfirmedState;
                 if (optimisticEnabled && pendingUpdates.size > 0) {
-                    // Simplified rebase placeholder:
-                    // Ensure reapplyPendingUpdates uses newConfirmedState as its base for calculations
-                    // This requires reapplyPendingUpdates to accept the base state or read it correctly
-                    // For now, assume reapply reads internalState.confirmedState which we just updated.
-                    // TODO: Refine reapplyPendingUpdates to accept a base state for correctness.
-                    finalOptimisticState = reapplyPendingUpdates() ?? newConfirmedState;
+                     console.warn("Rebase logic during sync needs rework for TypeQL");
+                     finalOptimisticState = reapplyPendingUpdates() ?? newConfirmedState; // Placeholder
                 }
 
                 setState({
@@ -449,45 +419,40 @@ export function createStore<
                     optimisticState: finalOptimisticState,
                     lastServerSeq: serverSeq,
                     // Keep isSyncing = true until target reached
+                    syncTargetSeq: internalState.syncTargetSeq, // Keep existing target
                 });
 
                 // Check if sync completed
-                if (serverSeq === syncTargetSeq) {
-                    console.log(`[ReqDelta Client] Sync completed at seq ${serverSeq}. Processing queue.`);
-                    // syncTargetSeq = -1; // Reset target? Or let processSyncQueue handle it? Keep it for now.
-                    // Process queue *after* setting state, potentially triggering more updates
-                    processSyncQueue(); // This might set isSyncing = false if queue is empty and no new gaps found
+                if (serverSeq === internalState.syncTargetSeq) {
+                    console.log(`[ReqDelta - Needs Rework] Sync possibly completed at seq ${serverSeq}. Processing queue.`);
+                    // Process queue *after* setting state
+                    processSyncQueue(); // This might set isSyncing = false
                 }
 
-            } else if (serverSeq > internalState.lastServerSeq + 1) {
-                // Received another gap while already syncing? Or an out-of-order historical update.
-                // Queue it and wait for the sequence to catch up.
-                console.warn(`[ReqDelta Client] Queuing out-of-sequence update ${serverSeq} received during sync.`);
-                // Avoid duplicates in queue
-                if (!syncQueue.some(item => item.serverSeq === serverSeq)) {
-                    syncQueue.push(update);
-                }
+            } else if (serverSeq !== undefined && serverSeq > internalState.lastServerSeq + 1) {
+                 console.warn(`[ReqDelta - Needs Rework] Queuing out-of-sequence update ${serverSeq} received during sync.`);
+                 if (!syncQueue.some(item => item.seq === serverSeq)) {
+                     syncQueue.push(dataMsg);
+                 }
             } else {
-                // Stale update received during sync (seq <= lastServerSeq)
-                console.warn(`[ReqDelta Client] Ignoring stale update ${serverSeq} received during sync.`);
+                 console.warn(`[ReqDelta - Needs Rework] Ignoring stale update ${serverSeq ?? 'undefined'} received during sync.`);
             }
             return; // Finished processing for syncing state
         }
 
-        // --- Not Syncing State ---
-
-        if (serverSeq > 0 && internalState.lastServerSeq > 0) {
+        // --- Not Syncing State (Sequence Check Needs Rework) ---
+        if (serverSeq !== undefined && internalState.lastServerSeq > 0) {
             const expectedNextSeq = internalState.lastServerSeq + 1;
             if (serverSeq < expectedNextSeq) {
-                console.warn(`[ReqDelta Client] Received stale update ${serverSeq} (expected >= ${expectedNextSeq}). Ignoring.`);
+                console.warn(`[ReqDelta - Needs Rework] Received stale update ${serverSeq} (expected >= ${expectedNextSeq}). Ignoring.`);
                 return;
             } else if (serverSeq > expectedNextSeq) {
                 // Gap detected!
-                console.warn(`[ReqDelta Client] Sequence gap detected! Expected ${expectedNextSeq}, got ${serverSeq}. Requesting missing.`);
-                setState({ isSyncing: true }); // Set syncing true *before* request
-                requestMissingUpdates(internalState.lastServerSeq, serverSeq); // This sets syncTargetSeq
-                // Queue the current update that triggered the gap detection
-                syncQueue = [update]; // Start queue with this update
+                console.warn(`[ReqDelta - Needs Rework] Sequence gap detected! Expected ${expectedNextSeq}, got ${serverSeq}. Requesting missing.`);
+                setState({ isSyncing: true, syncTargetSeq: serverSeq }); // Set sync target
+                // requestMissingUpdates(internalState.lastServerSeq, serverSeq); // Needs rework
+                console.warn("requestMissingUpdates needs rework for TypeQL");
+                syncQueue = [dataMsg]; // Start queue with this update
                 return; // Stop processing this update now
             }
         }
@@ -495,282 +460,233 @@ export function createStore<
         // --- Apply update normally (not syncing, sequence correct or first update) ---
         let newConfirmedState: State;
         try {
-             newConfirmedState = applyDelta(internalState.confirmedState, update.delta);
-             if (newConfirmedState === undefined) { throw new Error("applyDelta returned undefined for confirmed state update"); }
+             newConfirmedState = applyUpdate(internalState.confirmedState, data);
+             if (newConfirmedState === undefined) { throw new Error("applyUpdate returned undefined for confirmed state update"); }
         } catch (err) {
-            console.error(`[ReqDelta Client] Error applying server delta ${serverSeq} to confirmed state:`, err);
-            setState({ error: new Error(`Failed apply update ${serverSeq}: ${err}`), isSyncing: false }); // Ensure isSyncing false on error here
+            console.error(`[ReqDelta - Needs Rework] Error applying server data (seq ${serverSeq}) to confirmed state:`, err);
+            setState({ error: new Error(`Failed apply update ${serverSeq}: ${err}`), isSyncing: false });
             return;
         }
 
+        // Rebase optimistic state (Needs Rework)
         let finalOptimisticState: State = newConfirmedState;
         if (optimisticEnabled && pendingUpdates.size > 0) {
-            console.log(`[ReqDelta Client] Rebasing ${pendingUpdates.size} pending updates onto new confirmed state (serverSeq: ${serverSeq}).`);
-            let rebaseState: State | undefined = cloneState(newConfirmedState); // Clone the *new* confirmed state
-            if (rebaseState === undefined) {
-                console.error("[ReqDelta Client] Failed to clone new confirmed state for rebasing. State might be inconsistent.");
-                setState({ error: new Error("Failed to clone state for rebase") });
-                finalOptimisticState = newConfirmedState; // Fallback
-            } else {
-                 // TODO: Refine reapplyPendingUpdates to accept base state
-                 // Assume reapplyPendingUpdates correctly uses rebaseState as base
-                 finalOptimisticState = reapplyPendingUpdates() ?? newConfirmedState;
-            }
+             console.log(`[ReqDelta - Needs Rework] Rebasing ${pendingUpdates.size} pending updates onto new confirmed state (seq: ${serverSeq}).`);
+             const rebasedState = reapplyPendingUpdates(); // Needs rework
+             if (rebasedState !== undefined) {
+                 finalOptimisticState = rebasedState;
+             } else {
+                  console.error("[ReqDelta - Needs Rework] Rebase failed, could not recalculate optimistic state.");
+                  finalOptimisticState = newConfirmedState; // Fallback
+             }
         }
 
         setState({
             confirmedState: newConfirmedState,
             optimisticState: finalOptimisticState,
-            lastServerSeq: serverSeq > 0 ? serverSeq : internalState.lastServerSeq,
-            isLoading: false,
-            error: undefined,
-            isSyncing: false,
-        });
-        setState({
-            confirmedState: newConfirmedState,
-            optimisticState: finalOptimisticState,
-            lastServerSeq: serverSeq > 0 ? serverSeq : internalState.lastServerSeq,
+            lastServerSeq: serverSeq !== undefined ? serverSeq : internalState.lastServerSeq,
             isLoading: false,
             error: undefined,
             isSyncing: false, // Explicitly false after successful normal update
         });
     };
 
-
-    const handleIncomingMessage = (message: ReqDeltaMessage<ReqP, ResP, Delta>) => {
-        if (!isStoreConnected || message.topic !== topic) return;
-
-        switch (message.type) {
-            case 'response':
-                const responseData = message.payload as ResP;
-                if (message.error) {
-                    console.error(`[ReqDelta Client] Error fetching initial state for topic "${topic}":`, message.error);
-                    setState({
-                        isLoading: false,
-                        error: message.error,
-                        confirmedState: undefined,
-                        optimisticState: initialState, // Reset optimistic to initial
-                        lastServerSeq: 0,
-                        isSyncing: false,
-                    });
-                    pendingUpdates.clear();
-                } else {
-                    console.log(`[ReqDelta Client] Received initial state for topic "${topic}".`);
-                    pendingUpdates.clear();
-                    const initialStateData = responseData as unknown as State;
-                    const clonedInitial = cloneState(initialStateData);
-
-                    if (clonedInitial === undefined && initialStateData !== undefined) {
-                         console.error(`[ReqDelta Client] Failed to clone initial state for topic "${topic}". Store may be inconsistent.`);
-                         setState({
-                              isLoading: false,
-                              error: new Error("Failed to clone initial state"),
-                              confirmedState: undefined,
-                              optimisticState: initialState, // Fallback
-                              lastServerSeq: 0,
-                              isSyncing: false,
-                         });
-                    } else {
-                         // clonedInitial is State | undefined, but if initialStateData was defined, clone should succeed or return original
-                         // If initialStateData was undefined, clonedInitial is undefined.
-                         // We need optimisticState to be State.
-                         const finalInitialState = clonedInitial ?? initialState; // Ensure non-undefined using original initial state
-                         setState({
-                              isLoading: false,
-                              confirmedState: initialStateData,
-                              optimisticState: finalInitialState, // Use the processed initial state
-                              error: undefined,
-                              lastServerSeq: 0, // Reset sequence
-                              isSyncing: false,
-                         });
-                    }
-                }
-                break;
-            case 'update':
-                handleServerUpdate(message as UpdateMessage<Delta>);
-                break;
-            case 'ack':
-                handleServerAck(message as ServerAckMessage);
-                break;
-            // Other cases remain the same
-             case 'client_update':
-             case 'missing_updates':
-             case 'request':
-             case 'subscribe':
-             case 'unsubscribe':
-                 console.warn(`[ReqDelta Client] Received unexpected message type "${message.type}" from server. Ignoring.`);
-                 break;
-             default:
-                  console.log(`[ReqDelta Client] Received unknown message type, possibly custom:`, message);
-                 break;
-        }
+    const handleSubscriptionError = (error: SubscriptionErrorMessage['error']) => {
+        console.error(`[ReqDelta - Needs Rework] Subscription error for path "${path}":`, error.message);
+        setState({ isLoading: false, error: error.message || 'Subscription error', isConnected: false /* Assume disconnect on error? */ });
+        unsubscribeFn = undefined; // Clear unsubscribe function
     };
 
-    // --- Outgoing Messages ---
-
-    const sendMessage = async (message: ReqDeltaMessage) => {
-       if (!isStoreConnected) {
-            console.warn(`[ReqDelta Client] Attempted to send message while store is disconnected:`, message);
-            return Promise.reject(new Error("Store disconnected"));
-        }
-       if (!internalState.isConnected) {
-            console.warn(`[ReqDelta Client] Attempted to send message while transport is disconnected:`, message);
-            // TODO: Offline queuing?
-            return Promise.reject(new Error("Transport disconnected"));
-       }
-        try {
-            await Promise.resolve(transport.sendMessage(message));
-        } catch (err) {
-            console.error(`[ReqDelta Client] Error sending message for topic "${topic}":`, err);
-            setState({ error: new Error(`Failed to send message: ${err}`) });
-            throw err;
-        }
+    const handleSubscriptionEnd = () => {
+        console.log(`[ReqDelta - Needs Rework] Subscription ended normally for path "${path}".`);
+        setState({ isLoading: false, error: undefined });
+        unsubscribeFn = undefined; // Clear unsubscribe function
     };
 
-     const requestInitialState = (isReconnect: boolean = false) => {
+
+    // --- Outgoing Message Functions (Needs Rework) ---
+
+    // Replace old sendMessage with TypeQL request/subscribe calls
+
+    // Fetch initial state using transport.request (assuming a query)
+    const requestInitialState = async (isReconnect: boolean = false) => {
         if (!isStoreConnected) return;
         if (isReconnect || !optimisticEnabled) {
-             pendingUpdates.clear();
+            pendingUpdates.clear();
         }
-        setState({ isLoading: true, error: undefined, isSyncing: true });
+        setState({ isLoading: true, error: undefined /*, isSyncing: true ? */ }); // isSyncing handled by gap detection now
         const requestId = generateRequestId();
-        const requestMsg: RequestMessage<ReqP> = {
-            type: 'request',
+        const queryMessage: ProcedureCallMessage = {
+            type: 'query', // Assume initial state comes from a query
             id: requestId,
-            topic: topic,
-            ...(requestPayload !== undefined && { payload: requestPayload }),
+            path: path, // Use the store's configured path
+            input: undefined, // TODO: How to pass input for initial state query? Add option?
         };
-        sendMessage(requestMsg).catch(() => {
-             setState({ isLoading: false, isSyncing: false });
-        });
-    };
-
-    const subscribeToUpdates = () => {
-        if (!isStoreConnected) return;
-        const subscribeId = generateRequestId();
-        const subscribeMsg: SubscribeMessage = { type: 'subscribe', id: subscribeId, topic: topic };
-        sendMessage(subscribeMsg).catch(err => {
-             console.error(`[ReqDelta Client] Failed to send subscribe message:`, err);
-        });
-    };
-
-    const unsubscribeFromUpdates = () => {
-        const unsubscribeId = generateRequestId();
-        const unsubscribeMsg: UnsubscribeMessage = { type: 'unsubscribe', id: unsubscribeId, topic: topic };
-         sendMessage(unsubscribeMsg).catch(err => {
-             console.warn(`[ReqDelta Client] Error sending unsubscribe on disconnect:`, err);
-         });
-    };
-
-    // --- Outgoing Message Functions ---
-
-     const requestMissingUpdates = (from: number, to: number) => {
-        if (!isStoreConnected || !internalState.isConnected) {
-             console.warn("[ReqDelta Client] Cannot request missing updates: Not connected.");
-             return;
+        try {
+            const resultMessage = await transport.request(queryMessage);
+            if (resultMessage.result.type === 'data') {
+                console.log(`[ReqDelta - Needs Rework] Received initial state for path "${path}".`);
+                pendingUpdates.clear(); // Clear pending on successful refresh
+                const initialStateData = resultMessage.result.data as State; // Assume result is State
+                const clonedInitial = cloneState(initialStateData);
+                if (clonedInitial === undefined && initialStateData !== undefined) {
+                    throw new Error("Failed to clone initial state");
+                }
+                const finalInitialState = clonedInitial ?? initialState; // Ensure non-undefined
+                setState({
+                    isLoading: false,
+                    confirmedState: initialStateData,
+                    optimisticState: finalInitialState,
+                    error: undefined,
+                    lastServerSeq: 0, // Reset sequence
+                    isSyncing: false,
+                });
+            } else {
+                // Error result
+                throw new Error(resultMessage.result.error.message || 'Failed to fetch initial state');
+            }
+        } catch (err: any) {
+            console.error(`[ReqDelta - Needs Rework] Error fetching initial state for path "${path}":`, err);
+            setState({ isLoading: false, error: err.message || err, confirmedState: undefined, isSyncing: false });
         }
-        console.log(`[ReqDelta Client] Requesting missing updates for topic "${topic}" from ${from} to ${to}.`);
-        syncTargetSeq = to; // Store the target sequence we expect to reach
-        const requestMsg: MissingUpdatesRequestMessage = {
-            type: 'missing_updates',
-            topic: topic, // Already known, but include for clarity
-            fromSeq: from, // Exclusive
-            toSeq: to, // Inclusive
-        };
-        sendMessage(requestMsg).catch(err => {
-             console.error(`[ReqDelta Client] Failed to send request for missing updates:`, err);
-             // If request fails, exit sync mode and set error
-             setState({ isSyncing: false, syncTargetSeq: -1, error: new Error(`Failed request missing updates: ${err}`) }); // Removed syncTargetSeq from here
-             syncQueue = []; // Clear queue as sync failed
-        });
     };
 
-    // --- Store API Implementation ---
+    // Subscribe using the new transport interface
+    const subscribeToUpdates = () => {
+        if (!isStoreConnected || !internalState.isConnected) return;
+        if (unsubscribeFn) {
+            console.warn(`[ReqDelta - Needs Rework] Already subscribed to path "${path}". Skipping.`);
+            return; // Already subscribed
+        }
+        console.log(`[ReqDelta - Needs Rework] Subscribing to path "${path}"...`);
+        const subscribeId = generateRequestId();
+        // TODO: How to pass input for subscription? Add option?
+        const subscribeMsg: SubscribeMessage = { type: 'subscription', id: subscribeId, path: path /* input: ??? */ };
 
+        const handlers: SubscriptionHandlers = {
+            onData: handleSubscriptionData,
+            onError: handleSubscriptionError,
+            onEnd: handleSubscriptionEnd,
+        };
+
+        try {
+            unsubscribeFn = transport.subscribe(subscribeMsg, handlers);
+        } catch (err: any) {
+            console.error(`[ReqDelta - Needs Rework] Error initiating subscription for path "${path}":`, err);
+            setState({ isLoading: false, error: err.message || err });
+        }
+    };
+
+    // Unsubscribe using the stored function from transport.subscribe
+    const unsubscribeFromUpdates = () => {
+        if (unsubscribeFn) {
+            console.log(`[ReqDelta - Needs Rework] Unsubscribing from path "${path}"...`);
+            try {
+                unsubscribeFn();
+            } catch (err) {
+                console.warn(`[ReqDelta - Needs Rework] Error during unsubscribe call:`, err);
+            }
+            unsubscribeFn = undefined;
+        }
+    };
+
+    // TODO: Rework requestMissingUpdates for TypeQL (if applicable)
+    // const requestMissingUpdates = (from: number, to: number) => { ... };
+
+    // --- Store API Implementation (Needs Rework for Optimistic Updates) ---
+
+    // TODO: Rework performOperation for TypeQL mutation model
     const performOperation = (operation: Operation): number => {
         if (!isStoreConnected) {
-            console.error("[ReqDelta Client] Cannot perform operation: Store is disconnected.");
+            console.error("[ReqDelta - Needs Rework] Cannot perform operation: Store is disconnected.");
             return -1;
         }
-         if (!internalState.isConnected) {
-             console.error("[ReqDelta Client] Cannot perform operation: Transport is disconnected.");
-             return -1;
-         }
-        if (!optimisticEnabled || !operationToDelta || !clientSeqManager) {
-            console.warn("[ReqDelta Client] Optimistic updates not enabled. Operation ignored:", operation);
+        if (!internalState.isConnected) {
+            console.error("[ReqDelta - Needs Rework] Cannot perform operation: Transport is disconnected.");
+            return -1;
+        }
+        // Use renamed option
+        if (!optimisticEnabled || !operationToOptimisticData /* || !clientSeqManager */) {
+            console.warn("[ReqDelta - Needs Rework] Optimistic updates not enabled or configured. Operation ignored:", operation);
             return -1;
         }
         // internalState.optimisticState is guaranteed to be State
         const currentOptimisticState = internalState.optimisticState;
 
-        let delta: Delta | null;
+        let optimisticData: Delta | null; // Renamed from delta
         try {
-            delta = operationToDelta(operation, currentOptimisticState);
+            // Use renamed function
+            optimisticData = operationToOptimisticData(operation, currentOptimisticState);
         } catch (err) {
-            console.error("[ReqDelta Client] Error converting operation to delta:", err);
+            console.error("[ReqDelta - Needs Rework] Error converting operation to optimistic data:", err);
             setState({ error: new Error(`Failed to process operation: ${err}`) });
             return -1;
         }
 
-        if (delta === null) {
-            console.log("[ReqDelta Client] operationToDelta returned null, operation skipped:", operation);
+        if (optimisticData === null) {
+            console.log("[ReqDelta - Needs Rework] operationToOptimisticData returned null, operation skipped:", operation);
             return -1;
         }
 
-        const clientSeq = clientSeqManager.getNext();
+        const clientSeq = ++clientSeqCounter; // Use temporary counter
         const clonedSnapshot: State | undefined = cloneState(currentOptimisticState);
         if (clonedSnapshot === undefined) {
-             console.error("[ReqDelta Client] Failed to clone state for snapshot. Cannot apply optimistic update.");
+             console.error("[ReqDelta - Needs Rework] Failed to clone state for snapshot. Cannot apply optimistic update.");
              return -1;
         }
         const snapshot: State = clonedSnapshot; // Now State type
 
         let newOptimisticState: State;
         try {
-            newOptimisticState = applyDelta(currentOptimisticState, delta);
+            // Use renamed function
+            newOptimisticState = applyUpdate(currentOptimisticState, optimisticData);
              if (newOptimisticState === undefined) { // Should not happen
-                 throw new Error("applyDelta returned undefined for optimistic update");
+                 throw new Error("applyUpdate returned undefined for optimistic update");
              }
         } catch (err) {
-            console.error("[ReqDelta Client] Error applying optimistic delta:", err);
+            console.error("[ReqDelta - Needs Rework] Error applying optimistic data:", err);
             setState({ error: new Error(`Failed to apply optimistic update ${clientSeq}: ${err}`) });
             return -1;
         }
 
-        const pending: PendingUpdate<State, Delta, Operation> = { // Added Operation generic
+        // Store pending update (structure might need change)
+        const pending: PendingUpdate<State, Delta, Operation> = {
              operation,
-             delta,
+             delta: optimisticData, // Store the generated data/delta
              snapshot,
              timestamp: Date.now(),
-             clientSeq
+             clientSeq // Use temporary counter
         };
         pendingUpdates.set(clientSeq, pending);
         setState({ optimisticState: newOptimisticState, error: undefined });
 
-        const clientUpdateMsg: ClientUpdateMessage<Delta> = {
-            type: 'client_update',
-            topic: topic,
-            clientSeq: clientSeq,
-            delta: delta,
-            timestamp: Date.now(),
+        // TODO: Send mutation to server using transport.request
+        // Needs rework: map operation/optimisticData to the correct mutation path and input
+        console.warn("[ReqDelta - Needs Rework] performOperation needs rework to send mutation via transport.request.");
+        /*
+        const mutationMsg: ProcedureCallMessage = {
+            type: 'mutation',
+            id: generateRequestId(),
+            path: ???, // Mutation path related to the operation
+            input: ???, // Input derived from operation/optimisticData
         };
-        sendMessage(clientUpdateMsg).catch(err => {
-            console.error(`[ReqDelta Client] Failed to send optimistic update ${clientSeq} to server:`, err);
-        });
+        transport.request(mutationMsg).then(handleMutationResult).catch(handleMutationError);
+        */
 
-        return clientSeq;
+        return clientSeq; // Return temporary client sequence
     };
 
     // --- Initialization ---
-    cleanupTransportOnMessage = transport.onMessage(handleIncomingMessage);
+    // Replace onMessage with subscribe
+    // cleanupTransportOnMessage = transport.onMessage(handleIncomingMessage);
     if (transport.onConnectionChange) {
         cleanupTransportOnConnection = transport.onConnectionChange(updateConnectionStatus);
     }
     if (internalState.isConnected) {
-        requestInitialState();
-        subscribeToUpdates();
+        requestInitialState(); // Fetch initial state via query
+        subscribeToUpdates(); // Subscribe using transport.subscribe
     } else {
-        console.warn(`[ReqDelta Client] Transport initially disconnected for topic "${topic}". Waiting for connection.`);
+        console.warn(`[ReqDelta - Needs Rework] Transport initially disconnected for path "${path}". Waiting for connection.`);
         setState({ isLoading: false });
     }
     // --- End Initialization ---
@@ -782,24 +698,20 @@ export function createStore<
             return () => listeners.delete(listener);
         },
         refresh: () => {
-            if (isStoreConnected) {
-                requestInitialState();
+            if (isStoreConnected && internalState.isConnected) {
+                 requestInitialState(); // Re-fetch initial state
             } else {
-                console.warn(`[ReqDelta Client] Cannot refresh store for topic "${topic}" as it is disconnected.`);
+                console.warn(`[ReqDelta - Needs Rework] Cannot refresh store for path "${path}" as it is disconnected.`);
             }
         },
         disconnect: () => {
             if (!isStoreConnected) return;
             isStoreConnected = false;
-            // Try to unsubscribe, but don't wait or rely on it
-            if (internalState.isConnected) {
-                 unsubscribeFromUpdates();
-            }
-            // Clean up listeners
-             if (typeof cleanupTransportOnMessage === 'function') cleanupTransportOnMessage();
+            unsubscribeFromUpdates(); // Use new unsubscribe logic
+            // Clean up connection listener
              if (typeof cleanupTransportOnConnection === 'function') cleanupTransportOnConnection();
              listeners.clear();
-             pendingUpdates.clear();
+             pendingUpdates.clear(); // Clear pending updates
 
              // Final state update
              const finalConfirmed = internalState.confirmedState;
@@ -812,12 +724,13 @@ export function createStore<
                   error: new Error("Disconnected by client"),
                   optimisticState: finalOptimistic,
                   // confirmedState remains as it was
-                  isSyncing: false,
-                  isConnected: false // Reflect disconnect
+                  isConnected: false, // Reflect disconnect
+                  isSyncing: false, // Ensure only one isSyncing property
+                  syncTargetSeq: -1,
              });
-             console.log(`[ReqDelta Client] Store disconnected for topic "${topic}".`);
+             console.log(`[ReqDelta - Needs Rework] Store disconnected for path "${path}".`);
         },
-        performOperation,
+        performOperation, // Keep API, implementation needs major rework
     };
 
     return storeApi;

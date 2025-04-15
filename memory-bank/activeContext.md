@@ -15,10 +15,15 @@
     *   Integrated Zod for input/output/subscriptionOutput validation/parsing in `ProcedureBuilder` (`packages/core/src/server/procedure.ts`). Types are now inferred from Zod schemas.
     *   Implemented initial `createRouter` function and `Router` class structure in `packages/core/src/server/router.ts`.
     *   Implemented initial request handler logic in `packages/core/src/server/requestHandler.ts` (`createRequestHandler`).
-    *   Implemented initial client proxy structure in `packages/core/src/client/client.ts` (`createClient`). Uses `Proxy` to dynamically build typed accessors based on `AppRouter` type. Includes type helpers for procedure calls (`query`, `mutate`, `subscribe`) with Zod type inference. Fixed TS errors post-implementation. Placeholder transport calls included.
-    *   Update `progress.md` reflecting client proxy implementation.
+    *   Implemented initial client proxy structure in `packages/core/src/client/client.ts` (`createClient`).
+    *   Updated `Transport` interface and related message types in `packages/core/src/core/types.ts` to align better with TypeQL (request/result, subscription lifecycle).
+    *   Fixed resulting TypeScript errors in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, and `updateHistory.ts` after TypeQL type refactoring. (Note: `optimisticStore.ts` and `createStore.ts` still require significant logic refactoring).
+    *   Integrated the `TypeQLTransport` interface into the client proxy (`packages/core/src/client/client.ts`).
+    *   Refined `SubscriptionManager` to focus on lifecycle/cleanup and removed direct transport dependency.
+    *   Updated `createRequestHandler` to handle subscription setup using `SubscriptionManager` and defined a `publish` function that assumes the `transport` context object has a method for server-to-client messaging (e.g., `sendMessage`). Fixed related TS errors.
+    *   Update `progress.md` reflecting these server-side integration refinements.
     *   Commit changes.
-    *   Next major step: Define the `Transport` interface more formally in `core/types.ts` and integrate it properly into the client proxy (`createProcedureProxy`) and potentially the server request handler for subscriptions.
+    *   Next major step: Define a concrete transport implementation (e.g., WebSocket) or start designing client-side state management helpers (e.g., React hooks) that utilize the client proxy. Need to clarify how `clientId` is determined and passed server-side.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
