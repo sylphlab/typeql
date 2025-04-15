@@ -21,9 +21,9 @@
         *   [X] Implement basic request handling logic for Query/Mutation (`packages/core/src/server/requestHandler.ts` - `createRequestHandler`).
         *   [ ] Implement subscription mechanism focusing on delta stream generation (placeholder exists in handler).
     *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
-        *   [ ] Implement `createClient` function to generate typed proxy from server router type.
-        *   [ ] Implement basic `query`, `mutate`, `subscribe` call logic via transport.
-        *   [ ] Implement client-side subscription handling for delta streams.
+        *   [X] Implement `createClient` function to generate typed proxy from server router type (`packages/core/src/client/client.ts`).
+        *   [X] Implement basic `query`, `mutate`, `subscribe` call logic via **placeholder** transport (`packages/core/src/client/client.ts`).
+        *   [ ] Implement client-side subscription handling for delta streams (needs actual transport & observable/iterator return type).
     *   **Core (`@typeql/core` - or keep `@reqdelta/core`)**
         *   [ ] Refine shared types (messages might change significantly).
         *   [ ] Ensure delta utilities are compatible.

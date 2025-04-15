@@ -14,10 +14,11 @@
     *   Refined and confirmed the core implementation of `ProcedureBuilder` in `packages/core/src/server/procedure.ts`. Generic type propagation is working as intended.
     *   Integrated Zod for input/output/subscriptionOutput validation/parsing in `ProcedureBuilder` (`packages/core/src/server/procedure.ts`). Types are now inferred from Zod schemas.
     *   Implemented initial `createRouter` function and `Router` class structure in `packages/core/src/server/router.ts`.
-    *   Implemented initial request handler logic in `packages/core/src/server/requestHandler.ts` (`createRequestHandler`). This handles finding procedures, context creation, input/output parsing (Zod), and resolver execution for queries/mutations. Basic error handling included. Subscription handling is placeholder.
-    *   Update `progress.md` reflecting request handler implementation.
+    *   Implemented initial request handler logic in `packages/core/src/server/requestHandler.ts` (`createRequestHandler`).
+    *   Implemented initial client proxy structure in `packages/core/src/client/client.ts` (`createClient`). Uses `Proxy` to dynamically build typed accessors based on `AppRouter` type. Includes type helpers for procedure calls (`query`, `mutate`, `subscribe`) with Zod type inference. Fixed TS errors post-implementation. Placeholder transport calls included.
+    *   Update `progress.md` reflecting client proxy implementation.
     *   Commit changes.
-    *   Next major step: Refine subscription handling in the request handler or associated logic, or begin implementing the client-side proxy (`createClient`).
+    *   Next major step: Define the `Transport` interface more formally in `core/types.ts` and integrate it properly into the client proxy (`createProcedureProxy`) and potentially the server request handler for subscriptions.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
