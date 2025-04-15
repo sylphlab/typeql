@@ -13,10 +13,11 @@
 *   **Next Steps**:
     *   Refined and confirmed the core implementation of `ProcedureBuilder` in `packages/core/src/server/procedure.ts`. Generic type propagation is working as intended.
     *   Integrated Zod for input/output/subscriptionOutput validation/parsing in `ProcedureBuilder` (`packages/core/src/server/procedure.ts`). Types are now inferred from Zod schemas.
-    *   Implemented initial `createRouter` function and `Router` class structure in `packages/core/src/server/router.ts`. This allows defining procedures and nesting routers. Fixed a TS error post-implementation.
-    *   Update `progress.md` reflecting initial router implementation.
+    *   Implemented initial `createRouter` function and `Router` class structure in `packages/core/src/server/router.ts`.
+    *   Implemented initial request handler logic in `packages/core/src/server/requestHandler.ts` (`createRequestHandler`). This handles finding procedures, context creation, input/output parsing (Zod), and resolver execution for queries/mutations. Basic error handling included. Subscription handling is placeholder.
+    *   Update `progress.md` reflecting request handler implementation.
     *   Commit changes.
-    *   Next major step: Implement the actual request handling logic that uses the router definition to call the correct procedure based on the incoming request path/type. This will likely involve creating a request handler function or class that takes the AppRouter and a request object.
+    *   Next major step: Refine subscription handling in the request handler or associated logic, or begin implementing the client-side proxy (`createClient`).
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
