@@ -38,7 +38,7 @@
     *   [X] Implement optimistic update mechanism on client `mutate` calls (`client.ts` interacts with store).
     *   [X] Implement delta reconciliation logic on client (`OptimisticStore` handles this via `applyServerDelta` and `recomputeOptimisticState`).
     *   [X] Implement data consistency/recovery for delta subscriptions (`OptimisticStore` detects gaps, calls transport `requestMissingDeltas`).
-    *   [ ] Implement context passing for server procedures.
+    *   [X] Implement context passing for server procedures (`ProcedureBuilder`, `requestHandler`).
     *   [ ] Implement error handling and propagation.
 *   **Phase 3: Transport Adapters & Integrations**
     *   [ ] Create/Adapt transport adapters (`@typeql/transport-*`).
@@ -54,4 +54,4 @@
     *   [ ] Performance optimization.
 
 *   **Current Status**: **Design pivoted to TypeQL**. Core optimistic update features implemented. Subscription handling refactored to use AsyncIterableIterator on client and transport layers. React hooks updated.
-*   **Known Issues**: Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns. `useQuery` optimistic update integration assumes TState is compatible with TOutput. **`useSubscription` store integration requires full `SubscriptionDataMessage` from iterator, currently only gets data payload.** Context passing and error handling need implementation.
+*   **Known Issues**: Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns. `useQuery` optimistic update integration assumes TState is compatible with TOutput. **`useSubscription` store integration requires full `SubscriptionDataMessage` from iterator, currently only gets data payload.** Error handling and propagation need implementation.

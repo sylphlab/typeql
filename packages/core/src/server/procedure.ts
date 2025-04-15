@@ -12,25 +12,25 @@ import type { StandardDelta } from '../core/types'; // Assuming deltas are neede
 export type ProcedureContext = Record<string, unknown>; // Base context, user can extend
 
 /** Options passed to resolver/subscription functions */
-export interface ProcedureOptions<TContext, TInput = unknown> {
+export interface ProcedureOptions<TContext = ProcedureContext, TInput = unknown> { // Default TContext
     ctx: TContext;
     input: TInput;
 }
 
 /** Options passed specifically to subscription resolvers */
-export interface SubscriptionOptions<TContext, TInput = unknown, TOutput = unknown> extends ProcedureOptions<TContext, TInput> {
+export interface SubscriptionOptions<TContext = ProcedureContext, TInput = unknown, TOutput = unknown> extends ProcedureOptions<TContext, TInput> { // Default TContext
     /** Function to push data/deltas to the client */
     publish: (data: TOutput) => void;
 }
 
 /** Function signature for query/mutation resolvers */
-export type Resolver<TInput = any, TOutput = any, TContext = any> = (opts: ProcedureOptions<TContext, TInput>) => Promise<TOutput> | TOutput;
+export type Resolver<TInput = any, TOutput = any, TContext = ProcedureContext> = (opts: ProcedureOptions<TContext, TInput>) => Promise<TOutput> | TOutput; // Default TContext
 
 /**
  * Function signature for subscription resolvers.
  * Sets up the subscription and returns an unsubscribe/cleanup function.
  */
-export type SubscriptionResolver<TInput = any, TOutput = any, TContext = any> = (opts: SubscriptionOptions<TContext, TInput, TOutput>) => Promise<() => void> | (() => void);
+export type SubscriptionResolver<TInput = any, TOutput = any, TContext = ProcedureContext> = (opts: SubscriptionOptions<TContext, TInput, TOutput>) => Promise<() => void> | (() => void); // Default TContext
 
 
 // --- Procedure Definition ---
@@ -70,10 +70,10 @@ export interface AnyProcedure {
  * Uses generics to track Context, Input, Output types.
  */
 class ProcedureBuilder<
-    TContext extends ProcedureContext,
-    TInput,
-    TOutput, // Output for query/mutation
-    TSubscriptionOutput // Output for subscription stream (deltas)
+    TContext = ProcedureContext, // Default context
+    TInput = unknown,
+    TOutput = unknown, // Output for query/mutation
+    TSubscriptionOutput = unknown // Output for subscription stream (deltas)
 > {
     // Store the definition being built
     // Use `Partial<ProcedureDef<any, any, any, any>>` internally for flexibility during build steps
@@ -82,6 +82,12 @@ class ProcedureBuilder<
     // Constructor takes the internal definition state
     constructor(initialDef: Partial<ProcedureDef<any, any, any, any>>) {
         this._def = initialDef;
+    }
+
+    /** Define the context type for subsequent steps */
+    context<TNewContext extends ProcedureContext>(): ProcedureBuilder<TNewContext, TInput, TOutput, TSubscriptionOutput> {
+        // This doesn't change the definition, only the generic type for the next builder instance
+        return this as unknown as ProcedureBuilder<TNewContext, TInput, TOutput, TSubscriptionOutput>;
     }
 
     /** Define the input schema/validator */
@@ -170,7 +176,7 @@ class ProcedureBuilder<
  * Initializes the procedure builder chain.
  * This acts like the initial `t.procedure` or `t.router` in tRPC.
  */
-class ProcedureBuilderInitializer<TContext extends ProcedureContext> {
+class ProcedureBuilderInitializer<TContext = ProcedureContext> { // Default context
     /** Starts building a Query procedure */
     get query() {
         // Provide initial definition with type
@@ -204,7 +210,7 @@ class ProcedureBuilderInitializer<TContext extends ProcedureContext> {
  *     .resolve(...)
  * });
  */
-export function initTypeQL<TContext extends ProcedureContext>() {
+export function initTypeQL<TContext = ProcedureContext>() { // Default context
     return new ProcedureBuilderInitializer<TContext>();
 }
 

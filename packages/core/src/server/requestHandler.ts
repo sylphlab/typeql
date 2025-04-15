@@ -72,7 +72,7 @@ function findProcedure(
 export interface RequestHandlerOptions<TContext extends ProcedureContext> {
     router: AnyRouter;
     subscriptionManager: SubscriptionManager; // Add SubscriptionManager
-    // How to get the specific transport/client connection for this request? Needs context.
+    /** Function to create context for each request */
     createContext: (opts: { transport?: TypeQLTransport; /* other context sources */ }) => Promise<TContext> | TContext;
     // onError?: (error: any) => void;
 }
@@ -114,9 +114,15 @@ export function createRequestHandler<TContext extends ProcedureContext>(
         }
 
         try {
-            // 1. Create Context (conditionally passing transport)
-            const contextInput = transport ? { transport } : {};
-            const ctx = await createContext(contextInput);
+            // 1. Create Context
+            // Pass transport and potentially other request-specific info (headers, etc.) if available
+            // Explicitly handle undefined transport for exactOptionalPropertyTypes
+            const contextInput: { transport?: TypeQLTransport } = {};
+            if (transport) {
+                contextInput.transport = transport;
+            }
+            const ctx: TContext = await createContext(contextInput); // Await context creation
+            console.log(`[TypeQL Handler] Context created for request ${call.id}`);
 
             // 2. Parse Input (Common for all types initially)
             let parsedInput: unknown = call.input; // Default to raw input
