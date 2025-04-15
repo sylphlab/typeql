@@ -27,10 +27,10 @@
         *   [ ] Refine shared types (messages might change significantly).
         *   [ ] Ensure delta utilities are compatible.
 *   **Phase 2: Feature Implementation (TypeQL)**
+    *   [X] Implement input validation (e.g., Zod integration in `ProcedureBuilder`).
     *   [ ] Implement optimistic update mechanism on client `mutate` calls.
     *   [ ] Implement delta reconciliation logic on client.
     *   [ ] Implement data consistency/recovery for delta subscriptions (using seq numbers).
-    *   [ ] Implement input validation (e.g., Zod integration).
     *   [ ] Implement context passing for server procedures.
     *   [ ] Implement error handling and propagation.
 *   **Phase 3: Transport Adapters & Integrations**

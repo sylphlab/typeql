@@ -6,7 +6,8 @@
 *   **Core Package**: `@reqdelta/core` (in `packages/core`)
 *   **Transport Packages**: Planned as `@reqdelta/transport-*` (e.g., `packages/transport-websocket`)
 *   **Target Environment**: Node.js, Browsers, VSCode Extensions (depending on the package/transport)
-*   **Key Libraries/Frameworks (Core)**: None initially.
+*   **Key Libraries/Frameworks (Core)**:
+    *   `zod`: For input/output validation and type inference.
 *   **Build/Compilation**: `tsc` (TypeScript Compiler) per package. Root `npm run build -ws` script.
 *   **Testing**: TBD (Jest, Vitest recommended, potentially configured at root level).
 *   **Linting/Formatting**: TBD (ESLint, Prettier recommended, likely configured at root level).

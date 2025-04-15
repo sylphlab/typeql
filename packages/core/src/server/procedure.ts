@@ -3,6 +3,7 @@
 // Core procedure building logic for TypeQL
 // Inspired by tRPC procedures
 
+import * as z from 'zod';
 import type { StandardDelta } from '../core/types'; // Assuming deltas are needed
 
 // --- Core Types ---
@@ -42,9 +43,9 @@ export interface ProcedureDef<
     TSubscriptionOutput = unknown // Separate output for subscription stream
 > {
     type: 'query' | 'mutation' | 'subscription';
-    inputParser?: (input: unknown) => TInput; // Placeholder for input parser/validator (e.g., Zod schema)
-    outputParser?: (output: unknown) => TOutput; // Placeholder for output parser/validator
-    subscriptionOutputParser?: (output: unknown) => TSubscriptionOutput; // Parser for subscription data/deltas
+    inputSchema?: z.ZodType<TInput>; // Zod schema for input validation/parsing
+    outputSchema?: z.ZodType<TOutput>; // Zod schema for output validation/parsing
+    subscriptionOutputSchema?: z.ZodType<TSubscriptionOutput>; // Schema for subscription data/deltas
     resolver?: Resolver<TInput, TOutput, TContext>;
     subscriptionResolver?: SubscriptionResolver<TInput, TSubscriptionOutput, TContext>;
     // meta?: TMeta; // Placeholder for metadata
@@ -83,49 +84,49 @@ class ProcedureBuilder<
         this._def = initialDef;
     }
 
-    /** Define the input parser/validator */
-    input<TNextInput>(
-        parser: (input: unknown) => TNextInput
-    ): ProcedureBuilder<TContext, TNextInput, TOutput, TSubscriptionOutput> {
-        console.log(`[TypeQL Procedure] Defining input parser for ${this._def.type}...`);
-        // Create a new builder instance with updated generic type `TNextInput`
-        const nextDef: Partial<ProcedureDef<TContext, TNextInput, TOutput, TSubscriptionOutput>> = {
-             ...this._def,
-             inputParser: parser,
+    /** Define the input schema/validator */
+    input<ZodSchema extends z.ZodType>(
+        schema: ZodSchema
+    ): ProcedureBuilder<TContext, z.infer<ZodSchema>, TOutput, TSubscriptionOutput> {
+        console.log(`[TypeQL Procedure] Defining input schema for ${this._def.type}...`);
+        // Create a new builder instance with updated generic type inferred from ZodSchema
+        const nextDef: Partial<ProcedureDef<TContext, z.infer<ZodSchema>, TOutput, TSubscriptionOutput>> = {
+            ...this._def,
+            inputSchema: schema as z.ZodType<z.infer<ZodSchema>>, // Store the schema
         };
-        return new ProcedureBuilder<TContext, TNextInput, TOutput, TSubscriptionOutput>(nextDef);
+        return new ProcedureBuilder<TContext, z.infer<ZodSchema>, TOutput, TSubscriptionOutput>(nextDef);
     }
 
-    /** Define the output parser/validator (for query/mutation) */
-    output<TNextOutput>(
-        parser: (output: unknown) => TNextOutput
-    ): ProcedureBuilder<TContext, TInput, TNextOutput, TSubscriptionOutput> {
+    /** Define the output schema/validator (for query/mutation) */
+    output<ZodSchema extends z.ZodType>(
+        schema: ZodSchema
+    ): ProcedureBuilder<TContext, TInput, z.infer<ZodSchema>, TSubscriptionOutput> {
         if (this._def.type === 'subscription') {
             console.warn("[TypeQL Procedure] Use '.subscriptionOutput()' for subscription stream output.");
         }
-        console.log(`[TypeQL Procedure] Defining output parser for ${this._def.type}...`);
-        // Create a new builder instance with updated generic type `TNextOutput`
-        const nextDef: Partial<ProcedureDef<TContext, TInput, TNextOutput, TSubscriptionOutput>> = {
-            ...(this._def as Partial<ProcedureDef<TContext, TInput, TNextOutput, TSubscriptionOutput>>), // Need cast here
-             outputParser: parser,
+        console.log(`[TypeQL Procedure] Defining output schema for ${this._def.type}...`);
+        // Create a new builder instance with updated generic type inferred from ZodSchema
+        const nextDef: Partial<ProcedureDef<TContext, TInput, z.infer<ZodSchema>, TSubscriptionOutput>> = {
+            ...(this._def as Partial<ProcedureDef<TContext, TInput, z.infer<ZodSchema>, TSubscriptionOutput>>), // Need cast here
+            outputSchema: schema as z.ZodType<z.infer<ZodSchema>>, // Store the schema
         };
-        return new ProcedureBuilder<TContext, TInput, TNextOutput, TSubscriptionOutput>(nextDef);
+        return new ProcedureBuilder<TContext, TInput, z.infer<ZodSchema>, TSubscriptionOutput>(nextDef);
     }
 
-     /** Define the output parser/validator for the subscription stream */
-     subscriptionOutput<TNextSubscriptionOutput>(
-         parser: (output: unknown) => TNextSubscriptionOutput
-     ): ProcedureBuilder<TContext, TInput, TOutput, TNextSubscriptionOutput> {
+    /** Define the output schema/validator for the subscription stream */
+    subscriptionOutput<ZodSchema extends z.ZodType>(
+        schema: ZodSchema
+    ): ProcedureBuilder<TContext, TInput, TOutput, z.infer<ZodSchema>> {
         if (this._def.type !== 'subscription') {
             throw new Error("'.subscriptionOutput()' can only be used for subscriptions.");
         }
-        console.log(`[TypeQL Procedure] Defining subscription output parser...`);
-         // Create a new builder instance with updated generic type `TNextSubscriptionOutput`
-         const nextDef: Partial<ProcedureDef<TContext, TInput, TOutput, TNextSubscriptionOutput>> = {
-            ...(this._def as Partial<ProcedureDef<TContext, TInput, TOutput, TNextSubscriptionOutput>>), // Need cast here
-             subscriptionOutputParser: parser,
+        console.log(`[TypeQL Procedure] Defining subscription output schema...`);
+        // Create a new builder instance with updated generic type inferred from ZodSchema
+        const nextDef: Partial<ProcedureDef<TContext, TInput, TOutput, z.infer<ZodSchema>>> = {
+            ...(this._def as Partial<ProcedureDef<TContext, TInput, TOutput, z.infer<ZodSchema>>>), // Need cast here
+            subscriptionOutputSchema: schema as z.ZodType<z.infer<ZodSchema>>, // Store the schema
         };
-        return new ProcedureBuilder<TContext, TInput, TOutput, TNextSubscriptionOutput>(nextDef);
+        return new ProcedureBuilder<TContext, TInput, TOutput, z.infer<ZodSchema>>(nextDef);
     }
 
 
@@ -213,29 +214,32 @@ export function initTypeQL<TContext extends ProcedureContext>() {
 interface MyContext extends ProcedureContext { userId?: string }
 const t = initTypeQL<MyContext>();
 
+// Example Zod schemas
+const UserIdInput = z.object({ id: z.string().uuid() });
+const UserOutput = z.object({ id: z.string().uuid(), name: z.string() });
+const UpdateFilterInput = z.object({ filter: z.string().optional() });
+const UpdateDeltaOutput = z.object({ type: z.literal('update'), data: z.string(), timestamp: z.number() });
+
 const exampleProcedure = t.query // Use getter
-    .input<{ id: string }>(input => { // Replace with actual parser like Zod
-        if (typeof input?.id !== 'string') throw new Error("Invalid input");
-        return { id: input.id };
-    })
-    .output<{ name: string }>(output => { // Replace with actual parser
-        if (typeof (output as any)?.name !== 'string') throw new Error("Invalid output");
-        return { name: (output as any).name };
-    })
+    .input(UserIdInput) // Use Zod schema
+    .output(UserOutput) // Use Zod schema
     .resolve(async ({ ctx, input }) => {
+        // input is now typed as { id: string }
         console.log("Context:", ctx.userId);
-        console.log("Input:", input.id);
+        console.log("Input:", input.id); // Access validated input
         // Fetch user based on input.id
-        return { name: "Example User" };
+        return { id: input.id, name: "Example User" }; // Return type checked against UserOutput
     });
 
 const exampleSubscription = t.subscription // Use getter
-    .input<{ filter: string }>(input => ({ filter: String(input?.filter ?? '') }))
-    .subscriptionOutput<{ type: 'update', data: string }>(output => output as any) // Placeholder parser
+    .input(UpdateFilterInput) // Use Zod schema
+    .subscriptionOutput(UpdateDeltaOutput) // Use Zod schema for the delta/update type
     .subscribe(({ ctx, input, publish }) => {
+        // input is now typed as { filter?: string }
          console.log("Subscription started with filter:", input.filter);
          const interval = setInterval(() => {
-             publish({ type: 'update', data: `Update at ${Date.now()}` });
+             // Publish data matching UpdateDeltaOutput schema
+             publish({ type: 'update', data: `Update at ${Date.now()}`, timestamp: Date.now() });
          }, 1000);
          // Return cleanup function
          return () => {

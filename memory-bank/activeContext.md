@@ -12,9 +12,10 @@
     *   Created placeholder files for TypeQL server logic: `packages/core/src/server/router.ts` and `packages/core/src/server/procedure.ts`. Refactored `procedure.ts` to fix TS errors and improve builder structure.
 *   **Next Steps**:
     *   Refined and confirmed the core implementation of `ProcedureBuilder` in `packages/core/src/server/procedure.ts`. Generic type propagation is working as intended.
-    *   Update `progress.md` reflecting the completion of the initial procedure builder implementation.
-    *   Commit changes to `procedure.ts` and Memory Bank.
-    *   Next major step: Plan and potentially implement input/output validation/parsing (e.g., using Zod) within the procedure builder (`.input()`, `.output()`, `.subscriptionOutput()`).
+    *   Integrated Zod for input/output/subscriptionOutput validation/parsing in `ProcedureBuilder` (`packages/core/src/server/procedure.ts`). Types are now inferred from Zod schemas.
+    *   Update `progress.md` and `techContext.md` reflecting Zod integration.
+    *   Commit changes.
+    *   Next major step: Begin implementing the router logic (`packages/core/src/server/router.ts`) to consume these procedures and handle basic request routing.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.
