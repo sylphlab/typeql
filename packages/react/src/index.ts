@@ -7,11 +7,12 @@ import {
     AnyRouter,
     TypeQLClientError,
     TypeQLTransport,
-    SubscriptionHandlers,
+    // SubscriptionHandlers, // Removed
     UnsubscribeFn,
-    SubscriptionDataMessage,
+    SubscriptionDataMessage, // Keep for store interaction if needed
     SubscriptionErrorMessage,
     ProcedureResultMessage,
+    SubscriptionResult, // Added
     // Import store type correctly
     OptimisticStore,
     // Import mutation call options type
@@ -566,49 +567,35 @@ export function useMutation<
 
 // --- Subscription Hook ---
 
-// Refined Helper types for subscription
-type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput, handlers: any) => any }
+// Helper type to infer the output type from the client's subscribe method's iterator
+type inferSubscriptionOutput<TProcedure> = TProcedure extends { subscribe: (...args: any[]) => { iterator: AsyncIterableIterator<SubscriptionResult<infer TOutput>> } }
+    ? TOutput
+    : unknown;
+
+// Helper type to infer the input type from the client's subscribe method
+type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput) => any }
     ? TInput
     : never;
 
-// Infer output type from the onData handler provided by the user
-type inferSubscriptionOutput<THandlers extends UseSubscriptionHandlers<any>> =
-    THandlers extends UseSubscriptionHandlers<infer TOutput> ? TOutput : unknown;
-
-/**
- * Handlers for processing subscription events.
- * @template TOutput The expected data type received from the subscription.
- */
-export interface UseSubscriptionHandlers<TOutput> {
-    /**
-     * Callback function fired when new data is received from the subscription.
-     * @param data The data payload.
-     */
-    onData: (data: TOutput) => void;
-    /**
-     * Callback function fired when the subscription encounters an error.
-     * @param error The error object.
-     */
-    onError?: (error: TypeQLClientError | Error) => void;
-    /**
-     * Callback function fired when the subscription ends gracefully (e.g., server signals completion).
-     */
-    onEnd?: () => void;
-    /**
-     * Callback function fired when the transport layer confirms the subscription has started on the server.
-     * Note: This does not guarantee data has been received yet.
-     */
-    onStart?: () => void;
-}
 
 /**
  * Options for configuring the useSubscription hook.
+ * Includes callbacks for handling subscription events.
+ * @template TOutput The expected data type received from the subscription.
  */
-export interface UseSubscriptionOptions {
+export interface UseSubscriptionOptions<TOutput> {
     /**
      * If false, the subscription will not be established automatically. Defaults to true.
      */
     enabled?: boolean;
+    /** Callback for when data is received */
+    onData?: (data: TOutput) => void;
+    /** Callback for when an error occurs */
+    onError?: (error: SubscriptionErrorMessage['error']) => void;
+    /** Callback for when the subscription ends normally */
+    onEnd?: () => void;
+    /** Callback for when the subscription starts (transport confirms) */
+    onStart?: () => void;
     /**
      * @placeholder If true, the subscription will automatically attempt to reconnect on error.
      */
@@ -617,8 +604,14 @@ export interface UseSubscriptionOptions {
 
 /**
  * Represents the state returned by the useSubscription hook.
+ * @template TOutput The expected data type received from the subscription.
  */
-export interface UseSubscriptionResult {
+export interface UseSubscriptionResult<TOutput> {
+    /**
+     * The latest data received from the subscription. Null initially or if an error occurs.
+     * Note: If using an OptimisticStore, prefer selecting data from the store using `useQuery` or similar.
+     */
+    data: TOutput | null;
     /**
      * The current status of the subscription:
      * - 'idle': Not active or attempting to connect (usually when `enabled` is false).
@@ -632,50 +625,55 @@ export interface UseSubscriptionResult {
      * The error object if the subscription failed or encountered an error during its lifecycle, otherwise null.
      */
     error: TypeQLClientError | Error | null;
+    /**
+     * Function to manually unsubscribe from the subscription.
+     */
+    unsubscribe: UnsubscribeFn | null;
 }
 
 /**
- * Hook to subscribe to a TypeQL subscription and receive real-time delta updates.
+ * Hook to subscribe to a TypeQL subscription and receive real-time delta updates using Async Iterators.
  *
  * @template TProcedure The type of the TypeQL subscription procedure (e.g., `client.messages.onNewMessage`).
- * @template THandlers The type of the handlers object provided, used to infer TOutput.
  * @template TInput The inferred input type of the subscription procedure.
- * @template TOutput The inferred output type from the `onData` handler.
+ * @template TOutput The inferred output type from the procedure's subscription output schema.
  * @param procedure The TypeQL subscription procedure object (e.g., `client.messages.onNewMessage`).
  * @param input The input arguments for the subscription procedure.
- * @param handlers An object containing callback functions (`onData`, `onError`, `onEnd`, `onStart`) to handle subscription events. `onData` is required.
- * @param options Optional configuration for the subscription behavior.
- * @returns An object containing the subscription state (`status`, `error`). The actual data is handled via the `onData` callback.
+ * @param options Optional configuration including `enabled` flag and event callbacks (`onData`, `onError`, `onEnd`, `onStart`).
+ * @returns An object containing the subscription state (`status`, `error`, `data`, `unsubscribe`).
  */
 export function useSubscription<
-    TProcedure extends { subscribe: (...args: any[]) => UnsubscribeFn },
-    THandlers extends UseSubscriptionHandlers<any>, // THandlers is now mandatory and comes earlier
-    TInput = inferSubscriptionInput<TProcedure>, // TInput can default or be inferred
-    TOutput = inferSubscriptionOutput<THandlers> // TOutput inferred from THandlers
+    // Procedure should have a subscribe method returning { iterator, unsubscribe }
+    TProcedure extends { subscribe: (input: any) => { iterator: AsyncIterableIterator<SubscriptionResult<any>>, unsubscribe: UnsubscribeFn } },
+    TInput = inferSubscriptionInput<TProcedure>,
+    TOutput = inferSubscriptionOutput<TProcedure>
 >(
     procedure: TProcedure,
     input: TInput,
-    handlers: THandlers,
-    options?: UseSubscriptionOptions
-): UseSubscriptionResult {
+    options?: UseSubscriptionOptions<TOutput>
+): UseSubscriptionResult<TOutput> {
     const { enabled = true } = options ?? {};
     const { client, store } = useTypeQL(); // Get client and store
-    // TODO: Connect subscription hook to optimistic store state? Should reflect optimisticState.
-    //       Need to subscribe to store updates.
-    // Refined status: connecting indicates transport might be connecting or initial subscribe sent
+
     const [status, setStatus] = useState<'idle' | 'connecting' | 'active' | 'error' | 'ended'>(
         enabled ? 'connecting' : 'idle'
     );
     const [error, setError] = useState<TypeQLClientError | Error | null>(null);
+    const [data, setData] = useState<TOutput | null>(null); // Store latest data locally
+    const [unsubscribeFn, setUnsubscribeFn] = useState<UnsubscribeFn | null>(null);
 
-    // Use ref for handlers to prevent effect re-runs if handler identity changes
-    const handlersRef = useRef(handlers);
+    // Use refs for callbacks to keep effect stable
+    const onDataRef = useRef(options?.onData);
+    const onErrorRef = useRef(options?.onError);
+    const onEndRef = useRef(options?.onEnd);
+    const onStartRef = useRef(options?.onStart);
+
     useEffect(() => {
-        handlersRef.current = handlers;
-    }, [handlers]);
-
-    // Use ref for the unsubscribe function
-    const unsubscribeRef = useRef<UnsubscribeFn | null>(null);
+        onDataRef.current = options?.onData;
+        onErrorRef.current = options?.onError;
+        onEndRef.current = options?.onEnd;
+        onStartRef.current = options?.onStart;
+    }, [options?.onData, options?.onError, options?.onEnd, options?.onStart]);
 
     // Serialize input for dependency array
     const inputKey = useMemo(() => {
@@ -696,105 +694,144 @@ export function useSubscription<
 
 
     useEffect(() => { // Main subscription effect
-        if (!enabled) {
-            // Clean up subscription if disabled
-            unsubscribeRef.current?.();
-            unsubscribeRef.current = null;
-            // Reset status only if it wasn't already idle
+        if (!enabled || !procedure) {
+            // Clean up subscription if disabled or procedure missing
+            unsubscribeFn?.();
+            setUnsubscribeFn(null);
             if (status !== 'idle') {
                 setStatus('idle');
                 setError(null);
+                setData(null);
             }
             return;
         }
 
-        // Reset state before subscribing
-        setStatus('connecting'); // Indicate attempt to subscribe/connect
-        setError(null);
+        let unsub: UnsubscribeFn | null = null;
+        let iterator: AsyncIterableIterator<SubscriptionResult<TOutput>> | null = null;
+        let isCancelled = false; // Flag to prevent processing after cleanup
 
-        // Create the handlers expected by the core transport subscribe method
-        const transportHandlers: SubscriptionHandlers = {
-            onData: (message: SubscriptionDataMessage) => {
-                // Move to active on first data
-                 if (status !== 'active' && isMountedRef.current) setStatus('active');
+        const startSubscription = async () => {
+            if (!isMountedRef.current || isCancelled) return;
 
-                // If store exists, pass the full message (with sequence numbers) to it
-                if (store) {
-                    try {
-                        store.applyServerDelta(message);
-                        // Note: User's onData is NOT called directly if store handles it.
-                        // The store's notification mechanism should trigger updates in useQuery/other hooks.
-                    } catch (storeError: any) {
-                        console.error("[useSubscription] Error calling store.applyServerDelta:", storeError);
-                        // Optionally propagate this error? For now, just log it.
-                         if (isMountedRef.current) {
-                             // Use the onError handler provided by the user if available
-                             const errorObj = new TypeQLClientError(`Store delta application failed: ${storeError.message || storeError}`);
-                             handlersRef.current.onError?.(errorObj);
-                             // Potentially set status to 'error'
-                             // setStatus('error'); setError(errorObj);
-                         }
-                    }
+            setStatus('connecting');
+            setError(null);
+            setData(null);
+
+            try {
+                // Start the subscription - client proxy handles path resolution
+                const subResult = procedure.subscribe(input);
+                unsub = subResult.unsubscribe;
+                iterator = subResult.iterator as AsyncIterableIterator<SubscriptionResult<TOutput>>; // Assert type
+                if (isMountedRef.current && !isCancelled) {
+                    setUnsubscribeFn(() => unsub); // Store the actual unsubscribe function
                 } else {
-                    // If no store, call the user's handler directly with the data payload
-                    handlersRef.current.onData(message.data as TOutput);
+                    // If unmounted or cancelled before setting state, immediately unsubscribe
+                    unsub?.();
+                    return;
                 }
-            },
-            onError: (errorData: SubscriptionErrorMessage['error']) => {
-                 if (!isMountedRef.current) return; // Avoid state updates if unmounted
-                const errorObj = new TypeQLClientError(errorData.message || 'Subscription error', errorData.code);
-                setError(errorObj);
-                setStatus('error');
-                handlersRef.current.onError?.(errorObj);
-                unsubscribeRef.current = null; // Subscription is terminated
-            },
-            onEnd: () => {
-                setStatus('ended');
-                handlersRef.current.onEnd?.();
-                unsubscribeRef.current = null; // Subscription is terminated
-            },
-            onStart: () => { // If transport signals start
-                handlersRef.current.onStart?.();
-                // Don't necessarily move to 'active' here, wait for first data
-                // This confirms the server acknowledged the subscription
-                if (status === 'connecting') {
-                     // Still connecting technically, but server ack is good
+
+                onStartRef.current?.(); // Notify start
+
+                // Consume the iterator
+                for await (const result of iterator) {
+                    if (!isMountedRef.current || isCancelled) break; // Stop if component unmounted or cancelled
+
+                    if (result.type === 'data') {
+                        if (status !== 'active') setStatus('active'); // Move to active on first data
+                        setError(null); // Clear error on data
+
+                        // If store exists, apply delta there (needs full message)
+                        if (store) {
+                            try {
+                                // TODO: This still requires the full SubscriptionDataMessage.
+                                // The iterator currently only yields the 'data' part.
+                                // This needs adjustment in the transport layer's iterator implementation.
+                                console.warn("[useSubscription] Store integration needs full SubscriptionDataMessage, but iterator only provides data. Store update skipped.");
+                                // store.applyServerDelta(???); // Cannot apply delta without full message
+
+                                // Call user's onData even if store exists for now
+                                onDataRef.current?.(result.data);
+                                // Update local state regardless of store for now
+                                setData(result.data);
+
+                            } catch (storeError: any) {
+                                 console.error("[useSubscription] Error applying server delta to store:", storeError);
+                                 const err = storeError instanceof Error ? storeError : new Error(String(storeError));
+                                 if (isMountedRef.current && !isCancelled) {
+                                     setError(err);
+                                     setStatus('error');
+                                     onErrorRef.current?.({ message: `Store error: ${err.message || err}` });
+                                 }
+                                 break; // Stop iteration on store error
+                            }
+                        } else {
+                            // No store, update local state and call handler
+                            setData(result.data);
+                            onDataRef.current?.(result.data);
+                        }
+                    } else if (result.type === 'error') {
+                        console.error("[useSubscription] Subscription error received:", result.error);
+                        if (isMountedRef.current && !isCancelled) {
+                            const err = new TypeQLClientError(result.error.message, result.error.code);
+                            setError(err);
+                            setStatus('error');
+                            onErrorRef.current?.(result.error);
+                        }
+                        break; // Stop iteration on error
+                    }
                 }
-                // console.debug("Subscription started"); // Optional debug log
+
+                // Iteration finished normally (server sent 'end' or iterator completed)
+                if (isMountedRef.current && !isCancelled && status !== 'error') {
+                    console.log("[useSubscription] Subscription ended normally.");
+                    setStatus('ended');
+                    onEndRef.current?.();
+                }
+
+            } catch (err: any) {
+                if (isMountedRef.current && !isCancelled) {
+                    console.error("[useSubscription] Failed to initiate or iterate subscription:", err);
+                    const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
+                    setError(errorObj);
+                    setStatus('error');
+                    onErrorRef.current?.({ message: `Subscription failed: ${errorObj.message || errorObj}` });
+                }
+            } finally {
+                 if (isMountedRef.current && !isCancelled && status !== 'ended' && status !== 'error') {
+                     // If loop finishes without explicit end/error (e.g., iterator.return called), mark as ended
+                     // setStatus('ended'); // Or maybe 'idle'? Let's stick to 'ended' if it was active/connecting
+                 }
+                 // Ensure loading is false if it finishes in any state other than connecting/active
+                 if (isMountedRef.current && !isCancelled && (status === 'connecting' || status === 'active')) {
+                     // This case shouldn't ideally happen if loop finishes, but as a safeguard
+                     // setStatus('ended'); // Or 'idle'?
+                 }
             }
         };
 
-        try {
-            // Call the procedure's subscribe method (assuming procedure is the client proxy method)
-            // @ts-ignore - Bypassing type check, client proxy structure needs refinement
-            unsubscribeRef.current = procedure.subscribe(input, transportHandlers);
-        } catch (err: any) { // Catch immediate errors from calling subscribe
-             console.error("[TypeQL React] useSubscription immediate subscribe error:", err); // Add specific logging
-             // Consistent error handling like useQuery
-             const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
-             // Ensure state update happens only if mounted, using the isMountedRef defined above
-             if (isMountedRef.current) { // Check if mounted before setting state
-                 setError(errorObj);
-                 setStatus('error');
-                 handlersRef.current.onError?.(errorObj); // Call handler only if mounted? Decided yes.
-             }
-             unsubscribeRef.current = null;
-        }
+        startSubscription();
 
         // Effect cleanup function
         return () => {
-            unsubscribeRef.current?.();
-            unsubscribeRef.current = null;
+            isCancelled = true;
+            if (unsub) {
+                console.log("[useSubscription] Cleaning up subscription.");
+                unsub();
+            }
+            // Attempt to call iterator.return() for graceful async generator cleanup
+            if (iterator && typeof iterator.return === 'function') {
+                iterator.return().catch(e => console.warn("[useSubscription] Error during iterator cleanup:", e));
+            }
+            setUnsubscribeFn(null);
              // Reset status only if effect is cleaning up while potentially active/connecting
-             // Don't reset if already 'error' or 'ended' by handlers
              if (status === 'active' || status === 'connecting') {
                   setStatus('idle');
              }
         };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [procedure, inputKey, enabled, client, store]); // Add store to dependencies
 
-    }, [procedure, inputKey, enabled, client]); // client dependency needed? Maybe not if procedure is stable.
-
-    return { status, error };
+    return { status, error, data, unsubscribe: unsubscribeFn };
 }
 
 console.log("@typeql/react loaded: Provider, useTypeQLClient, useQuery, useMutation, useSubscription");

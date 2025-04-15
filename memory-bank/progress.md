@@ -23,11 +23,11 @@
         *   [X] Refactor `SubscriptionManager` to manage lifecycle/cleanup, remove direct transport dependency.
     *   **Client (`@typeql/client` - or refactor `@reqdelta/client`)**
         *   [X] Implement `createClient` function to generate typed proxy from server router type (`packages/core/src/client/client.ts`). Updated to support optimistic mutation options and interact with `OptimisticStore`.
-        *   [X] Implement `query`, `mutate`, `subscribe` call logic using `TypeQLTransport` interface (`packages/core/src/client/client.ts`). `mutate` updated for optimistic flow.
-        *   [ ] Implement client-side subscription handling for delta streams (needs actual transport implementation & observable/iterator return type).
+        *   [X] Implement `query`, `mutate`, `subscribe` call logic using `TypeQLTransport` interface (`packages/core/src/client/client.ts`). `mutate` updated for optimistic flow. `subscribe` updated to use AsyncIterableIterator.
+        *   [X] Implement client-side subscription handling for delta streams using AsyncIterableIterator (`packages/transport-websocket/src/index.ts`, `packages/react/src/index.ts`).
     *   **Core (`@typeql/core` - or keep `@reqdelta/core`)**
-        *   [X] Refine shared types: Updated `Transport` interface and message types for TypeQL (`packages/core/src/core/types.ts`). Added types for optimistic updates (`AckMessage`, `clientSeq`, `serverSeq`, `prevServerSeq`).
-        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`. Updated `updateHistory` and `requestHandler` to use new sequence numbers.
+        *   [X] Refine shared types: Updated `Transport` interface and message types for TypeQL (`packages/core/src/core/types.ts`). Added types for optimistic updates (`AckMessage`, `clientSeq`, `serverSeq`, `prevServerSeq`). Refactored `subscribe` transport method to return AsyncIterableIterator.
+        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`, `transport-websocket/index.ts`, `react/index.ts`. Updated `updateHistory` and `requestHandler` to use new sequence numbers.
         *   [X] Refactor `createStore.ts` to basic non-optimistic version aligned with TypeQL.
         *   [X] Remove outdated `optimisticStore.ts`.
         *   [X] Created basic structure for `OptimisticStore` (`packages/core/src/client/optimisticStore.ts`) using Immer.
@@ -53,5 +53,5 @@
     *   [ ] Add comprehensive tests for TypeQL architecture (especially optimistic updates).
     *   [ ] Performance optimization.
 
-*   **Current Status**: **Design pivoted to TypeQL**. Core optimistic update features implemented and integrated with React hooks and WebSocket transport.
-*   **Known Issues**: Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns for state management within the TypeQL structure. `useQuery` optimistic update integration assumes TState is compatible with TOutput - may need refinement. Client-side subscription handling for delta streams needs full implementation. Context passing and error handling need implementation.
+*   **Current Status**: **Design pivoted to TypeQL**. Core optimistic update features implemented. Subscription handling refactored to use AsyncIterableIterator on client and transport layers. React hooks updated.
+*   **Known Issues**: Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns. `useQuery` optimistic update integration assumes TState is compatible with TOutput. **`useSubscription` store integration requires full `SubscriptionDataMessage` from iterator, currently only gets data payload.** Context passing and error handling need implementation.

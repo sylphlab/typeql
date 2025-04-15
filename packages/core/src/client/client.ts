@@ -8,8 +8,9 @@ import { // Changed to regular import for TypeQLClientError
     ProcedureCallMessage,
     SubscribeMessage,
     UnsubscribeFn,
-    SubscriptionHandlers,
+    // SubscriptionHandlers, // Removed
     ProcedureResultMessage,
+    SubscriptionResult, // Added
     TypeQLClientError, // Keep custom error here
 } from '../core/types';
 import { generateId } from '../core/utils';
@@ -122,7 +123,7 @@ type CreateProcedureClient<TProcedure extends AnyProcedure, TState = any> = // A
     // Mutate accepts an options object now
     ? { mutate: (opts: MutationCallOptions<TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never, TState>) => Promise<TProcedure['_def']['outputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['outputSchema']> : never> }
     : TProcedure['_def']['type'] extends 'subscription'
-    ? { subscribe: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never, handlers: SubscriptionHandlers) => UnsubscribeFn }
+    ? { subscribe: (input: TProcedure['_def']['inputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['inputSchema']> : never) => { iterator: AsyncIterableIterator<SubscriptionResult<TProcedure['_def']['subscriptionOutputSchema'] extends z.ZodType ? z.infer<TProcedure['_def']['subscriptionOutputSchema']> : unknown>>; unsubscribe: UnsubscribeFn } }
     : never;
 
 /**
@@ -212,20 +213,27 @@ function createProcedureProxy<TState = any>( // Add TState generic
             }
         },
         // --- Subscription ---
-        subscribe: (input: unknown, handlers: SubscriptionHandlers): UnsubscribeFn => {
+        subscribe: (input: unknown) => { // Removed handlers parameter
             console.log(`[TypeQL Client] Calling subscription '${pathString}' with input:`, input);
             const requestId = generateRequestId();
             const message: SubscribeMessage = { type: 'subscription', id: requestId, path: pathString, input };
 
             try {
-                // transport.subscribe handles the lifecycle and returns an unsubscribe function
-                const unsubscribe = transport.subscribe(message, handlers);
-                return unsubscribe;
+                // transport.subscribe now returns { iterator, unsubscribe }
+                const subscriptionResult = transport.subscribe(message);
+                return subscriptionResult; // Return the whole object
             } catch (error: any) {
                  console.error(`[TypeQL Client] Subscription '${pathString}' failed to initiate:`, error);
-                 // How to signal this failure? Throwing might be unexpected here.
-                 // Maybe return a dummy unsubscribe function that logs an error?
-                 return () => { console.error("Subscription failed to initialize."); };
+                 // Rethrow the error for the caller to handle
+                 throw new TypeQLClientError(`Subscription initiation failed: ${error.message || error}`);
+                 /* // Previous dummy return removed
+                 return {
+                    iterator: (async function*() {
+                        yield { type: 'error', error: { message: `Subscription failed to initialize: ${error.message || error}` } };
+                    })(),
+                    unsubscribe: () => { console.error("Subscription failed to initialize."); }
+                 };
+                 */
             }
         },
     };

@@ -130,17 +130,16 @@ export interface RequestMissingMessage extends CorrelatedMessage {
 /** Function to unsubscribe from a subscription. */
 export type UnsubscribeFn = () => void;
 
-/** Callbacks for handling subscription events from the server. */
-export interface SubscriptionHandlers {
-    /** Called when data is received for the subscription. */
-    onData: (message: SubscriptionDataMessage) => void;
-    /** Called when an error occurs on the subscription. */
-    onError: (error: SubscriptionErrorMessage['error']) => void;
-    /** Called when the subscription ends normally. */
-    onEnd: () => void;
-    /** Optional: Called when the transport confirms the subscription has started (e.g., server acknowledgment). */
-    onStart?: () => void;
-}
+// Removed SubscriptionHandlers interface as it's replaced by AsyncIterable
+
+/**
+ * Represents the result yielded by the subscription's async iterator.
+ * It can be data or an error. The iterator completes normally on 'end'.
+ */
+export type SubscriptionResult<TData = unknown> =
+    | { type: 'data'; data: TData }
+    | { type: 'error'; error: SubscriptionErrorMessage['error'] };
+
 
 /**
  * Interface defining the contract for transport layer adapters in TypeQL.
@@ -156,14 +155,18 @@ export interface TypeQLTransport {
     request(message: ProcedureCallMessage): Promise<ProcedureResultMessage>;
 
     /**
-     * Initiates a subscription and registers handlers for incoming data/events.
-     * Handles serialization, sending the subscribe message, and routing incoming
-     * subscription messages (data, error, end) to the correct handlers based on ID.
+     * Initiates a subscription and returns an AsyncIterableIterator to consume results.
+     * Handles serialization, sending the subscribe message, managing the subscription lifecycle,
+     * and yielding data or errors through the iterator.
      * @param message The subscription initiation message.
-     * @param handlers Callbacks for subscription events.
-     * @returns A function to call to unsubscribe and clean up the subscription.
+     * @returns An object containing the AsyncIterableIterator and an unsubscribe function.
      */
-    subscribe(message: SubscribeMessage, handlers: SubscriptionHandlers): UnsubscribeFn;
+    subscribe<TData = unknown>(message: SubscribeMessage): {
+        /** Async iterator yielding data or errors. Completes when the subscription ends. */
+        iterator: AsyncIterableIterator<SubscriptionResult<TData>>;
+        /** Function to call to explicitly stop the subscription. */
+        unsubscribe: UnsubscribeFn;
+    };
 
     // Optional connection status management (similar to previous Transport)
     readonly connected?: boolean;

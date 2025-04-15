@@ -5,10 +5,13 @@ import type {
     ProcedureCallMessage,
     ProcedureResultMessage,
     SubscribeMessage,
-    SubscriptionHandlers,
+    // SubscriptionHandlers, // Removed
     UnsubscribeFn,
     UnsubscribeMessage,
     SubscriptionLifecycleMessage, // Import the union type for received messages
+    SubscriptionResult, // Added
+    SubscriptionDataMessage, // Added back for internal use
+    SubscriptionErrorMessage, // Added back for internal use
     AckMessage, // Import AckMessage type
     RequestMissingMessage // Import RequestMissingMessage type
 } from '@typeql/core';
@@ -99,9 +102,16 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
      // Store pending requests (query/mutation) waiting for a response
      const pendingRequests = new Map<string | number, { resolve: (result: ProcedureResultMessage) => void; reject: (reason?: any) => void; timer?: ReturnType<typeof setTimeout> }>();
      // Store active subscriptions, their handlers, original message, and active status
+     // Internal handlers type for managing iterator state
+     interface InternalSubscriptionHandlers {
+         onData: (message: SubscriptionDataMessage) => void;
+         onError: (error: SubscriptionErrorMessage['error']) => void;
+         onEnd: () => void;
+         onStart?: () => void; // Keep optional onStart
+     }
      interface ActiveSubscriptionEntry {
          message: SubscribeMessage;
-         handlers: SubscriptionHandlers;
+         handlers: InternalSubscriptionHandlers; // Use internal handlers type
          active: boolean; // Indicates if currently active (vs. temporarily inactive during reconnect)
      }
      const activeSubscriptions = new Map<string | number, ActiveSubscriptionEntry>();
@@ -482,12 +492,68 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
               });
          },
 
-         subscribe: (message: SubscribeMessage, handlers: SubscriptionHandlers): UnsubscribeFn => {
+         subscribe: <TData = unknown>(message: SubscribeMessage) => { // Removed handlers, added generic TData
               const subId = message.id;
               console.log(`[TypeQL WS Transport] Attempting to subscribe (ID: ${subId})`);
 
-              // Store subscription details immediately, marked as inactive initially
-              const subEntry: ActiveSubscriptionEntry = { message, handlers, active: false };
+              // --- Async Iterator Logic ---
+              let resolveNextPromise: ((value: IteratorResult<SubscriptionResult<TData>>) => void) | null = null;
+              let rejectNextPromise: ((reason?: any) => void) | null = null;
+              let messageQueue: SubscriptionResult<TData>[] = [];
+              let isFinished = false;
+              let isActive = false; // Track if subscription is active on the server
+
+              const handlers: InternalSubscriptionHandlers = { // Use internal handlers type
+                  onData: (dataMsg) => {
+                      // Ensure data is correctly typed before pushing/resolving
+                      const result: SubscriptionResult<TData> = { type: 'data', data: dataMsg.data as TData };
+                      if (resolveNextPromise) {
+                          resolveNextPromise({ value: result, done: false });
+                          resolveNextPromise = null;
+                          rejectNextPromise = null;
+                      } else {
+                          messageQueue.push(result);
+                      }
+                  },
+                  onError: (error) => {
+                      const result: SubscriptionResult<TData> = { type: 'error', error };
+                      isFinished = true;
+                      isActive = false; // Mark inactive on error
+                      if (rejectNextPromise) {
+                          // Reject the pending promise if the iterator is waiting
+                          rejectNextPromise(new Error(error.message)); // Wrap error object in an Error
+                      } else if (resolveNextPromise) {
+                          // Or yield the error if waiting for data (less common for errors)
+                          resolveNextPromise({ value: result, done: false });
+                      } else {
+                          // Otherwise, queue it (though usually errors terminate)
+                          messageQueue.push(result);
+                      }
+                      // Clean up after error
+                      activeSubscriptions.delete(subId);
+                      resolveNextPromise = null;
+                      rejectNextPromise = null;
+                  },
+                  onEnd: () => {
+                      isFinished = true;
+                      isActive = false; // Mark inactive on end
+                      if (resolveNextPromise) {
+                          resolveNextPromise({ value: undefined, done: true }); // Signal completion
+                      }
+                      // Clean up after normal end
+                      activeSubscriptions.delete(subId);
+                      resolveNextPromise = null;
+                      rejectNextPromise = null;
+                  },
+                  onStart: () => { // Optional: Mark as active when server confirms (or first data arrives)
+                      isActive = true;
+                      subEntry.active = true; // Also update the entry in the map
+                      console.log(`[TypeQL WS Transport] Subscription active (ID: ${subId})`);
+                  }
+              };
+
+              // Store subscription details immediately using internal handlers
+              const subEntry: ActiveSubscriptionEntry = { message, handlers, active: false }; // Start inactive
               activeSubscriptions.set(subId, subEntry);
 
               const connectAndSendSubscribe = async () => {
@@ -495,50 +561,81 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                        await (connectionPromise || connectWebSocket()); // Ensure connection attempt happens
                        if (ws?.readyState === OPEN) {
                             if (sendMessage(message)) {
-                                 subEntry.active = true; // Mark active on successful send
+                                 // Don't mark active here, wait for onStart or first data
                                  console.log(`[TypeQL WS Transport] Subscribe message sent (ID: ${subId})`);
-                                 // Consider adding handlers.onStart() if needed?
+                                 // handlers.onStart?.(); // Let transport handle this internally if needed
                             } else {
-                                 throw new Error("Failed to send subscribe message"); // Throw if send fails
+                                 throw new Error("Failed to send subscribe message");
                             }
                        } else {
-                            // If not open after connect attempt, keep inactive. Reconnect logic will handle it.
                             console.warn(`[TypeQL WS Transport] WebSocket not open after connect attempt for subscription ${subId}. Will retry on reconnect.`);
+                            // Error will be handled via reconnect logic triggering onclose/onerror, eventually calling handlers.onError
                        }
-                      // Don't throw here, let reconnect handle it. Maybe notify?
-                      // handlers.onError({ message: "WebSocket not immediately available" }); // Maybe too noisy
-                  } catch (err: any) { // Added catch block for the try
-                     // Catch errors during the *initial* connection or send attempt within this function
+                  } catch (err: any) {
                      console.error(`[TypeQL WS Transport] Error during initial subscribe connection/send (ID: ${subId}):`, err);
+                     // Immediately signal error through the iterator
                      handlers.onError({ message: `Subscription failed: ${err.message || err}` });
-                     activeSubscriptions.delete(subId); // Remove if initial attempt fails catastrophically
+                     // No need to delete from activeSubscriptions here, onError handles it
                   }
               };
 
-              // Invoke the function - no need for an additional .catch here now as it's handled inside
+              // Start the connection/sending process asynchronously
               connectAndSendSubscribe();
-              /* // Removed the redundant .catch() here
-              .catch(err => {
-                  // Catch errors during the *initial* send attempt
-                  console.error(`[TypeQL WS Transport] Error during initial subscribe attempt (ID: ${subId}):`, err);
-                  handlers.onError({ message: `Subscription failed: ${err.message}` });
-                  activeSubscriptions.delete(subId); // Remove if initial attempt fails catastrophically
-              });
-              */ // Added closing comment tag
 
-              // Return the unsubscribe function
-              return () => {
+              const iterator: AsyncIterableIterator<SubscriptionResult<TData>> = {
+                  async next(): Promise<IteratorResult<SubscriptionResult<TData>>> {
+                      if (messageQueue.length > 0) {
+                          return { value: messageQueue.shift()!, done: false };
+                      }
+                      if (isFinished) {
+                          return { value: undefined, done: true };
+                      }
+                      // Wait for the next message or completion
+                      return new Promise<IteratorResult<SubscriptionResult<TData>>>((resolve, reject) => {
+                          resolveNextPromise = resolve;
+                          rejectNextPromise = reject; // Store reject for error handling
+                      });
+                  },
+                  [Symbol.asyncIterator]() {
+                      return this;
+                  },
+                  // Optional: Implement return() and throw() for cleanup on early termination
+                  async return(): Promise<IteratorResult<SubscriptionResult<TData>>> {
+                      console.log(`[TypeQL WS Transport] Iterator return called (ID: ${subId})`);
+                      unsubscribe(); // Ensure cleanup
+                      // State is cleaned up within unsubscribe's call to handlers.onEnd/onError
+                      return { value: undefined, done: true };
+                  },
+                  async throw(error?: any): Promise<IteratorResult<SubscriptionResult<TData>>> {
+                      console.error(`[TypeQL WS Transport] Iterator throw called (ID: ${subId}):`, error);
+                      // Simulate an error coming from the source
+                      handlers.onError({ message: `Iterator cancelled: ${error?.message || error}` });
+                      unsubscribe(); // Ensure cleanup
+                      // State is cleaned up within unsubscribe's call to handlers.onError
+                      return { value: undefined, done: true }; // Signal termination after handling error
+                  }
+              };
+
+              const unsubscribe: UnsubscribeFn = () => {
                    const currentSub = activeSubscriptions.get(subId);
                    if (currentSub) {
                        console.log(`[TypeQL WS Transport] Unsubscribing (ID: ${subId})`);
-                       activeSubscriptions.delete(subId); // Remove from tracking immediately
-                       // Attempt to send stop message only if currently connected and was active
-                       if (ws?.readyState === OPEN && currentSub.active) {
+                       activeSubscriptions.delete(subId); // Remove from tracking
+
+                       // Signal iterator completion if not already finished
+                       if (!isFinished) {
+                           currentSub.handlers.onEnd(); // Call internal handler to clean up iterator state
+                       }
+
+                       // Attempt to send stop message only if connection is open and was marked active
+                       if (ws?.readyState === OPEN && currentSub.active) { // Check subEntry's active flag
                             const unsubscribeMessage: UnsubscribeMessage = { type: 'subscriptionStop', id: subId };
                             sendMessage(unsubscribeMessage);
                        }
                    }
               };
+
+              return { iterator, unsubscribe };
          },
 
          connect: () => connectWebSocket(false), // Explicitly not a reconnect attempt
