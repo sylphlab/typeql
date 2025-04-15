@@ -2,20 +2,30 @@
 
 // packages/react/src/index.ts
 
-import React, { createContext, useContext, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo, useCallback, useRef } from 'react';
 // Correct import paths using workspace alias
-import { createClient, AnyRouter } from '@typeql/core'; // Import AnyRouter type as well
-// Import necessary types from @typeql/core for subscription hook
-import type { SubscriptionHandlers, UnsubscribeFn, SubscriptionDataMessage } from '@typeql/core';
+import { createClient, AnyRouter, TypeQLClientError } from '@typeql/core'; // Import AnyRouter type and Error type
+// Import necessary types from @typeql/core
+import type {
+    SubscriptionHandlers,
+    UnsubscribeFn,
+    SubscriptionDataMessage,
+    SubscriptionErrorMessage,
+    TypeQLTransport, // Needed for client type
+    ProcedureResultMessage // Needed for query/mutation output
+} from '@typeql/core';
 
 // --- Context ---
 
-// Define a more specific type for the client instance based on createClient's return type
-// Assuming createClient returns a specific type `TypeQLClientProxy<TRouter>`
-type TypeQLClient<TRouter extends AnyRouter> = ReturnType<typeof createClient<TRouter>>;
+// Assume createClient returns a structure that includes the transport
+// Adjust this based on the actual return type of createClient
+type TypeQLClient<TRouter extends AnyRouter> = ReturnType<typeof createClient<TRouter>> & {
+    transport: TypeQLTransport; // Ensure transport is accessible if needed
+};
 
 // Create the context with a generic type for the router
-const TypeQLContext = createContext<TypeQLClient<any> | null>(null);
+// Using unknown initially and casting in the hook for better type safety downstream
+const TypeQLContext = createContext<TypeQLClient<AnyRouter> | null>(null);
 
 // --- Provider ---
 
@@ -27,14 +37,13 @@ export interface TypeQLProviderProps<TRouter extends AnyRouter> {
 /**
  * Provider component to make the TypeQL client available via context.
  */
-// Removed export keyword
-function TypeQLProvider<TRouter extends AnyRouter>({
-  client,
-  children,
+export function TypeQLProvider<TRouter extends AnyRouter>({
+    client,
+    children,
 }: TypeQLProviderProps<TRouter>): React.ReactElement {
-  // Use useMemo to ensure the context value reference doesn't change unnecessarily
-  const contextValue = useMemo(() => client, [client]);
-  return React.createElement(TypeQLContext.Provider, { value: contextValue }, children);
+    // Use useMemo to ensure the context value reference doesn't change unnecessarily
+    const contextValue = useMemo(() => client, [client]);
+    return React.createElement(TypeQLContext.Provider, { value: contextValue }, children);
 }
 
 // --- Hook ---
@@ -43,285 +52,407 @@ function TypeQLProvider<TRouter extends AnyRouter>({
  * Hook to access the TypeQL client instance from the context.
  * Throws an error if used outside of a TypeQLProvider.
  */
-// Removed export keyword
-function useTypeQLClient<TRouter extends AnyRouter>(): TypeQLClient<TRouter> {
-  const client = useContext(TypeQLContext);
-  if (!client) {
-    throw new Error('`useTypeQLClient` must be used within a `TypeQLProvider`.');
-  }
-  // Cast needed as the context is created with `any` router type initially.
-  return client as TypeQLClient<TRouter>;
+export function useTypeQLClient<TRouter extends AnyRouter = AnyRouter>(): TypeQLClient<TRouter> {
+    const client = useContext(TypeQLContext);
+    if (!client) {
+        throw new Error('`useTypeQLClient` must be used within a `TypeQLProvider`.');
+    }
+    // Cast needed as the context is created with `AnyRouter`
+    return client as TypeQLClient<TRouter>;
 }
 
-// --- Query Hook (Basic Implementation) ---
+// --- Query Hook ---
 
-// Helper type to extract query procedures
-// This is complex and might need refinement based on actual client proxy type structure
-type inferQueryInput<TProcedure> = TProcedure extends { query: (input: infer TInput) => any } ? TInput : never;
-type inferQueryOutput<TProcedure> = TProcedure extends { query: (input: any) => Promise<infer TOutput> } ? TOutput : never;
+// Refined Helper types assuming procedure is client.path.to.procedure
+type inferQueryInput<TProcedure> = TProcedure extends { query: (input: infer TInput) => any }
+    ? TInput
+    : never;
+
+// Inferring output from the promise returned by the query function
+type inferQueryOutput<TProcedure> = TProcedure extends { query: (...args: any[]) => Promise<infer TOutput> }
+    ? TOutput
+    : never;
+
+// Type for query options
+export interface UseQueryOptions {
+    enabled?: boolean;
+    // staleTime?: number; // Placeholder
+    // cacheTime?: number; // Placeholder
+    // refetchOnWindowFocus?: boolean; // Placeholder
+}
+
+// Type for query result state
+export interface UseQueryResult<TOutput> {
+    data: TOutput | undefined;
+    isLoading: boolean;
+    isFetching: boolean; // More granular loading state
+    isSuccess: boolean;
+    isError: boolean;
+    error: TypeQLClientError | Error | null;
+    status: 'loading' | 'error' | 'success';
+    refetch: () => void;
+}
+
 
 /**
- * Basic hook to perform a TypeQL query.
- * NOTE: Path resolution and dependency management need significant refinement.
+ * Hook to perform a TypeQL query.
  */
-// Removed export keyword
-function useQuery<
-    TRouter extends AnyRouter,
-    TPath extends string, // Placeholder for path inference/validation
-    TProcedure extends /* Lookup procedure type based on path */ any,
+export function useQuery<
+    TProcedure extends { query: (...args: any[]) => Promise<any> }, // Expect procedure to have a query method
     TInput = inferQueryInput<TProcedure>,
     TOutput = inferQueryOutput<TProcedure>
 >(
-    // path: string[], // Replace string array with a more typesafe path lookup/proxy interaction
-    procedure: TProcedure, // Pass the actual procedure accessor from the client proxy
+    procedure: TProcedure,
     input: TInput,
-    options?: { enabled?: boolean }
-): { data: TOutput | undefined; isLoading: boolean; error: Error | null } {
-    // Get client instance via hook
-    const client = useTypeQLClient<TRouter>(); // Router type might be needed here or inferred
-    const [data, setData] = React.useState<TOutput | undefined>(undefined);
-    const [isLoading, setIsLoading] = React.useState(options?.enabled !== false); // Only start loading if enabled
-    const [error, setError] = React.useState<Error | null>(null);
+    options?: UseQueryOptions
+): UseQueryResult<TOutput> {
+    const { enabled = true } = options ?? {};
+    const client = useTypeQLClient(); // Router type isn't strictly needed if procedure is passed directly
+    const [data, setData] = useState<TOutput | undefined>(undefined);
+    const [error, setError] = useState<TypeQLClientError | Error | null>(null);
+    // isFetching is true during request, isLoading is true only on initial fetch without data
+    const [isFetching, setIsFetching] = useState(enabled);
+    const [status, setStatus] = useState<'loading' | 'error' | 'success'>(enabled ? 'loading' : 'success'); // Assume success if not enabled
 
-    // Serialize input for dependency array - basic JSON stringify, might need improvement
+    const isLoading = isFetching && data === undefined; // Derive isLoading
+
+    // Use ref to manage mounted state and prevent state updates after unmount
+    const isMountedRef = useRef(true);
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => { isMountedRef.current = false; };
+    }, []);
+
+    // Serialize input for dependency array - basic JSON stringify, acknowledge limitations
+    // Consider libraries like 'fast-json-stable-stringify' or deep comparison for complex inputs
     const inputKey = useMemo(() => {
         try {
+            // Use a stable stringifier if available, otherwise fallback
             return JSON.stringify(input);
         } catch {
-            return String(input); // Fallback
+            console.warn("useQuery: Failed to stringify input for dependency key. Updates may be missed for complex objects.");
+            return String(input); // Basic fallback
         }
     }, [input]);
 
-    React.useEffect(() => {
-        if (options?.enabled === false) {
-            // If disabled after being enabled, reset state
-            if (isLoading || data || error) {
-                setData(undefined);
-                setIsLoading(false);
-                setError(null);
-            }
-            return;
-        }
+    // Refetch function
+    const executeQuery = useCallback(async () => {
+        if (!isMountedRef.current) return; // Don't fetch if unmounted
 
-        let isCancelled = false;
-        setIsLoading(true);
+        setIsFetching(true);
         setError(null); // Reset error on new fetch
 
-        const callQuery = async () => {
-            try {
-                // Directly use the passed procedure accessor if types align
-                const queryFn = (procedure as any)?.query;
-                if (typeof queryFn !== 'function') {
-                    throw new Error("Invalid procedure object passed to useQuery.");
-                }
-
-                const result = await queryFn(input);
-                if (!isCancelled) {
-                    setData(result as TOutput); // Cast result
-                    setIsLoading(false);
-                }
-            } catch (err: any) {
-                 if (!isCancelled) {
-                    setError(err instanceof Error ? err : new Error(String(err)));
-                }
+        try {
+            const result = await procedure.query(input);
+            if (isMountedRef.current) {
+                setData(result as TOutput);
+                setStatus('success');
+                setError(null);
             }
-        };
+        } catch (err: any) {
+            console.error("useQuery Error:", err);
+            if (isMountedRef.current) {
+                const errorObj = err instanceof Error ? err : new TypeQLClientError(String(err));
+                setError(errorObj);
+                setStatus('error');
+                // Keep existing data? Or clear it? For now, keep it.
+                // setData(undefined);
+            }
+        } finally {
+            if (isMountedRef.current) {
+                setIsFetching(false);
+            }
+        }
+    }, [procedure, inputKey]); // inputKey represents stable input
 
-        callQuery();
+    useEffect(() => {
+        if (enabled) {
+            executeQuery();
+        } else {
+            // Reset state if disabled
+            if (isFetching || data !== undefined || error !== null) {
+                setData(undefined);
+                setIsFetching(false);
+                setStatus('success'); // If disabled, treat as success with no data/error
+                setError(null);
+            }
+        }
+    }, [enabled, executeQuery, isFetching, data, error]); // Include state vars that trigger reset
 
-        return () => {
-            isCancelled = true;
-        };
-        // Use serialized input key in dependency array
-    }, [procedure, inputKey, options?.enabled]); // Procedure reference should be stable if client is stable
+    // TODO: Implement refetchOnWindowFocus, staleTime etc.
 
-    return { data, isLoading, error };
+    return {
+        data,
+        isLoading,
+        isFetching,
+        isSuccess: status === 'success',
+        isError: status === 'error',
+        error,
+        status,
+        refetch: executeQuery,
+    };
 }
 
-// --- Mutation Hook (Basic Implementation) ---
+// --- Mutation Hook ---
 
-// Helper type to extract mutation procedures
-type inferMutationInput<TProcedure> = TProcedure extends { mutate: (input: infer TInput) => any } ? TInput : never;
-type inferMutationOutput<TProcedure> = TProcedure extends { mutate: (input: any) => Promise<infer TOutput> } ? TOutput : never;
+// Refined Helper types for mutation
+type inferMutationInput<TProcedure> = TProcedure extends { mutate: (input: infer TInput) => any }
+    ? TInput
+    : never;
+
+type inferMutationOutput<TProcedure> = TProcedure extends { mutate: (...args: any[]) => Promise<infer TOutput> }
+    ? TOutput
+    : never;
+
+// Type for mutation options
+export interface UseMutationOptions<TOutput, TInput> {
+    onSuccess?: (data: TOutput, variables: TInput) => void;
+    onError?: (error: Error | TypeQLClientError, variables: TInput) => void;
+    onMutate?: (variables: TInput) => void | Promise<any>; // For optimistic updates
+}
+
+// Type for mutation result state
+export interface UseMutationResult<TOutput, TInput> {
+    mutate: (input: TInput) => Promise<TOutput>; // Return promise that resolves/rejects
+    mutateAsync: (input: TInput) => Promise<TOutput>; // Explicit async version
+    isLoading: boolean;
+    isSuccess: boolean;
+    isError: boolean;
+    error: TypeQLClientError | Error | null;
+    data: TOutput | undefined;
+    status: 'idle' | 'loading' | 'error' | 'success';
+    reset: () => void; // Function to reset state
+}
 
 /**
- * Basic hook to perform a TypeQL mutation.
+ * Hook to perform a TypeQL mutation.
  */
-// Removed export keyword
-function useMutation<
-    TRouter extends AnyRouter,
-    TProcedure extends /* Lookup procedure type */ any,
+export function useMutation<
+    TProcedure extends { mutate: (...args: any[]) => Promise<any> },
     TInput = inferMutationInput<TProcedure>,
     TOutput = inferMutationOutput<TProcedure>
 >(
     procedure: TProcedure,
-    // TODO: Add options like onSuccess, onError, onMutate (for optimistic updates)
-): {
-    mutate: (input: TInput) => Promise<TOutput | undefined>; // Function to trigger mutation
-    isLoading: boolean;
-    error: Error | null;
-    data: TOutput | undefined; // Result of the last successful mutation
-} {
-    const client = useTypeQLClient<TRouter>(); // Get client
-    const [isLoading, setIsLoading] = React.useState(false);
-    const [error, setError] = React.useState<Error | null>(null);
-    const [data, setData] = React.useState<TOutput | undefined>(undefined);
+    options?: UseMutationOptions<TOutput, TInput>
+): UseMutationResult<TOutput, TInput> {
+    const client = useTypeQLClient(); // Client might not be needed if procedure is stable ref
+    const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'success'>('idle');
+    const [error, setError] = useState<TypeQLClientError | Error | null>(null);
+    const [data, setData] = useState<TOutput | undefined>(undefined);
 
-    // isMounted check to prevent state updates after unmount
-    const isMounted = React.useRef(true);
-    React.useEffect(() => {
-        isMounted.current = true;
-        return () => { isMounted.current = false; };
+    // Use ref for options to keep callback stable
+    const optionsRef = useRef(options);
+    useEffect(() => {
+        optionsRef.current = options;
+    }, [options]);
+
+    const isMountedRef = useRef(true);
+    useEffect(() => {
+        isMountedRef.current = true;
+        return () => { isMountedRef.current = false; };
     }, []);
 
-    const mutate = React.useCallback(async (input: TInput): Promise<TOutput | undefined> => {
-        setIsLoading(true);
+    const reset = useCallback(() => {
+        if (isMountedRef.current) {
+            setStatus('idle');
+            setError(null);
+            setData(undefined);
+        }
+    }, []);
+
+    const executeMutation = useCallback(async (input: TInput): Promise<TOutput> => {
+        if (!isMountedRef.current) {
+            // Handle unmounted case - maybe throw specific error?
+            throw new TypeQLClientError("Component unmounted before mutation could complete.");
+        }
+
+        setStatus('loading');
         setError(null);
         setData(undefined);
 
         try {
-            const mutationFn = (procedure as any)?.mutate;
-            if (typeof mutationFn !== 'function') {
-                throw new Error("Invalid procedure object passed to useMutation.");
-            }
-            const result = await mutationFn(input);
-            if (isMounted.current) {
+            // Optimistic update callback
+            await optionsRef.current?.onMutate?.(input);
+
+            const result = await procedure.mutate(input);
+
+            if (isMountedRef.current) {
                 setData(result as TOutput);
-                setIsLoading(false);
-                // TODO: Call onSuccess option if provided
+                setStatus('success');
+                optionsRef.current?.onSuccess?.(result as TOutput, input);
                 return result as TOutput;
+            } else {
+                 throw new TypeQLClientError("Component unmounted after mutation success but before state update.");
             }
         } catch (err: any) {
-             if (isMounted.current) {
-                const errorObj = err instanceof Error ? err : new Error(String(err));
-                setError(errorObj);
-                setIsLoading(false);
-                // TODO: Call onError option if provided
+             const errorObj = err instanceof Error ? err : new TypeQLClientError(String(err.message || err));
+             if (isMountedRef.current) {
+                 setError(errorObj);
+                 setStatus('error');
+                 optionsRef.current?.onError?.(errorObj, input);
              }
-            // Do not re-throw here by default, let the caller check the error state
-            // Or re-throw if that's the desired API? For now, don't re-throw.
+             // Re-throw the error so the caller's await Promise rejects
+             throw errorObj;
         }
-        return undefined; // Return undefined on error or unmount
-    }, [procedure, client]); // Client dependency might not be needed if procedure ref is stable
+    }, [procedure]); // Dependency on procedure ref
 
-    return { mutate, isLoading, error, data };
+    return {
+        mutate: executeMutation, // Provide main function
+        mutateAsync: executeMutation, // Explicit async name
+        isLoading: status === 'loading',
+        isSuccess: status === 'success',
+        isError: status === 'error',
+        error,
+        data,
+        status,
+        reset,
+    };
 }
 
-// --- Subscription Hook (Basic Implementation) ---
+// --- Subscription Hook ---
 
-// Helper type to extract subscription procedures
-type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput, handlers: any) => any } ? TInput : never;
-// How to infer the TOutput (data type) from the handlers? This is tricky.
-// Maybe require explicit TOutput generic or infer from onData handler?
-// For now, let's assume the caller knows the output type or use `unknown`.
-// type inferSubscriptionOutput<TProcedure> = ???
+// Refined Helper types for subscription
+type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput, handlers: any) => any }
+    ? TInput
+    : never;
+
+// Infer output type from the onData handler provided by the user
+type inferSubscriptionOutput<THandlers extends UseSubscriptionHandlers<any>> =
+    THandlers extends UseSubscriptionHandlers<infer TOutput> ? TOutput : unknown;
+
+// Type for subscription handler options passed to the hook
+export interface UseSubscriptionHandlers<TOutput> {
+    onData: (data: TOutput) => void;
+    onError?: (error: Error | TypeQLClientError) => void;
+    onEnd?: () => void;
+    onStart?: () => void; // Optional: If transport confirms start
+}
+
+// Type for subscription options
+export interface UseSubscriptionOptions {
+    enabled?: boolean;
+}
+
+// Type for subscription result state
+export interface UseSubscriptionResult {
+    status: 'idle' | 'connecting' | 'active' | 'error' | 'ended'; // Refined status
+    error: TypeQLClientError | Error | null;
+}
 
 /**
- * Basic hook to subscribe to a TypeQL subscription.
+ * Hook to subscribe to a TypeQL subscription.
  */
-// Removed export keyword
-function useSubscription<
-    TRouter extends AnyRouter,
-    TProcedure extends /* Lookup procedure type */ any,
-    TInput = inferSubscriptionInput<TProcedure>,
-    TOutput = unknown // Placeholder for data type
+export function useSubscription<
+    TProcedure extends { subscribe: (...args: any[]) => UnsubscribeFn },
+    THandlers extends UseSubscriptionHandlers<any>, // THandlers is now mandatory and comes earlier
+    TInput = inferSubscriptionInput<TProcedure>, // TInput can default or be inferred
+    TOutput = inferSubscriptionOutput<THandlers> // TOutput inferred from THandlers
 >(
     procedure: TProcedure,
     input: TInput,
-    handlers: { // Pass handlers directly
-        onData: (data: TOutput) => void;
-        onError?: (error: Error) => void;
-        onEnd?: () => void;
-    },
-    options?: { enabled?: boolean }
-): {
-    status: 'idle' | 'subscribing' | 'subscribed' | 'error' | 'ended';
-    error: Error | null;
-} {
-    const client = useTypeQLClient<TRouter>();
-    const [status, setStatus] = React.useState<'idle' | 'subscribing' | 'subscribed' | 'error' | 'ended'>(
-        options?.enabled !== false ? 'subscribing' : 'idle'
+    handlers: THandlers,
+    options?: UseSubscriptionOptions
+): UseSubscriptionResult {
+    const { enabled = true } = options ?? {};
+    const client = useTypeQLClient();
+    // Refined status: connecting indicates transport might be connecting or initial subscribe sent
+    const [status, setStatus] = useState<'idle' | 'connecting' | 'active' | 'error' | 'ended'>(
+        enabled ? 'connecting' : 'idle'
     );
-    const [error, setError] = React.useState<Error | null>(null);
+    const [error, setError] = useState<TypeQLClientError | Error | null>(null);
 
-    // Memoize handlers to prevent unnecessary re-subscriptions if they are defined inline
-    const stableHandlers = React.useRef(handlers);
-    React.useEffect(() => {
-        stableHandlers.current = handlers;
+    // Use ref for handlers to prevent effect re-runs if handler identity changes
+    const handlersRef = useRef(handlers);
+    useEffect(() => {
+        handlersRef.current = handlers;
     }, [handlers]);
+
+    // Use ref for the unsubscribe function
+    const unsubscribeRef = useRef<UnsubscribeFn | null>(null);
 
     // Serialize input for dependency array
     const inputKey = useMemo(() => {
         try {
             return JSON.stringify(input);
         } catch {
-            return String(input); // Fallback
+            console.warn("useSubscription: Failed to stringify input for dependency key. Updates may be missed for complex objects.");
+            return String(input); // Basic fallback
         }
     }, [input]);
 
-    React.useEffect(() => {
-        if (options?.enabled === false) {
-            setStatus('idle');
-            setError(null);
-            return; // Do nothing if not enabled
+    useEffect(() => {
+        if (!enabled) {
+            // Clean up subscription if disabled
+            unsubscribeRef.current?.();
+            unsubscribeRef.current = null;
+            // Reset status only if it wasn't already idle
+            if (status !== 'idle') {
+                setStatus('idle');
+                setError(null);
+            }
+            return;
         }
 
-        setStatus('subscribing');
+        // Reset state before subscribing
+        setStatus('connecting'); // Indicate attempt to subscribe/connect
         setError(null);
 
-        // Ensure SubscriptionHandlers type is correctly used
-        const subscriptionHandlers: SubscriptionHandlers = {
-            onData: (message: SubscriptionDataMessage) => { // Explicitly type message
-                // Assuming message.data is the actual payload
-                if (status !== 'subscribed') setStatus('subscribed'); // Move to subscribed on first data
-                stableHandlers.current.onData(message.data as TOutput); // Access message.data
+        // Create the handlers expected by the core transport subscribe method
+        const transportHandlers: SubscriptionHandlers = {
+            onData: (message: SubscriptionDataMessage) => {
+                // Move to active on first data
+                if (status !== 'active') setStatus('active');
+                handlersRef.current.onData(message.data as TOutput); // Call user handler
             },
-            onError: (err) => { // Error object from typeql/core might be { message: string; code?: string }
-                const errorObj = err instanceof Error ? err : new Error(String(err.message || 'Subscription error'));
+            onError: (errorData: SubscriptionErrorMessage['error']) => {
+                const errorObj = new TypeQLClientError(errorData.message || 'Subscription error', errorData.code);
                 setError(errorObj);
                 setStatus('error');
-                stableHandlers.current.onError?.(errorObj);
+                handlersRef.current.onError?.(errorObj);
+                unsubscribeRef.current = null; // Subscription is terminated
             },
             onEnd: () => {
                 setStatus('ended');
-                stableHandlers.current.onEnd?.();
-            },
-            // onStart: () => setStatus('subscribed'), // Potentially use onStart if transport provides it
-        };
+                handlersRef.current.onEnd?.();
+                unsubscribeRef.current = null; // Subscription is terminated
+            }, // Added comma
+            onStart: () => { // If transport signals start
+                handlersRef.current.onStart?.();
+                // Don't necessarily move to 'active' here, wait for first data
+                // This confirms the server acknowledged the subscription
+                if (status === 'connecting') {
+                     // Still connecting technically, but server ack is good
+                }
+                // console.debug("Subscription started"); // Optional debug log
+            } // Added closing brace for onStart method
+        }; // Added closing brace for transportHandlers object literal
 
-        let unsubscribe: UnsubscribeFn = () => {}; // Initialize with empty function
-
-        try {
-            const subscribeFn = (procedure as any)?.subscribe;
-            if (typeof subscribeFn !== 'function') {
-                 throw new Error("Invalid procedure object passed to useSubscription.");
-            }
-            // Call subscribe and store the cleanup function
-            unsubscribe = subscribeFn(input, subscriptionHandlers);
-             // Consider moving setStatus('subscribed') here if transport confirms start immediately,
-             // otherwise wait for first onData. For now, wait for onData.
-        } catch (err: any) {
-             const errorObj = err instanceof Error ? err : new Error(String(err));
+        try { // Moved try block outside handler definition
+            // Call the procedure's subscribe method
+            unsubscribeRef.current = procedure.subscribe(input, transportHandlers);
+        } catch (err: any) { // Moved catch block outside handler definition
+             // Handle immediate errors from calling subscribe (less likely)
+             const errorObj = err instanceof Error ? err : new TypeQLClientError(String(err));
              setError(errorObj);
              setStatus('error');
-             stableHandlers.current.onError?.(errorObj);
+             handlersRef.current.onError?.(errorObj);
+             unsubscribeRef.current = null;
         }
 
-        // Cleanup function for the effect
+        // Effect cleanup function
         return () => {
-            setStatus('idle'); // Reset status on unmount or dependency change
-            setError(null);
-            unsubscribe(); // Call the unsubscribe function returned by transport.subscribe
+            unsubscribeRef.current?.();
+            unsubscribeRef.current = null;
+             // Reset status only if effect is cleaning up while potentially active/connecting
+             // Don't reset if already 'error' or 'ended' by handlers
+             if (status === 'active' || status === 'connecting') {
+                  setStatus('idle');
+             }
         };
 
-    }, [procedure, inputKey, options?.enabled]); // Re-subscribe if procedure or input changes
+    }, [procedure, inputKey, enabled, client]); // client dependency needed? Maybe not if procedure is stable.
 
     return { status, error };
 }
 
-
-console.log("@typeql/react basic context, hook, and useQuery/useMutation/useSubscription loaded.");
-
-// Export the provider and hook
-export { TypeQLProvider, useTypeQLClient, useQuery, useMutation, useSubscription };
-// Context itself is usually not exported directly
+console.log("@typeql/react loaded: Provider, useTypeQLClient, useQuery, useMutation, useSubscription");

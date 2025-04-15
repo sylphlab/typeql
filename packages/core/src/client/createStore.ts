@@ -23,10 +23,10 @@ export interface StoreState<State> {
     isLoading: boolean;
     /** Stores any error that occurred. */
     error: Error | null;
-    /** Subscription status. */
-    subscriptionStatus: 'idle' | 'subscribing' | 'subscribed' | 'error' | 'ended';
     /** Is the transport currently considered connected? */
     isConnected: boolean;
+    /** Status of the subscription lifecycle. */
+    subscriptionStatus: 'idle' | 'active' | 'error' | 'ended';
 }
 
 /** Options for creating a basic TypeQL Store. */
@@ -59,8 +59,10 @@ export interface CreateStoreOptions<
     applyUpdate: (currentState: State | undefined, data: SubscriptionOutput) => State;
     /** Optional function to generate unique request/message IDs. */
     generateRequestId?: () => string | number;
-    /** Optional: Callback for connection status changes. */
-    onConnectionChange?: (isConnected: boolean) => void;
+    /** Optional: Callback for connection status changes triggered by the store. */
+    onStatusChange?: (status: Readonly<StoreState<State>>) => void;
+    /** If true, re-fetches initial query and restarts subscription on reconnect. Default: false */
+    refreshOnReconnect?: boolean;
 }
 
 /** Public API of the basic TypeQL Store. */
@@ -71,8 +73,6 @@ export interface TypeQLStore<State> {
     subscribe: (listener: (state: Readonly<StoreState<State>>) => void) => () => void;
     /** Force a refresh by re-requesting the initial state. */
     refresh: () => void;
-    /** Connect or reconnect the store's subscription. */
-    connect: () => void;
     /** Disconnect the store and clean up resources. */
     disconnect: () => void;
 }
@@ -96,15 +96,16 @@ export function createStore<
         initialState,
         applyUpdate,
         generateRequestId = generateId,
-        onConnectionChange: userOnConnectionChange,
+        onStatusChange, // Renamed from onConnectionChange
+        refreshOnReconnect = false,
     } = options;
 
     let internalState: StoreState<State> = {
         state: initialState,
         isLoading: false,
         error: null,
+        isConnected: transport.connected ?? false, // Start potentially disconnected
         subscriptionStatus: 'idle',
-        isConnected: transport.connected ?? true, // Initialize based on transport
     };
 
     const listeners = new Set<(state: Readonly<StoreState<State>>) => void>();
@@ -114,87 +115,65 @@ export function createStore<
 
     // --- State Management ---
     const setState = (newState: Partial<StoreState<State>>) => {
+        const previousState = internalState;
         internalState = { ...internalState, ...newState };
-        // Prevent listeners from being called after disconnect
+        // Prevent listeners/callbacks from being called after disconnect
         if (isStoreActive) {
-            listeners.forEach(listener => listener(Object.freeze({ ...internalState })));
+            const frozenState = Object.freeze({ ...internalState });
+            listeners.forEach(listener => listener(frozenState));
+            // Call the status change callback if provided and state actually changed
+            if (onStatusChange && JSON.stringify(previousState) !== JSON.stringify(internalState)) {
+                 onStatusChange(frozenState);
+            }
         }
     };
 
     // --- Subscription Handlers ---
     const handleSubscriptionData = (message: SubscriptionDataMessage) => {
         if (!isStoreActive) return;
+        console.debug(`[TypeQL Store] Received subscription data for path "${subscriptionPath}".`);
+        // Subscription is confirmed active on first data message
+        if (internalState.subscriptionStatus !== 'active') {
+             setState({ subscriptionStatus: 'active' });
+        }
         try {
             const newState = applyUpdate(internalState.state, message.data as SubscriptionOutput);
-            setState({
-                state: newState,
-                error: null,
-                isLoading: false, // No longer loading once data arrives
-                subscriptionStatus: 'subscribed' // Mark as subscribed on first data
-            });
+            setState({ state: newState, error: null, isLoading: false }); // Ensure loading is false
         } catch (err: any) {
             console.error(`[TypeQL Store] Error applying subscription update for path "${subscriptionPath}":`, err);
-            setState({ error: err instanceof Error ? err : new Error("Failed to apply update"), subscriptionStatus: 'error' });
+            setState({
+                error: err instanceof Error ? err : new Error("Failed to apply update"),
+                // Don't change subscriptionStatus here, let transport handle eventual disconnect if needed
+            });
         }
     };
 
-    const handleSubscriptionError = (error: SubscriptionErrorMessage['error']) => {
+    const handleSubscriptionError = (errorData: SubscriptionErrorMessage['error']) => {
         if (!isStoreActive) return;
-        console.error(`[TypeQL Store] Subscription error for path "${subscriptionPath}":`, error.message);
-        setState({ error: new Error(error.message || 'Subscription error'), subscriptionStatus: 'error' });
-        unsubscribeFn = undefined; // Subscription ended due to error
+        console.error(`[TypeQL Store] Received subscription error for path "${subscriptionPath}":`, errorData.message);
+        const error = new Error(errorData.message || 'Subscription error');
+        setState({ error: error, subscriptionStatus: 'error', isLoading: false });
+        unsubscribeFn = undefined; // Subscription ended due to error reported by server
     };
 
     const handleSubscriptionEnd = () => {
         if (!isStoreActive) return;
-        console.log(`[TypeQL Store] Subscription ended normally for path "${subscriptionPath}".`);
-        setState({ subscriptionStatus: 'ended', error: null }); // Clear error on normal end
-        unsubscribeFn = undefined;
+        console.log(`[TypeQL Store] Received subscription end signal for path "${subscriptionPath}".`);
+        setState({ subscriptionStatus: 'ended', error: null, isLoading: false });
+        unsubscribeFn = undefined; // Subscription ended gracefully
     };
 
-    // --- Core Logic ---
-    const requestInitialState = async () => {
-        if (!isStoreActive || !internalState.isConnected) return;
+    // --- Core Logic: Load Initial State and Manage Subscription ---
 
-        setState({ isLoading: true, error: null });
-        const requestId = generateRequestId();
-        const queryMessage: ProcedureCallMessage = {
-            type: 'query',
-            id: requestId,
-            path: queryPath,
-            input: queryInput,
-        };
-
-        try {
-            const resultMessage = await transport.request(queryMessage);
-            if (!isStoreActive) return; // Check if disconnected while waiting
-
-            if (resultMessage.result.type === 'data') {
-                const receivedState = resultMessage.result.data as State;
-                 // Apply update function even for initial state for consistency? Or just set? Let's just set.
-                 // If applyUpdate should process initial state, the API needs clarification.
-                setState({ state: receivedState, isLoading: false, error: null });
-                console.log(`[TypeQL Store] Initial state received for path "${queryPath}".`);
-                 // If subscription wasn't active, try subscribing now
-                 if (internalState.subscriptionStatus === 'idle' || internalState.subscriptionStatus === 'ended') {
-                    subscribeToUpdates();
-                }
-            } else {
-                throw new Error(resultMessage.result.error.message || 'Failed to fetch initial state');
-            }
-        } catch (err: any) {
-            console.error(`[TypeQL Store] Error fetching initial state for path "${queryPath}":`, err);
-             if (isStoreActive) {
-                 setState({ isLoading: false, error: err instanceof Error ? err : new Error("Failed to fetch initial state"), state: undefined });
-             }
+    const startSubscription = () => {
+        if (!isStoreActive || !internalState.isConnected || unsubscribeFn) {
+             console.debug(`[TypeQL Store] Skipping subscription start for "${subscriptionPath}" (active: ${isStoreActive}, connected: ${internalState.isConnected}, alreadySubscribed: ${!!unsubscribeFn})`);
+             return; // Don't subscribe if disconnected, inactive, or already subscribed
         }
-    };
 
-    const subscribeToUpdates = () => {
-        if (!isStoreActive || !internalState.isConnected || unsubscribeFn || internalState.subscriptionStatus === 'subscribing') return;
-
-        console.log(`[TypeQL Store] Subscribing to path "${subscriptionPath}"...`);
-        setState({ subscriptionStatus: 'subscribing', error: null });
+        console.log(`[TypeQL Store] Attempting to subscribe to path "${subscriptionPath}"...`);
+        // Don't set loading=true here, only for initial query
+        setState({ subscriptionStatus: 'idle', error: null }); // Reset status before trying
         const subscribeId = generateRequestId();
         const subscribeMsg: SubscribeMessage = {
             type: 'subscription',
@@ -202,7 +181,6 @@ export function createStore<
             path: subscriptionPath,
             input: subscriptionInput
         };
-
         const handlers: SubscriptionHandlers = {
             onData: handleSubscriptionData,
             onError: handleSubscriptionError,
@@ -210,103 +188,179 @@ export function createStore<
         };
 
         try {
+             // Transport handles actual connection and message sending, including retries/resubscribes
             unsubscribeFn = transport.subscribe(subscribeMsg, handlers);
-            // Don't set to 'subscribed' here, wait for first data message in onData
+            // Status becomes 'active' only upon receiving the first data message
         } catch (err: any) {
-            console.error(`[TypeQL Store] Error initiating subscription for path "${subscriptionPath}":`, err);
-            if (isStoreActive) {
-                 setState({ isLoading: false, error: err instanceof Error ? err : new Error("Failed to subscribe"), subscriptionStatus: 'error' });
-            }
-        }
-    };
-
-    const unsubscribeFromUpdates = () => {
-        if (unsubscribeFn) {
-            console.log(`[TypeQL Store] Unsubscribing from path "${subscriptionPath}"...`);
-            try {
-                unsubscribeFn();
-            } catch (err) {
-                console.warn(`[TypeQL Store] Error during unsubscribe call:`, err);
-            }
-            unsubscribeFn = undefined;
-             // Only update status if the store hasn't been fully disconnected
+            console.error(`[TypeQL Store] transport.subscribe failed immediately for path "${subscriptionPath}":`, err);
+             // If transport.subscribe throws immediately (unlikely but possible)
              if (isStoreActive) {
-                 setState({ subscriptionStatus: 'idle' }); // Or 'ended'? 'idle' seems better if manual disconnect.
+                  setState({ error: err instanceof Error ? err : new Error("Failed to initiate subscription"), subscriptionStatus: 'error' });
              }
         }
     };
 
-    const handleConnectionChange = (newIsConnected: boolean) => {
-        if (!isStoreActive) return;
-        internalState.isConnected = newIsConnected; // Update internal tracker first
-        setState({ isConnected: newIsConnected });
-        userOnConnectionChange?.(newIsConnected);
-
-        if (newIsConnected) {
-            console.log(`[TypeQL Store] Reconnected. Refreshing state and subscription for "${subscriptionPath}"...`);
-             // Attempt to refresh initial state and re-subscribe
-             requestInitialState(); // This will trigger subscribeToUpdates on success
-        } else {
-             console.warn(`[TypeQL Store] Disconnected. Subscription for "${subscriptionPath}" paused.`);
-             // Clear subscription status, keep state as is
-             setState({ subscriptionStatus: 'idle', error: new Error("Transport disconnected") });
-             unsubscribeFn = undefined; // Assume transport handled actual unsubscribe/cleanup
+    const loadInitialAndSubscribe = async () => {
+        if (!isStoreActive || !internalState.isConnected) {
+             console.debug(`[TypeQL Store] Skipping initial load for "${queryPath}" (active: ${isStoreActive}, connected: ${internalState.isConnected})`);
+             setState({ isLoading: false }); // Ensure not stuck in loading if skipped
+             return;
         }
-    };
 
-    // --- Initialization ---
-    if (transport.onConnectionChange) {
-        cleanupConnectionListener = transport.onConnectionChange(handleConnectionChange);
-    }
-    if (internalState.isConnected) {
-        requestInitialState(); // Fetch initial state
-        // subscribeToUpdates(); // requestInitialState will trigger this on success
-    } else {
-        console.warn(`[TypeQL Store] Transport initially disconnected for path "${subscriptionPath}". Waiting for connection.`);
-        setState({ isLoading: false }); // Not loading if not connected
-    }
-    // --- End Initialization ---
+        // Prevent concurrent loads
+        if (internalState.isLoading) {
+            console.debug(`[TypeQL Store] Initial load already in progress for "${queryPath}".`);
+            return;
+        }
 
-    const storeApi: TypeQLStore<State> = {
-        getState: () => Object.freeze({ ...internalState }),
-        subscribe: (listener) => {
-            listeners.add(listener);
-            return () => listeners.delete(listener);
-        },
-        refresh: () => {
-            if (isStoreActive && internalState.isConnected) {
-                requestInitialState();
-            } else {
-                console.warn(`[TypeQL Store] Cannot refresh store for path "${subscriptionPath}" as it is disconnected.`);
-            }
-        },
-        connect: () => {
+        console.log(`[TypeQL Store] Requesting initial state for path "${queryPath}"...`);
+        setState({ isLoading: true, error: null });
+        const requestId = generateRequestId();
+         const queryMessage: ProcedureCallMessage = {
+             type: 'query',
+             id: requestId,
+             path: queryPath,
+             input: queryInput,
+         };
+
+         try {
+             const resultMessage = await transport.request(queryMessage);
+             if (!isStoreActive) return; // Check if disconnected while waiting
+
+             if (resultMessage.result.type === 'data') {
+                 const receivedState = resultMessage.result.data as State;
+                 console.log(`[TypeQL Store] Initial state received for path "${queryPath}".`);
+                 setState({ state: receivedState, isLoading: false, error: null });
+                 // Successfully got initial state, now ensure subscription is active
+                 startSubscription();
+             } else {
+                 // Handle procedure error result
+                 const error = new Error(resultMessage.result.error.message || 'Failed to fetch initial state (procedure error)');
+                 console.error(`[TypeQL Store] Procedure error fetching initial state for path "${queryPath}":`, resultMessage.result.error);
+                 setState({ isLoading: false, error: error, state: undefined }); // Clear state on error
+             }
+         } catch (err: any) {
+              // Handle transport error
+             console.error(`[TypeQL Store] Transport error fetching initial state for path "${queryPath}":`, err);
+              if (isStoreActive) {
+                  setState({ isLoading: false, error: err instanceof Error ? err : new Error("Transport error fetching initial state"), state: undefined }); // Clear state on error
+              }
+        }
+     }; // End loadInitialAndSubscribe
+
+     const unsubscribeFromUpdates = () => {
+         if (unsubscribeFn) {
+             console.log(`[TypeQL Store] Cleaning up subscription for path "${subscriptionPath}"...`);
+             try {
+                 unsubscribeFn();
+             } catch (err) {
+                 console.warn(`[TypeQL Store] Error during transport unsubscribe call:`, err);
+             }
+             unsubscribeFn = undefined;
+              // Update status only if the store is still marked active
+              if (isStoreActive) {
+                 // Reset status to idle, assuming user might want to reconnect/refresh later
+                 setState({ subscriptionStatus: 'idle' });
+             }
+        }
+     };
+
+     const handleConnectionChange = (newIsConnected: boolean) => {
+         if (!isStoreActive) return;
+
+         console.log(`[TypeQL Store] Connection change detected: ${newIsConnected}`);
+         const wasConnected = internalState.isConnected;
+         // Update state immediately
+         setState({ isConnected: newIsConnected });
+
+         if (newIsConnected && !wasConnected) {
+             console.log(`[TypeQL Store] Transport reconnected for path "${subscriptionPath}".`);
+             // Option 1: Refresh everything if configured
+             if (refreshOnReconnect) {
+                 console.log(`[TypeQL Store] Refreshing data due to reconnect (refreshOnReconnect=true).`);
+                 loadInitialAndSubscribe(); // Re-fetch initial state and ensure subscription restarts
+             }
+             // Option 2: Just ensure subscription is active (transport handles resending subscribe message)
+             // If not refreshing, we rely on the transport's automatic resubscribe.
+             // We might need to call startSubscription() just to ensure the handlers are linked
+             // in our state if the unsubscribeFn was cleared previously.
+             else if (!unsubscribeFn) {
+                  console.log(`[TypeQL Store] Ensuring subscription is active after reconnect.`);
+                  startSubscription();
+             }
+             // If refreshOnReconnect is false AND unsubscribeFn exists, we assume the transport
+             // successfully re-established the subscription automatically.
+
+         } else if (!newIsConnected && wasConnected) {
+              console.warn(`[TypeQL Store] Transport disconnected for path "${subscriptionPath}". Subscription paused.`);
+              // Update status, keep existing state, but mark subscription as potentially inactive
+              // The actual unsubscribeFn might still be held by the transport for its internal logic
+              setState({ error: new Error("Transport disconnected"), subscriptionStatus: 'idle' });
+              // Don't clear unsubscribeFn here, transport manages its lifecycle on disconnect.
+         }
+     };
+
+     // --- Initialization ---
+     if (transport.onConnectionChange) {
+         cleanupConnectionListener = transport.onConnectionChange(handleConnectionChange);
+     } else {
+         console.warn(`[TypeQL Store] Transport for path "${subscriptionPath}" does not provide onConnectionChange. Reconnect behavior might be limited.`);
+         // Assume connected if not specified otherwise? Or default to false? Let's use the transport's initial state.
+         internalState.isConnected = transport.connected ?? false;
+     }
+
+     if (internalState.isConnected) {
+         console.log(`[TypeQL Store] Initializing store for path "${subscriptionPath}" (already connected).`);
+         loadInitialAndSubscribe(); // Fetch initial state and subscribe
+     } else {
+         console.warn(`[TypeQL Store] Transport initially disconnected for path "${subscriptionPath}". Waiting for connection.`);
+         // State remains as initialized (isLoading: false)
+     }
+     // --- End Initialization ---
+
+     const storeApi: TypeQLStore<State> = {
+         getState: () => Object.freeze({ ...internalState }),
+         subscribe: (listener) => {
+             listeners.add(listener);
+             return () => listeners.delete(listener);
+         },
+         refresh: () => {
              if (!isStoreActive) {
-                 console.warn(`[TypeQL Store] Cannot connect a store that has been disconnected.`);
+                 console.warn(`[TypeQL Store] Cannot refresh store for path "${subscriptionPath}" as it has been disconnected.`);
                  return;
              }
              if (!internalState.isConnected) {
-                 console.log(`[TypeQL Store] Attempting to manually connect/reconnect for path "${subscriptionPath}"...`);
-                 // Try to fetch initial state, which should trigger subscription if successful
-                 requestInitialState();
-                 // If transport has explicit connect method, call it? Depends on transport design.
-                 // transport.connect?.();
+                  console.warn(`[TypeQL Store] Cannot refresh store for path "${subscriptionPath}" as transport is disconnected.`);
+                  return;
              }
-        },
-        disconnect: () => {
-            if (!isStoreActive) return;
-            console.log(`[TypeQL Store] Disconnecting store for path "${subscriptionPath}".`);
-            isStoreActive = false;
-            unsubscribeFromUpdates();
-            if (cleanupConnectionListener) cleanupConnectionListener();
-            listeners.clear();
-            // Keep last state but mark as disconnected and errored
-            setState({
-                 isLoading: false,
-                 error: new Error("Store disconnected by client"),
-                 isConnected: false,
-                 subscriptionStatus: 'idle'
-            });
+             console.log(`[TypeQL Store] Manual refresh requested for path "${queryPath}".`);
+             loadInitialAndSubscribe();
+         },
+         // connect method removed - rely on transport connection logic + initial load/refresh
+         disconnect: () => {
+             if (!isStoreActive) return;
+             console.log(`[TypeQL Store] Disconnecting store for path "${subscriptionPath}".`);
+             isStoreActive = false; // Prevent further updates/actions
+
+             unsubscribeFromUpdates(); // Attempt to clean up transport subscription
+
+             if (cleanupConnectionListener) {
+                  cleanupConnectionListener(); // Clean up our connection listener
+                  cleanupConnectionListener = undefined;
+             }
+             listeners.clear(); // Clear state listeners
+
+             // Optionally call transport.disconnect() if store initiated connection?
+             // For now, assume transport lifecycle is managed externally or via its own means.
+             // transport.disconnect?.();
+
+             // Update state to reflect disconnection
+             setState({
+                  isLoading: false,
+                  error: new Error("Store disconnected by client"),
+                  isConnected: false,
+                  subscriptionStatus: 'idle' // Or 'ended'? 'idle' seems appropriate.
+             });
         },
     };
 

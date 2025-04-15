@@ -179,17 +179,16 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                          data: data,
                          // TODO: Add sequence number if implemented
                      };
-                     // Use the transport associated with this specific request/connection to send the data back
-                     // ASSUMPTION: The transport needs a method to send server->client messages (e.g., sendMessage or similar)
-                     // This part highlights the need for a clearer transport definition for bidirectional communication.
-                     if (transport && (transport as any).sendMessage) { // Using a hypothetical sendMessage for now
-                         console.log(`[TypeQL Handler] Publishing data for subId ${subId}:`, data);
-                         Promise.resolve((transport as any).sendMessage(dataMsg)).catch((err: any) => {
-                             console.error(`[TypeQL Handler] Error sending subscription data for subId ${subId}:`, err);
-                         });
-                     } else {
-                         console.error(`[TypeQL Handler] Cannot publish data for subId ${subId}: Transport or appropriate send method unavailable.`);
-                     }
+                      // Use the transport's 'send' method (if available) defined in the updated interface
+                      if (transport?.send) {
+                           console.log(`[TypeQL Handler] Publishing data for subId ${subId} via transport.send:`, data);
+                           // Use Promise.resolve() to handle potential void return from transport.send
+                           Promise.resolve(transport.send(dataMsg)).catch((err: any) => {
+                                console.error(`[TypeQL Handler] Error sending subscription data via transport.send for subId ${subId}:`, err);
+                           });
+                      } else {
+                          console.error(`[TypeQL Handler] Cannot publish data for subId ${subId}: Transport lacks 'send' method.`);
+                      }
                  };
 
                  const subOptions: SubscriptionOptions<TContext, unknown, unknown> = { ctx, input: parsedInput, publish };
@@ -200,10 +199,12 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
                       // Register the active subscription (pass transport for sending data back, assert non-null)
                       // Assuming addSubscription handles storing the cleanup function needed on unsubscribe
+                      // Pass the transport instance (assert non-null as it was checked earlier)
                       subscriptionManager.addSubscription(
                            { type: 'subscription', id: subId, path: call.path, input: call.input }, // Reconstruct SubscribeMessage-like info
                            clientId,
-                           cleanupFn // Pass the actual cleanup function
+                           transport!, // Pass the transport instance
+                           cleanupFn   // Pass the actual cleanup function
                       );
 
                       // Subscription setup successful, handler doesn't return data directly

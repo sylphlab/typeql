@@ -109,7 +109,8 @@ export interface SubscriptionHandlers {
     onError: (error: SubscriptionErrorMessage['error']) => void;
     /** Called when the subscription ends normally. */
     onEnd: () => void;
-    // onStart?: () => void; // Optional: Called when server acknowledges subscription start
+    /** Optional: Called when the transport confirms the subscription has started (e.g., server acknowledgment). */
+    onStart?: () => void;
 }
 
 /**
@@ -140,6 +141,15 @@ export interface TypeQLTransport {
     onConnectionChange?(handler: (connected: boolean) => void): (() => void) | void;
     connect?(): Promise<void> | void; // Optional connect method
     disconnect?(): Promise<void> | void; // Optional disconnect method
+
+    /**
+     * Optional: Sends a subscription-related message from the server back to the client.
+     * This is primarily used by the request handler's `publish` function.
+     * The transport implementation must route the message to the correct client based
+     * on the `id` within the message, which corresponds to the original subscription ID.
+     * @param message The subscription data, error, or end message.
+     */
+    send?(message: SubscriptionDataMessage | SubscriptionErrorMessage | SubscriptionEndMessage): void | Promise<void>;
 }
 
 
@@ -241,3 +251,20 @@ export type StandardOperation<T extends { id: string }> =
   | AddOperation<T>
   | UpdateOperation<T>
   | RemoveOperation;
+
+
+// --- Custom Error Type ---
+
+/** Custom error class for TypeQL client-side errors. */
+export class TypeQLClientError extends Error {
+  // Explicitly include undefined for exactOptionalPropertyTypes compatibility
+  public readonly code?: string | undefined;
+
+  constructor(message: string, code?: string | undefined) {
+    super(message);
+    this.name = 'TypeQLClientError';
+    this.code = code;
+    // Ensure prototype chain is correct
+    Object.setPrototypeOf(this, TypeQLClientError.prototype);
+  }
+}
