@@ -1,6 +1,6 @@
 # Active Context for ReqDelta
 
-*   **Current Focus**: Continuing Phase 2 implementation, specifically sequence number management.
+*   **Current Focus**: Continuing Phase 2 implementation, specifically server-side update history.
 *   **Recent Changes**:
     *   Created initial Memory Bank files & refactored to Monorepo structure.
     *   Implemented basic Phase 1 components (`types`, `utils`, `createStore`, `SubscriptionManager`, `RequestHandler`, index files) within `@reqdelta/core`.
@@ -13,9 +13,11 @@
     *   Refactored `createStore.ts` to integrate optimistic update logic (replacing `optimisticStore.ts`).
     *   Updated `progress.md` reflecting these additions.
     *   Committed standard delta/utils implementation and `createStore` refactor.
+    *   Implemented client and server sequence managers (`packages/core/src/core/seqManager.ts`) and exported them.
+    *   Updated `progress.md`.
 *   **Next Steps**:
     *   Commit updated Memory Bank (`progress.md`, `activeContext.md`).
-    *   Implement sequence number management (`packages/core/src/core/seqManager.ts`).
+    *   Implement server-side update history (`packages/core/src/server/updateHistory.ts`).
 *   **Active Decisions**:
     *   Project is an npm workspace monorepo.
     *   Transports are separate packages.
