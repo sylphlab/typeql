@@ -25,11 +25,12 @@
     *   Implemented basic `useQuery` hook in `@typeql/react/src/index.ts`.
     *   Implemented basic `useMutation` hook in `@typeql/react/src/index.ts`.
     *   Implemented basic `useSubscription` hook in `@typeql/react/src/index.ts`.
-    *   Set up the `@typeql/transport-websocket` package.
-    *   Implemented basic WebSocket transport logic in `@typeql/transport-websocket/src/index.ts` (`createWebSocketTransport`). Includes connection handling (`connectWebSocket`, `disconnectWebSocket`), message serialization/deserialization placeholders, request/response correlation via `pendingRequests` map, and subscription management via `activeSubscriptions` map. Added basic error handling and connection status updates. Fixed TS errors.
-    *   Update `progress.md` reflecting WebSocket transport implementation.
+    *   Set up the `@typeql/transport-websocket` package and implemented basic transport logic.
+    *   Refactored `packages/core/src/client/createStore.ts` into a basic, non-optimistic store aligned with TypeQL architecture.
+    *   Removed `packages/core/src/client/optimisticStore.ts` as its logic was incompatible and needs complete redesign for TypeQL's model. Optimistic updates will be a separate future feature.
+    *   Update `progress.md` reflecting store refactoring and removal.
     *   Commit changes.
-    *   Next major step: Refactor client stores (`createStore`, `optimisticStore`) to use the new TypeQL architecture and transport. Refine React hooks (error handling, options, type inference). Implement WebSocket reconnect logic.
+    *   Next major step: Implement WebSocket reconnect logic in `@typeql/transport-websocket`. Refine React hooks (error handling, options, type inference). Implement optimistic updates as a new feature layer.
 *   **Active Decisions**:
     *   **PIVOT**: Adopt tRPC-inspired architecture (code-first, inferred types, routers/procedures) while retaining the core focus on **incremental delta updates** for subscriptions.
     *   GraphQL approach rejected due to preference against GQL syntax and schema definition.

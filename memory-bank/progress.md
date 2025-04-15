@@ -27,10 +27,13 @@
         *   [ ] Implement client-side subscription handling for delta streams (needs actual transport implementation & observable/iterator return type).
     *   **Core (`@typeql/core` - or keep `@reqdelta/core`)**
         *   [X] Refine shared types: Updated `Transport` interface and message types for TypeQL (`packages/core/src/core/types.ts`).
-        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `optimisticStore.ts`, `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`.
+        *   [X] Fix TS errors resulting from type changes in `subscriptionManager.ts`, `optimisticStore.ts` (before removal), `createStore.ts`, `updateHistory.ts`, `requestHandler.ts`, `client.ts`.
+        *   [X] Refactor `createStore.ts` to basic non-optimistic version aligned with TypeQL.
+        *   [X] Remove outdated `optimisticStore.ts`.
         *   [ ] Ensure delta utilities are compatible.
 *   **Phase 2: Feature Implementation (TypeQL)**
     *   [X] Implement input validation (e.g., Zod integration in `ProcedureBuilder`).
+    *   [ ] Implement optimistic update mechanism (Needs new design/store).
     *   [ ] Implement optimistic update mechanism on client `mutate` calls.
     *   [ ] Implement delta reconciliation logic on client.
     *   [ ] Implement data consistency/recovery for delta subscriptions (using seq numbers).
@@ -50,4 +53,4 @@
     *   [ ] Performance optimization.
 
 *   **Current Status**: **Design pivoted to TypeQL**. Memory Bank updated. Previous ReqDelta implementation largely needs replacement/heavy refactoring. Monorepo structure remains valid.
-*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. `createStore.ts` and `optimisticStore.ts` require major refactoring. Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions.
+*   **Known Issues**: Entire implementation needs to be aligned with the new TypeQL design. Optimistic updates require redesign. Conflict resolution details TBD. Server needs a way to identify clients/transports for subscriptions. `createStore.ts` logic still relies on old ReqDelta patterns for state management within the TypeQL structure.
