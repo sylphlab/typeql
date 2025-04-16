@@ -492,15 +492,17 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
             // --- End Conflict Resolution Logic ---
 
             // --- Post-Resolution Handling ---
-            if (resolutionOutcome === 'client-applied' || resolutionOutcome === 'merged') {
-                console.log(`[Optimistic Store] Outcome is '${resolutionOutcome}'. Removing ${conflictingMutations.length} conflicting mutations from pending list.`);
-                const conflictingClientSeqs = new Set(conflictingMutations.map(m => m.clientSeq));
-                pendingMutations = pendingMutations.filter(p => !conflictingClientSeqs.has(p.clientSeq));
-                conflictingMutations.forEach(m => {
-                    if (m.timeoutTimer) clearTimeout(m.timeoutTimer);
-                });
-            }
-            // If outcome is 'server-applied' or 'error', conflicting mutations remain pending.
+            // If outcome is 'client-applied', 'merged', 'server-applied', or 'error',
+            // the server's view has taken precedence or an error occurred.
+            // The conflicting client mutations are now effectively obsolete or invalid in their original form
+            // relative to the new confirmed state derived from the resolvedDelta.
+            // Remove them to prevent incorrect reapplication during recomputeOptimisticState.
+            console.log(`[Optimistic Store] Conflict resolution outcome is '${resolutionOutcome}'. Removing ${conflictingMutations.length} conflicting mutations from pending list.`);
+            const conflictingClientSeqs = new Set(conflictingMutations.map(m => m.clientSeq));
+            pendingMutations = pendingMutations.filter(p => !conflictingClientSeqs.has(p.clientSeq));
+            conflictingMutations.forEach(m => {
+                if (m.timeoutTimer) clearTimeout(m.timeoutTimer);
+            });
             // --- End Post-Resolution Handling ---
         }
 
