@@ -18,7 +18,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --external preact @typeql/core",
+    "build": "tsup src/index.ts --format esm,cjs --dts --external preact @sylph/typeql-core",
     "dev": "bun run build --watch",
     "clean": "rm -rf dist .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
