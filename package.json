@@ -4,7 +4,7 @@
   "private": true,
   "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylph/typeql)",
   "scripts": {
-    "test": "vitest run",
+    "test": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs run",
     "build": "cd packages/core && bun run build && cd ../react && bun run build && cd ../transport-preact && bun run build && cd ../transport-http && bun run build && cd ../transport-vscode && bun run build && cd ../transport-websocket && bun run build && cd ../..",
     "release": "bun run build && bun changeset publish"
   },

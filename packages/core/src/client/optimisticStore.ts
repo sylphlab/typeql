@@ -50,7 +50,7 @@ function convertImmerPatchesToJsonPatches(immerPatches: Patch[]): JsonPatch {
                 return { op: patch.op, path: jsonPointerPath };
             // Immer's default patch generation doesn't typically produce 'move', 'copy', 'test'
             default:
-                console.warn(`[Optimistic Store] Unsupported Immer patch op ('${(patch as any).op}') for JSON Patch conversion.`);
+                // console.warn(`[Optimistic Store] Unsupported Immer patch op ('${(patch as any).op}') for JSON Patch conversion.`);
                 return null; // Represent unsupported ops as null
         }
     // Filter out nulls resulting from unsupported ops. TS infers the correct type.
@@ -185,8 +185,9 @@ export interface OptimisticStore<TState> {
  * Creates an optimistic store instance.
  * Manages confirmed and optimistic states, pending mutations, and reconciliation logic.
  */
-export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Delta to JsonPatch
-    options: OptimisticStoreOptions<TState, Delta> // Use generic options
+// Remove TState constraint, add runtime check inside recomputeOptimisticState
+export function createOptimisticStore<TState, Delta = JsonPatch>(
+    options: OptimisticStoreOptions<TState, Delta>
 ): OptimisticStore<TState> {
     const {
         initialState,
@@ -210,25 +211,25 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
 
     /** Helper to report errors via console and optional callback */
     const reportError = (errorInfo: OptimisticStoreError) => {
-        console.error(`[Optimistic Store Error - ${errorInfo.type}]: ${errorInfo.message}`, errorInfo.originalError ?? '', errorInfo.context ?? '');
+        // console.error(`[Optimistic Store Error - ${errorInfo.type}]: ${errorInfo.message}`, errorInfo.originalError ?? '', errorInfo.context ?? ''); // Keep errors for now, but comment if needed
         if (onError) {
             try {
                 onError(errorInfo);
             } catch (callbackError) {
-                console.error("[Optimistic Store] Error calling onError callback:", callbackError);
+                // console.error("[Optimistic Store] Error calling onError callback:", callbackError); // Keep errors for now
             }
         }
     };
 
     /** Helper to report warnings via console and optional callback */
     const reportWarning = (type: OptimisticStoreError['type'], message: string, context?: any) => {
-        console.warn(`[Optimistic Store Warning - ${type}]: ${message}`, context ?? '');
+        // console.warn(`[Optimistic Store Warning - ${type}]: ${message}`, context ?? ''); // Keep warnings for now
         if (onError) {
             try {
                 // Pass warnings as errors too, allowing unified handling
                 onError({ type, message, context });
             } catch (callbackError) {
-                console.error("[Optimistic Store] Error calling onError callback for warning:", callbackError);
+                // console.error("[Optimistic Store] Error calling onError callback for warning:", callbackError); // Keep errors for now
             }
         }
     };
@@ -240,7 +241,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
 
     /** Notifies all registered listeners about a state change. */
     const notifyListeners = () => {
-        console.debug(`[Optimistic Store] Notifying ${listeners.size} listeners.`);
+        // console.debug(`[Optimistic Store] Notifying ${listeners.size} listeners.`);
         listeners.forEach(listener => {
             try {
                  listener(optimisticState, confirmedState);
@@ -256,32 +257,43 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
 
     /** Recomputes optimistic state from confirmed state + pending mutations */
     const recomputeOptimisticState = () => {
+        // console.log(`[DEBUG] recomputeOptimisticState: Starting. confirmedServerSeq=${confirmedServerSeq}, pendingMutations=${pendingMutations.length}`);
+        // const oldOptimisticState = optimisticState; // Unused variable
+        // Ensure we start recomputation from a clean copy of the confirmed state
+        let nextOptimisticState = JSON.parse(JSON.stringify(confirmedState));
+
         try {
-            optimisticState = produce(confirmedState, (draft: TState) => { // Add draft type
-                pendingMutations.forEach(mutation => {
-                    // Ensure draft is not accidentally mutated if applyPatches doesn't return void
-                    const tempDraft: any = draft; // Use 'any' temporarily if Immer's types clash
-                    applyPatches(tempDraft, mutation.predictedPatches);
-                });
+            // console.log(`[DEBUG] recomputeOptimisticState: Applying ${pendingMutations.length} pending mutations sequentially.`);
+            pendingMutations.forEach((mutation /*, index - Unused */) => {
+                // console.log(`[DEBUG] recomputeOptimisticState: Applying pending mutation ${index + 1}/${pendingMutations.length} (clientSeq=${mutation.clientSeq}) with patches:`, mutation.predictedPatches);
+                // Runtime check for applyPatches compatibility
+                if (typeof nextOptimisticState !== 'object' || nextOptimisticState === null) {
+                    throw new Error('State must be an object or array to apply patches.');
+                }
+                // Apply patches to the result of the previous application
+                nextOptimisticState = applyPatches(nextOptimisticState, mutation.predictedPatches); // applyPatches returns Objectish
+                // console.log(`[DEBUG] recomputeOptimisticState: State after applying patches for clientSeq=${mutation.clientSeq}:`, JSON.parse(JSON.stringify(nextOptimisticState)));
             });
+            optimisticState = nextOptimisticState as TState; // Cast back to TState after loop
         } catch (error) {
             reportError({
                 type: 'RecomputationError',
                 message: 'Error applying pending mutations during recomputation.',
                 originalError: error,
             });
-            // If recompute fails, the optimistic state might be corrupt. Resetting might be safest.
-            optimisticState = confirmedState; // Reset optimistic to last known good confirmed state
-            // Keep remaining pending mutations? Or clear them? Clearing seems safer if recompute failed.
-            pendingMutations.forEach(m => { if (m.timeoutTimer) clearTimeout(m.timeoutTimer); }); // Clear timers
+            // Reset optimistic state on error
+            optimisticState = confirmedState;
+            pendingMutations.forEach(m => { if (m.timeoutTimer) clearTimeout(m.timeoutTimer); });
             pendingMutations = [];
-            // Notify listeners about the reset state AFTER resetting
-            notifyListeners();
-            return; // Exit early as state was reset
+            notifyListeners(); // Notify about the reset
+            return;
         }
+
         // Notify listeners AFTER successful recomputation
+        // Always notify listeners after recomputation, as internal references might change even if stringify is the same.
+        // console.log("[DEBUG] recomputeOptimisticState: Forcing listener notification.");
         notifyListeners();
-        console.log("[Optimistic Store] Recomputed optimistic state and notified listeners.");
+        // console.log("[Optimistic Store] Recomputed optimistic state and notified listeners.");
     };
 
 
@@ -289,14 +301,15 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
     const handleMutationTimeout = (clientSeq: number) => {
         const message = `Mutation (clientSeq: ${clientSeq}) timed out after ${effectiveMutationTimeoutMs}ms.`;
         // Report as an error via the callback, but log as warning
-        console.warn(`[Optimistic Store Warning - TimeoutError]: ${message}`, { clientSeq, durationMs: effectiveMutationTimeoutMs });
+        // console.warn(`[Optimistic Store Warning - TimeoutError]: ${message}`, { clientSeq, durationMs: effectiveMutationTimeoutMs }); // Keep warnings for now
         if (onError) {
              try {
                  onError({ type: 'TimeoutError', message, context: { clientSeq, durationMs: effectiveMutationTimeoutMs } });
              } catch (callbackError) {
-                 console.error("[Optimistic Store] Error calling onError callback for timeout:", callbackError);
+                 // console.error("[Optimistic Store] Error calling onError callback for timeout:", callbackError); // Keep errors for now
              }
         }
+        // console.log(`[DEBUG] handleMutationTimeout: Timeout occurred for clientSeq=${clientSeq}. Calling onError (if exists) and rejectPendingMutation.`);
         // Reject the mutation
         rejectPendingMutation(clientSeq, { reason: 'timeout', durationMs: effectiveMutationTimeoutMs });
         // No need to recompute state here, rejectPendingMutation handles it
@@ -310,7 +323,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
              throw new Error("ProcedureCallMessage must include clientSeq for optimistic mutation.");
         }
 
-        console.log(`[Optimistic Store] Adding pending mutation with clientSeq: ${clientSeq}`);
+        // console.log(`[Optimistic Store] Adding pending mutation with clientSeq: ${clientSeq}`);
 
         let predictedPatches: Patch[] = [];
 
@@ -375,57 +388,56 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
 
          // Notify listeners about the optimistic state change (after potential pruning)
          notifyListeners();
-         console.log("[Optimistic Store] Optimistic state updated and notified listeners.");
+         // console.log("[Optimistic Store] Optimistic state updated and notified listeners.");
 
          return clientSeq;
     };
 
+    // Corrected confirmPendingMutation - DOES NOT update confirmedServerSeq
     const confirmPendingMutation = (ack: AckMessage) => {
-        const { clientSeq, serverSeq } = ack;
+        const { clientSeq, serverSeq } = ack; // serverSeq from ack is noted but not used to update confirmedServerSeq
         const index = pendingMutations.findIndex(p => p.clientSeq === clientSeq);
 
         if (index === -1) {
-            reportWarning('RejectionError', 'Received confirmation for unknown or already confirmed mutation.', { clientSeq });
+            reportWarning('RejectionError', `Received confirmation for unknown/already confirmed mutation (clientSeq: ${clientSeq}).`, { clientSeq, serverSeq });
             return;
         }
 
-        console.log(`[Optimistic Store] Confirming mutation (clientSeq: ${clientSeq}, serverSeq: ${serverSeq}).`);
+        // console.log(`[Optimistic Store] Confirming mutation (clientSeq: ${clientSeq}, assigned serverSeq: ${serverSeq}). Removing from pending.`);
 
-        // Clear timeout for the confirmed mutation and any older ones being removed
-        const mutationsBeingRemoved = pendingMutations.slice(0, index + 1);
-        mutationsBeingRemoved.forEach(m => {
-            if (m.timeoutTimer) clearTimeout(m.timeoutTimer);
-        });
-
-        // Remove the confirmed mutation and any older ones (as they are now implicitly confirmed by sequence)
-        pendingMutations = pendingMutations.slice(index + 1);
-
-        // Update the confirmed server sequence number ONLY.
-        if (serverSeq > confirmedServerSeq) {
-             confirmedServerSeq = serverSeq;
-             console.log(`[Optimistic Store] Confirmed server sequence updated to: ${serverSeq}.`);
-        } else {
-            reportWarning('RejectionError', 'Received ack with older/equal serverSeq.', { clientSeq, ackServerSeq: serverSeq, currentConfirmedSeq: confirmedServerSeq });
+        // Clear timeout for the confirmed mutation
+        const confirmedMutation = pendingMutations[index];
+        if (confirmedMutation?.timeoutTimer) { // Add safe navigation
+            clearTimeout(confirmedMutation.timeoutTimer);
         }
 
-        // Optimistic state needs recomputing because pending mutations were removed
-        recomputeOptimisticState();
+        // Remove the confirmed mutation
+        pendingMutations.splice(index, 1);
+
+        // Optimistic state needs recomputing because a pending mutation was removed
+        recomputeOptimisticState(); // This will now always notify listeners
      };
 
+     // Reverted applyServerDelta with explicit conflict resolution and refined filtering
      const applyServerDelta = (deltaMessage: SubscriptionDataMessage) => {
          const { data: delta, serverSeq, prevServerSeq } = deltaMessage;
 
-        console.log(`[Optimistic Store] Applying server delta (serverSeq: ${serverSeq}, prevServerSeq: ${prevServerSeq ?? 'N/A'}). Current confirmedSeq: ${confirmedServerSeq}`);
+        // console.log(`[DEBUG] applyServerDelta: START. serverSeq=${serverSeq}, prevServerSeq=${prevServerSeq ?? 'N/A'}, currentConfirmedSeq=${confirmedServerSeq}`);
+        // console.log(`[DEBUG] applyServerDelta: Incoming delta:`, delta);
+        // console.log(`[DEBUG] applyServerDelta: Current confirmedState:`, confirmedState);
+        // console.log(`[DEBUG] applyServerDelta: Current pendingMutations (${pendingMutations.length}):`, pendingMutations.map(p => p.clientSeq));
+
 
          // 1. Check for sequence gaps
-        if (prevServerSeq !== undefined && prevServerSeq !== confirmedServerSeq) {
+        // Corrected gap check: Allow prevServerSeq 0 if confirmedServerSeq is 0
+        if (prevServerSeq !== undefined && prevServerSeq !== confirmedServerSeq && !(prevServerSeq === 0 && confirmedServerSeq === 0)) {
+            // console.log(`[DEBUG] applyServerDelta: GAP DETECTED. Expected prev ${confirmedServerSeq}, got ${prevServerSeq}. Ignoring delta.`);
             const message = `Sequence gap detected! Expected prev ${confirmedServerSeq}, got ${prevServerSeq}. Requesting missing updates...`;
             reportWarning('GapRequestError', message, { expectedPrevSeq: confirmedServerSeq, receivedPrevSeq: prevServerSeq, currentServerSeq: serverSeq });
 
-            // Call the provided callback to request missing deltas
             if (requestMissingDeltas) {
                  try {
-                    // Request range from the sequence after the last confirmed up to the sequence received
+                    // Use correct confirmedServerSeq for fromSeq calculation
                     void requestMissingDeltas(deltaMessage.id, confirmedServerSeq + 1, serverSeq);
                  } catch (requestError) {
                     reportError({
@@ -438,27 +450,28 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
             } else {
                 reportWarning('GapRequestError', 'Sequence gap detected, but no requestMissingDeltas function provided.');
             }
-
-            // Still ignore the current delta to prevent applying it out of order
-            return;
+            // Ignore the current delta to prevent applying it out of order
+            return; // IMPORTANT: Return immediately on gap
         }
 
-        // 2. Check for conflicts with pending mutations before applying delta
+        // 2. Identify potentially conflicting pending mutations (predicted before this delta's base state)
         const conflictingMutations = pendingMutations.filter(p =>
-            prevServerSeq !== undefined && p.confirmedServerSeqAtPrediction < prevServerSeq
+            p.confirmedServerSeqAtPrediction < serverSeq
         );
 
-        let resolvedDelta = delta;
-        // Initialize with a valid outcome type or handle 'no-conflict' case separately
-        let resolutionOutcome: ConflictResolutionOutcome | 'error' | 'no-conflict' = 'no-conflict'; // Track outcome
+        let resolvedDelta = delta; // Start with the original server delta
+        // Type for outcome when resolution *occurs*. Can be 'error' if resolver fails.
+        let resolutionOutcome: ConflictResolutionOutcome | 'error' | undefined = undefined;
+        let mutationsToRemove = new Set<number>(); // Track clientSeqs to remove
+        // console.log(`[DEBUG] applyServerDelta: Identified ${conflictingMutations.length} conflicting mutations.`);
 
+        // 3. Resolve Conflicts if necessary
         if (conflictingMutations.length > 0) {
-            reportWarning('ConflictResolutionError', `Conflict detected with ${conflictingMutations.length} pending mutation(s).`, { serverSeq, prevServerSeq, conflictingClientSeqs: conflictingMutations.map(m => m.clientSeq) });
+            reportWarning('ConflictResolutionError', `Conflict detected with ${conflictingMutations.length} pending mutation(s).`, { serverSeq, conflictingClientSeqs: conflictingMutations.map(m => m.clientSeq) });
 
-            // --- Conflict Resolution Logic ---
             let clientDeltaForConflict: Delta | undefined = undefined;
             try {
-                // 1. Extract Client Delta
+                // Combine patches from *all* conflicting mutations
                 const allClientImmerPatches: Patch[] = conflictingMutations.reduce(
                     (acc, mutation) => acc.concat(mutation.predictedPatches),
                     [] as Patch[]
@@ -466,17 +479,15 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
                 const clientJsonPatches = convertImmerPatchesToJsonPatches(allClientImmerPatches);
                 clientDeltaForConflict = clientJsonPatches as unknown as Delta;
 
-                // 2. Call Resolver
-                console.log(`[Optimistic Store] Resolving conflict with strategy: ${conflictResolverConfig.strategy}`);
-                const serverDeltaForConflict = delta as Delta;
+                // console.log(`[Optimistic Store] Resolving conflict with strategy: ${conflictResolverConfig.strategy}`);
                 const conflictResult: ConflictResolutionResult<Delta> = resolveConflict<Delta>(
                     clientDeltaForConflict,
-                    serverDeltaForConflict,
+                    delta as Delta, // Pass original server delta
                     conflictResolverConfig
                 );
-                resolvedDelta = conflictResult.resolvedDelta;
-                resolutionOutcome = conflictResult.outcome; // Assign outcome here
-                console.log(`[Optimistic Store] Conflict resolved with outcome: ${resolutionOutcome}. Using resulting delta.`);
+                resolvedDelta = conflictResult.resolvedDelta; // Use the delta produced by the resolver
+                resolutionOutcome = conflictResult.outcome;
+                // console.log(`[DEBUG] applyServerDelta: Conflict resolved. Outcome=${resolutionOutcome}. Resolved delta:`, resolvedDelta);
 
             } catch (resolutionError) {
                 reportError({
@@ -485,54 +496,76 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
                     originalError: resolutionError,
                     context: { serverSeq, clientDelta: clientDeltaForConflict, serverDelta: delta }
                 });
-                // Default to server-wins on resolver error
-                resolvedDelta = delta;
-                resolutionOutcome = 'error'; // Set specific outcome for error
+                resolvedDelta = delta; // Default to server delta on resolver error
+                resolutionOutcome = 'error';
             }
-            // --- End Conflict Resolution Logic ---
 
-            // --- Post-Resolution Handling ---
-            // If outcome is 'client-applied', 'merged', 'server-applied', or 'error',
-            // the server's view has taken precedence or an error occurred.
-            // The conflicting client mutations are now effectively obsolete or invalid in their original form
-            // relative to the new confirmed state derived from the resolvedDelta.
-            // Remove them to prevent incorrect reapplication during recomputeOptimisticState.
-            console.log(`[Optimistic Store] Conflict resolution outcome is '${resolutionOutcome}'. Removing ${conflictingMutations.length} conflicting mutations from pending list.`);
-            const conflictingClientSeqs = new Set(conflictingMutations.map(m => m.clientSeq));
-            pendingMutations = pendingMutations.filter(p => !conflictingClientSeqs.has(p.clientSeq));
-            conflictingMutations.forEach(m => {
-                if (m.timeoutTimer) clearTimeout(m.timeoutTimer);
-            });
-            // --- End Post-Resolution Handling ---
+            // Mark conflicting mutations for removal based on outcome
+            // Check if resolutionOutcome is defined (i.e., conflict occurred)
+            if (resolutionOutcome) {
+                 // console.log(`[Optimistic Store] Outcome is '${resolutionOutcome}'. Handling conflicting mutations.`);
+                 // Only remove conflicting mutations if the strategy/outcome dictates it (e.g., client-wins, merged)
+                 // For server-wins, we keep the mutations to re-apply them later.
+                 if (conflictResolverConfig.strategy !== 'server-wins') { // Check the strategy directly
+                     conflictingMutations.forEach(m => mutationsToRemove.add(m.clientSeq));
+                     // console.log(`[DEBUG] applyServerDelta: Strategy is not server-wins. Marked ${mutationsToRemove.size} mutations for removal.`);
+                 } else {
+                     // console.log(`[DEBUG] applyServerDelta: Strategy is server-wins. Keeping conflicting mutations for re-computation.`);
+                 }
+            }
         }
 
-
-        // 3. Apply the resolved delta to confirmed state
+        // 4. Apply the (potentially resolved) delta to the CURRENT confirmed state
+        let nextConfirmedState: TState | undefined;
+        // console.log(`[DEBUG] applyServerDelta: Applying resolvedDelta to current confirmedState.`);
         try {
-            // Use the applyDelta method from the applicator
-            const nextConfirmedState = deltaApplicator.applyDelta(confirmedState, resolvedDelta as Delta);
-             if (nextConfirmedState !== undefined) {
-                 // No need to check stateChanged, produce handles structural sharing
-                 confirmedState = nextConfirmedState;
-                 confirmedServerSeq = serverSeq; // Update confirmed sequence number
-                 console.log(`[Optimistic Store] Confirmed state updated by delta to serverSeq: ${serverSeq}.`);
-             } else {
+            nextConfirmedState = deltaApplicator.applyDelta(confirmedState, resolvedDelta as Delta);
+            // console.log(`[DEBUG] applyServerDelta: Result of applying delta:`, nextConfirmedState);
+            if (nextConfirmedState === undefined) {
                 reportWarning('ApplyDeltaError', 'deltaApplicator.applyDelta returned undefined.', { serverSeq });
+                return; // Don't proceed if delta application failed
             }
         } catch (error) {
             reportError({
                 type: 'ApplyDeltaError',
-                message: 'Error applying server delta to confirmed state.',
+                message: 'Error applying resolved server delta to confirmed state.',
                 originalError: error,
-                context: { serverSeq }
+                context: { serverSeq, resolutionOutcome: resolutionOutcome ?? 'no-conflict' } // Provide context
             });
-            // If applyDeltaFn fails, confirmed state is potentially corrupt.
-            // Recomputation will happen anyway, based on the potentially corrupt state.
+            return; // Don't proceed if delta application failed
         }
 
+        // 5. Update confirmed state and sequence number
+        // const oldConfirmedServerSeq = confirmedServerSeq; // Store the sequence before update - Unused
+        confirmedState = nextConfirmedState;
+        confirmedServerSeq = serverSeq;
+        // console.log(`[DEBUG] applyServerDelta: Updated confirmedState:`, confirmedState);
+        // console.log(`[DEBUG] applyServerDelta: Updated confirmedServerSeq: ${confirmedServerSeq}.`);
 
-        // 4. Reconcile optimistic state (this also notifies listeners)
-         recomputeOptimisticState();
+
+        // 6. Filter pending mutations: Keep only those predicted *at or after* the new confirmed sequence
+        //    AND were not marked for removal during conflict resolution.
+        const initialPendingCount = pendingMutations.length;
+        let finalPendingMutations = pendingMutations.filter(p =>
+            !mutationsToRemove.has(p.clientSeq) // Keep all mutations not explicitly marked for removal by conflict resolution
+        );
+        const removedCount = initialPendingCount - finalPendingMutations.length;
+
+        if (removedCount > 0) {
+            // Identify all mutations that were actually removed (conflicting or obsolete)
+            const removedMutations = pendingMutations.filter(p =>
+                mutationsToRemove.has(p.clientSeq) || p.confirmedServerSeqAtPrediction < confirmedServerSeq
+            );
+            removedMutations.forEach(m => { if (m.timeoutTimer) clearTimeout(m.timeoutTimer); });
+            // console.log(`[DEBUG] applyServerDelta: Discarded ${removedCount} pending mutations (conflicting or obsolete).`);
+        }
+
+        pendingMutations = finalPendingMutations;
+        // console.log(`[DEBUG] applyServerDelta: Final pending mutation list size: ${pendingMutations.length}. Kept clientSeqs:`, pendingMutations.map(p=>p.clientSeq));
+
+
+        // 7. Recompute optimistic state based on the NEW confirmed state and the FINAL pending mutations list
+        recomputeOptimisticState(); // This also notifies listeners
      };
 
      const subscribe = (listener: StoreListener<TState>): UnsubscribeStoreListener => {
@@ -568,7 +601,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
 
         if (rejectedMutation) {
             if (rejectedMutation.timeoutTimer) clearTimeout(rejectedMutation.timeoutTimer);
-            console.log(`[Optimistic Store] Rolling back rejected mutation ${rejectedMutation.clientSeq} and ${subsequentMutations.length} subsequent pending mutations.`);
+            // console.log(`[Optimistic Store] Rolling back rejected mutation ${rejectedMutation.clientSeq} and ${subsequentMutations.length} subsequent pending mutations.`);
             subsequentMutations.forEach(m => {
                 if (m.timeoutTimer) clearTimeout(m.timeoutTimer);
             });
@@ -584,6 +617,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
         pendingMutations = pendingMutations.slice(0, index); // Keep only mutations before the rejected one
 
         // Recompute optimistic state based on the remaining pending mutations
+        // Ensure this is always called after modifying pendingMutations
         recomputeOptimisticState();
     };
 
@@ -603,4 +637,4 @@ export function createOptimisticStore<TState, Delta = JsonPatch>( // Default Del
      };
  }
 
-console.log("packages/core/src/client/optimisticStore.ts loaded");
+// console.log("packages/core/src/client/optimisticStore.ts loaded");

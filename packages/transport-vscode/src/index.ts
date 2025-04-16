@@ -204,77 +204,77 @@ export function createVSCodeTransport(options: VSCodeTransportOptions): TypeQLTr
 
             const iterator = (async function*() {
                 const messageQueue: (SubscriptionDataMessage | SubscriptionErrorMessage)[] = [];
-                let resolveNext: ((value: IteratorResult<SubscriptionDataMessage | SubscriptionErrorMessage>) => void) | null = null;
+                let notifyNext: (() => void) | null = null; // Signal that a message/end is ready
+                let nextMessagePromise: Promise<void> | null = null; // Promise to await
 
-                // Push function (direct resolve)
+                const createNextMessagePromise = () => {
+                    nextMessagePromise = new Promise<void>((resolve) => {
+                        notifyNext = resolve;
+                    });
+                };
+
+                // Push function
                 push = (msg) => {
-                    console.debug(`[VSCode Transport] push() called for ${subscriptionId}. isEnded=${isEnded}, hasResolveNext=${!!resolveNext}`);
+                    console.debug(`[VSCode Transport] push() called for ${subscriptionId}. isEnded=${isEnded}`);
                     if (isEnded) return;
-                    if (resolveNext) {
-                        const resolver = resolveNext;
-                        resolveNext = null; // Clear after capturing
-                        console.debug(`[VSCode Transport] push() resolving pending promise for ${subscriptionId} with value:`, msg);
-                        resolver({ value: msg, done: false });
+                    messageQueue.push(msg);
+                    if (notifyNext) {
+                        console.debug(`[VSCode Transport] push() notifying awaiter for ${subscriptionId}`);
+                        notifyNext();
+                        notifyNext = null; // Consume the notification
                     } else {
-                        console.debug(`[VSCode Transport] push() queueing message for ${subscriptionId}:`, msg);
-                        messageQueue.push(msg);
+                         console.debug(`[VSCode Transport] push() queued message for ${subscriptionId}, no awaiter.`);
                     }
                 };
 
-                // End function - Sets flag and resolves pending promise directly
+                // End function - Sets flag and notifies awaiter
                 end = () => {
                     console.debug(`[VSCode Transport] end() called for ${subscriptionId}. isEnded=${isEnded}`);
                     if (isEnded) return;
                     isEnded = true;
-                    const resolver = resolveNext; // Capture resolver
-                    resolveNext = null; // Clear immediately
-                    if (resolver) {
-                         console.debug(`[VSCode Transport] end() resolving pending promise for ${subscriptionId} with {done: true}`);
-                         resolver({ value: undefined, done: true }); // Resolve directly
+                    if (notifyNext) {
+                        console.debug(`[VSCode Transport] end() notifying awaiter for ${subscriptionId}`);
+                        notifyNext(); // Signal the end
+                        notifyNext = null;
                     } else {
-                         console.debug(`[VSCode Transport] end() called but no pending promise for ${subscriptionId}`);
+                         console.debug(`[VSCode Transport] end() called but no awaiter for ${subscriptionId}`);
                     }
-                    // The loop should break on the next iteration due to isEnded flag or the resolved promise
                 };
 
-                // Try/finally block with loop checking isEnded before await
+                // Initialize the first promise
+                createNextMessagePromise();
+
+                // Try/finally block
                 try {
                     console.debug(`[VSCode Transport] Iterator starting loop for ${subscriptionId}`);
-                    while (true) {
+                    while (!isEnded) {
                         console.debug(`[VSCode Transport] Iterator loop top for ${subscriptionId}. isEnded=${isEnded}, queueLength=${messageQueue.length}`);
-                        if (messageQueue.length > 0) {
+                        while (messageQueue.length > 0) {
                             const msg = messageQueue.shift()!;
                             console.debug(`[VSCode Transport] Iterator yielding message from queue for ${subscriptionId}:`, msg);
                             yield msg;
-                        } else if (isEnded) { // Check flag *before* awaiting
-                            console.debug(`[VSCode Transport] Iterator breaking (isEnded true before await): ${subscriptionId}`);
-                            break;
-                        } else {
-                            console.debug(`[VSCode Transport] Iterator awaiting promise: ${subscriptionId}`);
-                            const result = await new Promise<IteratorResult<SubscriptionDataMessage | SubscriptionErrorMessage>>((resolve) => {
-                                console.debug(`[VSCode Transport] Iterator assigning resolveNext for ${subscriptionId}`);
-                                resolveNext = resolve;
-                                // No need to double-check isEnded here, the loop does it before await
-                            });
-                            resolveNext = null; // Clear resolveNext AFTER await has finished
-                            console.debug(`[VSCode Transport] Iterator promise resolved: ${subscriptionId}`, result);
+                        }
 
-                            // If the promise resolved with done: true (e.g., if end was called *during* await somehow, though unlikely now)
-                            if (result.done) {
-                                console.debug(`[VSCode Transport] Iterator breaking (result.done true): ${subscriptionId}`);
-                                break;
+                        // If queue is empty and not ended, wait for next message/end signal
+                        if (!isEnded) {
+                            console.debug(`[VSCode Transport] Iterator awaiting next message/end signal: ${subscriptionId}`);
+                            // Ensure nextMessagePromise is not null before awaiting
+                            if (!nextMessagePromise) createNextMessagePromise();
+                            await nextMessagePromise; // Wait for push or end
+                            console.debug(`[VSCode Transport] Iterator notified for ${subscriptionId}. isEnded=${isEnded}`);
+                            // If not ended after await, create the next promise for the next loop iteration
+                            if (!isEnded) {
+                                createNextMessagePromise();
                             }
-                            console.debug(`[VSCode Transport] Iterator yielding resolved value for ${subscriptionId}:`, result.value);
-                            yield result.value;
                         }
                     }
-                    console.debug(`[VSCode Transport] Iterator loop finished for ${subscriptionId}`);
+                    console.debug(`[VSCode Transport] Iterator loop finished (isEnded=${isEnded}): ${subscriptionId}`);
                 } finally {
                     console.debug(`[VSCode Transport] Iterator finally block for ${subscriptionId}. Setting isEnded=true.`);
-                    isEnded = true; // Ensure flag is always set on exit
-                    resolveNext = null; // Ensure no dangling resolver
+                    isEnded = true; // Ensure flag is set on exit
+                    notifyNext = null; // Clear any dangling notifier
                     activeSubscriptions.delete(subscriptionId); // Centralize cleanup
-                    console.debug(`[VSCode Transport] Subscription iterator cleanup/end: ${subscriptionId}`);
+                    console.debug(`[VSCode Transport] Subscription iterator cleanup/finally block finished: ${subscriptionId}`);
                 }
             })();
 

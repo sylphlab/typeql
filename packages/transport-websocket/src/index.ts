@@ -523,17 +523,21 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                       }
                   },
                   onError: (error) => {
+                      console.error(`[TypeQL WS Transport] onError called for ${subId}. isFinished=${isFinished}, hasReject=${!!rejectNextPromise}, hasResolve=${!!resolveNextPromise}`, error); // ADDED LOG
                       // Construct the SubscriptionErrorMessage
                       const result: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error };
                       isFinished = true;
                       isActive = false; // Mark inactive on error
                       if (rejectNextPromise) {
+                          console.debug(`[TypeQL WS Transport] onError rejecting promise for ${subId}`); // ADDED LOG
                           // Reject the pending promise if the iterator is waiting
                           rejectNextPromise(new Error(error.message)); // Wrap error object in an Error
                       } else if (resolveNextPromise) {
+                          console.debug(`[TypeQL WS Transport] onError resolving promise with error for ${subId}`); // ADDED LOG
                           // Or yield the error if waiting for data
                           resolveNextPromise({ value: result, done: false }); // Yield the error message
                       } else {
+                          console.debug(`[TypeQL WS Transport] onError queueing error for ${subId}`); // ADDED LOG
                           // Otherwise, queue it
                           messageQueue.push(result); // Push the error message
                       }

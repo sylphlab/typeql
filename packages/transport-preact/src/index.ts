@@ -231,6 +231,11 @@ export function useQuery<
 
     // Refetch function - now returns promise
     const executeQuery = useCallback(async (forceRefetch = false): Promise<void> => { // Add forceRefetch flag
+        // Prevent concurrent fetches
+        if (isFetching && !forceRefetch) {
+             console.log("[useQuery] Already fetching. Skipping.");
+             return;
+        }
         if (!isMountedRef.current || !procedure) return; // Don't fetch if unmounted or procedure missing
 
         // Check staleTime if not forcing refetch
@@ -280,12 +285,13 @@ export function useQuery<
                 setIsFetching(false);
             }
         }
-    }, [procedure, inputKey, data, staleTime, status]); // Add data, staleTime, status as dependencies
+    }, [procedure, inputKey, staleTime, isFetching]); // Add isFetching dependency
 
     useEffect(() => {
         if (enabled) {
             // Initial fetch or refetch based on staleTime
-            executeQuery();
+            // No need to await here, let it run in background
+            void executeQuery(); // Use void to explicitly ignore promise
         } else {
             // Reset state if disabled
             if (isFetching || data !== undefined || error !== null) {
@@ -296,7 +302,29 @@ export function useQuery<
             }
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [enabled, executeQuery]); // Keep dependencies minimal for initial fetch trigger
+    }, [enabled, inputKey, procedure, staleTime]); // Depend on conditions, not the function itself
+
+    // Memoize the store listener function
+    const storeListener = useCallback((optimisticState: TState) => {
+        if (isMountedRef.current) {
+            try {
+                if (select) {
+                    setData(select(optimisticState));
+                } else {
+                    // Apply same warning logic as initial sync if applicable
+                    if (typeof optimisticState === 'object' && optimisticState !== null && (typeof data === 'undefined' || typeof data !== 'object')) {
+                        // Skip warning or use alternative
+                    }
+                     // Explicitly cast through unknown to acknowledge potential type mismatch
+                    setData(optimisticState as unknown as TOutput);
+                }
+                // Don't change fetch status here, this is a background update
+            } catch (e) {
+                console.error("[useQuery] Error selecting state from optimistic update:", e);
+                // Optionally set error state?
+            }
+       }
+   }, [select]); // Dependency: select function reference
 
     // Subscribe to store updates if a store is provided
     useEffect(() => {
@@ -306,48 +334,22 @@ export function useQuery<
         if (status !== 'success' && status !== 'loading') { // Only sync if not already loaded/loading
              try {
                  const currentState = store.getOptimisticState();
+                 // Use the memoized listener logic directly for initial sync
                  if (select) {
                      setData(select(currentState));
                  } else {
-                     // Warn if store is present but no selector and types might mismatch
-                     // Basic check: if state is object and output might be primitive/array, warn.
-                     // This is imperfect but better than nothing.
                      if (typeof currentState === 'object' && currentState !== null && (typeof data === 'undefined' || typeof data !== 'object')) {
-                          // Preact doesn't have process.env.NODE_ENV by default, skip warning or use alternative
-                          // console.warn("[useQuery] OptimisticStore provided without a 'select' function...");
+                          // Skip warning
                      }
-                     // Explicitly cast through unknown to acknowledge potential type mismatch
                      setData(currentState as unknown as TOutput);
                  }
-                 // Optionally update status if we get initial data from store?
-                 // setStatus('success'); // Let's avoid this for now, let fetch determine success
              } catch (e) {
                 console.error("[useQuery] Error getting/selecting initial optimistic state:", e);
              }
         }
 
-        const listener = (optimisticState: TState) => {
-             if (isMountedRef.current) {
-                 try {
-                     if (select) {
-                         setData(select(optimisticState));
-                     } else {
-                         // Apply same warning logic as initial sync if applicable
-                         if (typeof optimisticState === 'object' && optimisticState !== null && (typeof data === 'undefined' || typeof data !== 'object')) {
-                             // Skip warning or use alternative
-                         }
-                          // Explicitly cast through unknown to acknowledge potential type mismatch
-                         setData(optimisticState as unknown as TOutput);
-                     }
-                     // Don't change fetch status here, this is a background update
-                 } catch (e) {
-                     console.error("[useQuery] Error selecting state from optimistic update:", e);
-                     // Optionally set error state?
-                 }
-            }
-        };
-
-        const unsubscribe = store.subscribe(listener);
+        // Subscribe using the memoized listener
+        const unsubscribe = store.subscribe(storeListener);
         console.log("[useQuery] Subscribed to OptimisticStore updates.");
 
         // Cleanup subscription on unmount or dependency change
@@ -355,7 +357,9 @@ export function useQuery<
             unsubscribe();
             console.log("[useQuery] Unsubscribed from OptimisticStore updates.");
         };
-    }, [store, enabled, status, select, data]); // Add select and data to dependencies
+    // }, [store, enabled, select]); // Original dependencies
+    // }, [store, enabled, storeListener]); // Use memoized listener in dependency array
+    }, [store, enabled]); // Simplify dependencies further, rely on useCallback for listener stability
 
     // TODO: Implement refetchOnWindowFocus, cacheTime etc.
 
@@ -734,132 +738,155 @@ export function useSubscription<
 
     // Ref to track mounted state
     const isMountedRef = useRef(true);
+    // Ref to track if unsubscribe has been called (either manually or via cleanup)
+    const isUnsubscribedRef = useRef(false);
     useEffect(() => {
         isMountedRef.current = true;
+        isUnsubscribedRef.current = false; // Reset on effect run
         return () => { isMountedRef.current = false; };
     }, []);
 
 
     useEffect(() => { // Main subscription effect
         if (!enabled || !procedure) {
-            // Clean up subscription if disabled or procedure missing
-            unsubscribeFn?.();
-            setUnsubscribeFn(null);
+            // Cleanup logic if disabled or procedure changes
+            if (unsubscribeFn) {
+                if (!isUnsubscribedRef.current) {
+                    console.log("[useSubscription] Cleaning up subscription (disabled/procedure changed).");
+                    try { unsubscribeFn(); } catch (e) { console.warn("Error unsubscribing:", e); }
+                    isUnsubscribedRef.current = true;
+                }
+                setUnsubscribeFn(null);
+            }
             if (status !== 'idle') {
-                setStatus('idle');
-                setError(null);
-                setData(null);
+                setStatus('idle'); setError(null); setData(null);
             }
             return;
         }
 
         let unsub: UnsubscribeFn | null = null;
-        // Iterator now yields the full message types
         let iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage> | null = null;
-        let isCancelled = false; // Flag to prevent processing after cleanup
+        let isEffectCancelled = false; // Renamed from isCancelled for clarity
+
+        // Reset unsubscribed flag when starting a new subscription
+        isUnsubscribedRef.current = false;
+
+        const processNext = async () => {
+            // Check flags before processing next item
+            if (!isMountedRef.current || isEffectCancelled || isUnsubscribedRef.current || !iterator) {
+                console.log("[useSubscription] Stopping iterator processing.");
+                return;
+            }
+
+            try {
+                const { value, done } = await iterator.next();
+
+                // Check flags again after await
+                if (!isMountedRef.current || isEffectCancelled || isUnsubscribedRef.current) {
+                    console.log("[useSubscription] Stopping iterator processing after await.");
+                    return;
+                }
+
+                if (done) {
+                    console.log("[useSubscription] Subscription ended normally (iterator done).");
+                    if (status !== 'error') { // Don't overwrite error state
+                        setStatus('ended');
+                        onEndRef.current?.();
+                    }
+                    return; // Stop recursion
+                }
+
+                // Process the received message (value)
+                const result = value; // value is SubscriptionDataMessage | SubscriptionErrorMessage
+                if (result.type === 'subscriptionData') {
+                    if (status !== 'active') setStatus('active');
+                    setError(null);
+                    const dataPayload = result.data as TOutput;
+
+                    if (store) {
+                        try {
+                            store.applyServerDelta(result);
+                            console.debug("[useSubscription] Applied server delta to store:", result.serverSeq);
+                            onDataRef.current?.(dataPayload);
+                            setData(dataPayload);
+                        } catch (storeError: any) {
+                            console.error("[useSubscription] Error applying server delta to store:", storeError);
+                            const err = storeError instanceof Error ? storeError : new Error(String(storeError));
+                            setError(err); setStatus('error');
+                            onErrorRef.current?.({ message: `Store error: ${err.message || err}` });
+                            return; // Stop recursion on store error
+                        }
+                    } else {
+                        setData(dataPayload);
+                        onDataRef.current?.(dataPayload);
+                    }
+                } else if (result.type === 'subscriptionError') {
+                    console.error("[useSubscription] Subscription error received:", result.error);
+                    const clientError = new TypeQLClientError(result.error.message, result.error.code);
+                    setError(clientError); setStatus('error');
+                    onErrorRef.current?.(result.error);
+                    return; // Stop recursion on error message
+                }
+
+                // Schedule the next iteration
+                // Use Promise.resolve().then() to avoid deep stack traces in some environments
+                Promise.resolve().then(processNext);
+
+            } catch (err: any) {
+                // Error during iterator.next() itself
+                if (isMountedRef.current && !isEffectCancelled && !isUnsubscribedRef.current) {
+                    console.error("[TypeQL Preact] useSubscription Error (iterator.next):", err);
+                    const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
+                    setError(errorObj); setStatus('error');
+                    onErrorRef.current?.({ message: `Subscription failed: ${errorObj.message || errorObj}` });
+                }
+            }
+        };
 
         const startSubscription = async () => {
-            if (!isMountedRef.current || isCancelled) return;
+            if (!isMountedRef.current || isEffectCancelled) return;
 
             setStatus('connecting');
             setError(null);
             setData(null);
 
             try {
-                // Start the subscription - client proxy handles path resolution
                 const subResult = procedure.subscribe(input);
                 unsub = subResult.unsubscribe;
-                iterator = subResult.iterator; // No assertion needed, type matches
-                if (isMountedRef.current && !isCancelled) {
-                    setUnsubscribeFn(() => unsub); // Store the actual unsubscribe function
+                iterator = subResult.iterator;
+
+                const manualUnsubscribe = () => {
+                    if (unsub && !isUnsubscribedRef.current) {
+                        console.log("[useSubscription] Manually unsubscribing.");
+                        try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }
+                        isUnsubscribedRef.current = true;
+                        if (isMountedRef.current) setStatus('idle');
+                    }
+                };
+
+                if (isMountedRef.current && !isEffectCancelled) {
+                    setUnsubscribeFn(() => manualUnsubscribe);
                 } else {
-                    // If unmounted or cancelled before setting state, immediately unsubscribe
-                    unsub?.();
+                    if (unsub && !isUnsubscribedRef.current) {
+                        try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }
+                        isUnsubscribedRef.current = true;
+                    }
                     return;
                 }
 
                 onStartRef.current?.(); // Notify start
 
-                // Consume the iterator
-                for await (const result of iterator) {
-                    if (!isMountedRef.current || isCancelled) break; // Stop if component unmounted or cancelled
-
-                    // Iterator now yields SubscriptionDataMessage or SubscriptionErrorMessage
-                    if (result.type === 'subscriptionData') {
-                        if (status !== 'active') setStatus('active'); // Move to active on first data
-                        setError(null); // Clear error on data
-
-                        const dataPayload = result.data as TOutput; // Extract data payload
-
-                        // If store exists, apply the full message
-                        if (store) {
-                            try {
-                                // Pass the complete SubscriptionDataMessage to the store
-                                store.applyServerDelta(result);
-                                console.debug("[useSubscription] Applied server delta to store:", result.serverSeq);
-
-                                // Call user's onData with the extracted payload
-                                onDataRef.current?.(dataPayload);
-                                // Update local state with the extracted payload
-                                setData(dataPayload);
-
-                            } catch (storeError: any) {
-                                 console.error("[useSubscription] Error applying server delta to store:", storeError);
-                                 const err = storeError instanceof Error ? storeError : new Error(String(storeError));
-                                 if (isMountedRef.current && !isCancelled) {
-                                     setError(err);
-                                     setStatus('error');
-                                     // Pass the original error structure to the callback
-                                     onErrorRef.current?.({ message: `Store error: ${err.message || err}` });
-                                 }
-                                 break; // Stop iteration on store error
-                            }
-                        } else {
-                            // No store, update local state and call handler with extracted payload
-                            setData(dataPayload);
-                            onDataRef.current?.(dataPayload);
-                        }
-                    } else if (result.type === 'subscriptionError') {
-                        // Handle the error message yielded by the iterator
-                        console.error("[useSubscription] Subscription error received:", result.error);
-                        if (isMountedRef.current && !isCancelled) {
-                            // Create a client-side error object for the hook's state
-                            const clientError = new TypeQLClientError(result.error.message, result.error.code);
-                            setError(clientError);
-                            setStatus('error');
-                            // Pass the original error structure from the message to the callback
-                            onErrorRef.current?.(result.error);
-                        }
-                        break; // Stop iteration on error
-                    }
-                    // Note: The loop naturally ends when the iterator is done (server sends 'end')
-                }
-
-                // Iteration finished normally (server sent 'end' or iterator completed)
-                if (isMountedRef.current && !isCancelled && status !== 'error') {
-                    console.log("[useSubscription] Subscription ended normally.");
-                    setStatus('ended');
-                    onEndRef.current?.();
-                }
+                // Start processing the first item
+                processNext();
 
             } catch (err: any) {
-                if (isMountedRef.current && !isCancelled) {
-                    console.error("[TypeQL Preact] useSubscription Error:", err); // Update log prefix
+                // Error during the initial procedure.subscribe call
+                if (isMountedRef.current && !isEffectCancelled) {
+                    console.error("[TypeQL Preact] useSubscription Error (subscribe call):", err);
                     const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
-                    setError(errorObj);
-                    setStatus('error');
+                    setError(errorObj); setStatus('error');
                     onErrorRef.current?.({ message: `Subscription failed: ${errorObj.message || errorObj}` });
                 }
-            } finally {
-                 if (isMountedRef.current && !isCancelled && status !== 'ended' && status !== 'error') {
-                     // If loop finishes without explicit end/error (e.g., iterator.return called), mark as ended
-                     // setStatus('ended'); // Or maybe 'idle'? Let's stick to 'ended' if it was active/connecting
-                 }
-                 // Ensure loading is false if it finishes in any state other than connecting/active
-                 if (isMountedRef.current && !isCancelled && (status === 'connecting' || status === 'active')) {
-                     // This case shouldn't ideally happen if loop finishes, but as a safeguard
-                     // setStatus('ended'); // Or 'idle'?
-                 }
             }
         };
 
@@ -867,24 +894,21 @@ export function useSubscription<
 
         // Effect cleanup function
         return () => {
-            isCancelled = true;
-            if (unsub) {
-                console.log("[useSubscription] Cleaning up subscription.");
-                unsub();
-            }
-            // Attempt to call iterator.return() for graceful async generator cleanup
-            if (iterator && typeof iterator.return === 'function') {
-                iterator.return().catch(e => console.warn("[useSubscription] Error during iterator cleanup:", e));
+            isEffectCancelled = true; // Signal to stop processing
+            if (unsub && !isUnsubscribedRef.current) {
+                console.log("[useSubscription] Cleaning up subscription (effect cleanup).");
+                try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }
+                isUnsubscribedRef.current = true;
             }
             setUnsubscribeFn(null);
-             // Reset status only if effect is cleaning up while potentially active/connecting
-             if (status === 'active' || status === 'connecting') {
-                  setStatus('idle');
-             }
+            if ((status === 'active' || status === 'connecting') && !isUnsubscribedRef.current) {
+                 setStatus('idle');
+            }
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [procedure, inputKey, enabled, client, store]); // Add store to dependencies
 
+    // Return the state including the potentially null unsubscribe function
     return { status, error, data, unsubscribe: unsubscribeFn };
 }
 
