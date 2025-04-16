@@ -11,8 +11,8 @@ import {
     type RequestMissingMessage, // Import RequestMissingMessage
     type UnsubscribeFn,
     TypeQLClientError // Import error type as a value
-} from '@typeql/core';
-import { generateId } from '@typeql/core'; // Assuming generateId is exported
+} from '@sylph/typeql-core';
+import { generateId } from '@sylph/typeql-core'; // Assuming generateId is exported
 
 /**
  * Interface mimicking the relevant parts of the VSCode API object

@@ -18,8 +18,8 @@
     "dist/**"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --external @typeql/core",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --external @typeql/core --watch",
+    "build": "tsup src/index.ts --format esm,cjs --dts --external @sylph/typeql-core",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --external @sylph/typeql-core --watch",
     "clean": "rm -rf dist *.tsbuildinfo",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

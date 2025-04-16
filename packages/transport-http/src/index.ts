@@ -5,8 +5,8 @@ import type {
     SubscribeMessage,
     AckMessage, // Import AckMessage
     RequestMissingMessage, // Import RequestMissingMessage
-} from '@typeql/core';
-import { TypeQLClientError } from '@typeql/core'; // Import custom error
+} from '@sylph/typeql-core';
+import { TypeQLClientError } from '@sylph/typeql-core'; // Import custom error
 
 export interface HttpTransportOptions {
     /** The URL of the TypeQL HTTP endpoint. */
