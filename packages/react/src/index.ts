@@ -23,7 +23,7 @@ import {
     OptimisticStoreOptions,
     OptimisticStoreError,
     createOptimisticStore,
-} from '@typeql/core';
+} from '@sylph/typeql-core';
 
 
 // --- Context ---
@@ -689,7 +689,7 @@ export function useMutation<
 type inferSubscriptionDataType<TProcedure> =
     TProcedure extends { subscribe: (...args: any[]) => { iterator: AsyncIterableIterator<infer TMessage> } }
         ? TMessage extends SubscriptionDataMessage // Check if the yielded type is SubscriptionDataMessage
-            ? TMessage['data'] // Extract the 'data' type
+            ? TMessage['data'] // Extract the 'data' type (which is unknown)
             : unknown // Fallback if not SubscriptionDataMessage
         : unknown;
 
