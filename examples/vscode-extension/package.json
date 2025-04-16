@@ -3,6 +3,7 @@
   "displayName": "TypeQL VSCode Example",
   "description": "Example VSCode extension using TypeQL for communication.",
   "version": "0.0.2",
+  "private": true,
   "publisher": "vscode-samples",
   "engines": {
     "vscode": "^1.80.0"
