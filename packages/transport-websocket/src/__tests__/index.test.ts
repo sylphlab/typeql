@@ -1,7 +1,7 @@
 // packages/transport-websocket/src/__tests__/index.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createWebSocketTransport } from '../index';
-import type { TypeQLTransport, ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, AckMessage, RequestMissingMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage } from '@typeql/core';
+import type { TypeQLTransport, ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, AckMessage, RequestMissingMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage } from '@sylph/typeql-core';
 import { WebSocketServer, WebSocket } from 'ws'; // Import WebSocketServer for mocking
 
 // Mock Server Setup

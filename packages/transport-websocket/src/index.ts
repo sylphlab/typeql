@@ -15,7 +15,7 @@ import type {
     SubscriptionEndMessage, // Added for iterator completion signaling
     AckMessage, // Import AckMessage type
     RequestMissingMessage // Import RequestMissingMessage type
-} from '@typeql/core';
+} from '@sylph/typeql-core';
 import WebSocket from 'ws'; // Using 'ws' library
 
 interface WebSocketTransportOptions {
@@ -646,7 +646,7 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
          get connected() {
               return isConnected;
          },
-         onConnectionChange: (handler) => {
+         onConnectionChange: (handler: (connected: boolean) => void) => {
               connectionChangeListeners.add(handler);
               return () => connectionChangeListeners.delete(handler);
          },
