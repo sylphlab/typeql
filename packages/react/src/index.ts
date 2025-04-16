@@ -19,6 +19,10 @@ import {
     MutationCallOptions,
     // Import PredictedChange type used within MutationCallOptions
     PredictedChange,
+    // Add missing imports from @typeql/core
+    OptimisticStoreOptions,
+    OptimisticStoreError,
+    createOptimisticStore,
 } from '@typeql/core';
 
 
@@ -37,24 +41,85 @@ const TypeQLContext = createContext<TypeQLContextValue<AnyRouter, unknown> | nul
 // --- Provider ---
 
 export interface TypeQLProviderProps<TRouter extends AnyRouter, TState = any> {
-  client: ReturnType<typeof createClient<TRouter>>; // Expect the client proxy
-  store?: OptimisticStore<TState>; // Optional store
-  children: React.ReactNode;
+    /** The pre-configured TypeQL client instance. */
+    client: ReturnType<typeof createClient<TRouter>>;
+    /**
+     * EITHER: A pre-instantiated OptimisticStore instance.
+     * If provided, the provider assumes its `onError` handler is already configured.
+     */
+    store?: OptimisticStore<TState>;
+    /**
+     * OR: Options to create an OptimisticStore internally.
+     * If provided, `store` prop must be omitted. The provider will manage the store instance.
+     */
+    storeOptions?: OptimisticStoreOptions<TState>;
+    /**
+     * Optional callback to handle asynchronous errors originating from the OptimisticStore
+     * (e.g., timeouts, conflict resolution failures).
+     * Only used if `storeOptions` are provided (i.e., the provider creates the store).
+     */
+    onStoreError?: (error: OptimisticStoreError) => void;
+    /** The child components. */
+    children: React.ReactNode;
 }
 
 /**
  * Provider component to make the TypeQL client and optional store available via context.
+ * Can either accept a pre-instantiated store or create one internally based on options.
+ * If creating internally, it manages the store's `onError` callback.
  */
 export function TypeQLProvider<TRouter extends AnyRouter, TState = any>({
     client,
-    store, // Accept store prop
+    store: storeProp,
+    storeOptions,
+    onStoreError,
     children,
 }: TypeQLProviderProps<TRouter, TState>): React.ReactElement {
+    if (storeProp && storeOptions) {
+        throw new Error("TypeQLProvider cannot accept both 'store' and 'storeOptions' props.");
+    }
+
+    // Create store internally if options are provided
+    const internalStoreRef = useRef<OptimisticStore<TState> | null>(null);
+    if (storeOptions && !internalStoreRef.current) {
+        console.log("[TypeQLProvider] Creating OptimisticStore internally with provided options.");
+        // Configure onError for the internally created store
+        const configuredOptions: OptimisticStoreOptions<TState> = {
+            ...storeOptions, // Spread original options first
+            deltaApplicator: storeOptions.deltaApplicator, // Explicitly pass deltaApplicator
+            onError: (error: OptimisticStoreError) => { // Added explicit type for error
+                // Log internally first
+                console.error("[TypeQLProvider Internal Store Error]:", error);
+                // Then call the user-provided handler
+                onStoreError?.(error);
+                // Also call the original onError from options if it existed
+                storeOptions.onError?.(error);
+            },
+        };
+        internalStoreRef.current = createOptimisticStore(configuredOptions);
+    }
+
+    // Determine the store instance to provide: prop > internal > undefined
+    const providedStore = storeProp ?? internalStoreRef.current ?? undefined;
+
     // Memoize the context value object itself
     const contextValue = useMemo(() => ({
         client,
-        store,
-    }), [client, store]); // Dependencies include client and store
+        store: providedStore,
+    }), [client, providedStore]); // Dependencies include client and the determined store instance
+
+    // Cleanup internally created store on unmount
+    useEffect(() => {
+        const internalStore = internalStoreRef.current;
+        return () => {
+            if (internalStore) {
+                console.log("[TypeQLProvider] Cleaning up internally created OptimisticStore.");
+                // Add any necessary cleanup logic for the store here, if applicable in the future
+                // e.g., internalStore.destroy?.();
+                internalStoreRef.current = null;
+            }
+        };
+    }, []); // Empty dependency array ensures this runs only on mount and unmount
 
     // Cast the value to match the context type signature
     return React.createElement(TypeQLContext.Provider, { value: contextValue as TypeQLContextValue<AnyRouter, unknown> }, children);
@@ -105,15 +170,25 @@ type inferQueryOutput<TProcedure> = TProcedure extends { query: (...args: any[])
 // Type for query options
 /**
  * Options for configuring the useQuery hook.
+ * @template TState The type of the state managed by the optimistic store.
+ * @template TOutput The expected output type of the query.
  */
-export interface UseQueryOptions {
+export interface UseQueryOptions<TState = any, TOutput = any> { // Add generics
     /**
      * If false, the query will not execute automatically. Defaults to true.
      */
     enabled?: boolean;
     /**
-     * @placeholder The time in milliseconds after data is considered stale.
-     * If set, the data will only be refetched if it is stale.
+     * Optional function to select the relevant data from the optimistic store's state.
+     * Required if using `useQuery` with an `OptimisticStore` where the query output
+     * type (`TOutput`) differs from the store's state type (`TState`).
+     * @param state The current optimistic state from the store.
+     * @returns The selected data corresponding to the query's expected output.
+     */
+    select?: (state: TState) => TOutput;
+    /**
+     * The time in milliseconds after data is considered stale. Defaults to 0 (always stale).
+     * If set, the data will only be refetched if it is older than the specified time.
      */
     staleTime?: number;
     /**
@@ -179,27 +254,27 @@ export interface UseQueryResult<TOutput> {
  * @template TOutput The inferred output type of the query procedure.
  * @param procedure The TypeQL query procedure object (e.g., `client.users.get`).
  * @param input The input arguments for the query procedure.
- * @param options Optional configuration for the query behavior.
+ * @param options Optional configuration for the query behavior, including an optional `select` function if using an optimistic store.
  * @returns An object containing the query state (`data`, `isLoading`, `isFetching`, `isSuccess`, `isError`, `error`, `status`) and a `refetch` function.
  */
 export function useQuery<
-    TProcedure extends { query: (...args: any[]) => Promise<any> }, // Expect procedure to have a query method
+    TProcedure extends { query: (...args: any[]) => Promise<any> },
     TInput = inferQueryInput<TProcedure>,
-    TOutput = inferQueryOutput<TProcedure>
+    TOutput = inferQueryOutput<TProcedure>,
+    TState = any // Add TState generic for store compatibility
 >(
     procedure: TProcedure,
     input: TInput,
-    options?: UseQueryOptions
+    options?: UseQueryOptions<TState, TOutput> // Use generic options type
 ): UseQueryResult<TOutput> {
-    const { enabled = true } = options ?? {};
-    // Use the new hook to get client and potentially store
-    const { client, store } = useTypeQL();
-    // TODO: Connect query hook to optimistic store state? Should reflect optimisticState.
-    //       Need to subscribe to store updates.
+    const { enabled = true, select, staleTime = 0 } = options ?? {}; // Destructure select and staleTime
+    // Use the new hook to get client and potentially store, specifying TState
+    const { client, store } = useTypeQL<AnyRouter, TState>();
     const [data, setData] = useState<TOutput | undefined>(undefined);
     const [error, setError] = useState<TypeQLClientError | Error | null>(null);
     const [isFetching, setIsFetching] = useState(false); // Start as false, set true in executeQuery
     const [status, setStatus] = useState<'loading' | 'error' | 'success'>(enabled ? 'loading' : 'success'); // Initial status depends on enabled
+    const lastFetchTimeRef = useRef<number>(0); // Ref to store the timestamp of the last successful fetch
 
     const isLoading = status === 'loading' && !data; // More direct derivation
 
@@ -223,9 +298,19 @@ export function useQuery<
     }, [input]);
 
     // Refetch function - now returns promise
-    const executeQuery = useCallback(async (): Promise<void> => { // Return promise
+    const executeQuery = useCallback(async (forceRefetch = false): Promise<void> => { // Add forceRefetch flag
         if (!isMountedRef.current || !procedure) return; // Don't fetch if unmounted or procedure missing
 
+        // Check staleTime if not forcing refetch
+        const now = Date.now();
+        if (!forceRefetch && data !== undefined && staleTime > 0 && (now - lastFetchTimeRef.current < staleTime)) {
+            console.log(`[useQuery] Data is fresh (staleTime: ${staleTime}ms). Skipping fetch.`);
+            // Ensure status is success if we have data and it's fresh
+            if (status !== 'success') setStatus('success');
+            return; // Don't fetch if data is fresh
+        }
+
+        console.log(`[useQuery] ${forceRefetch ? 'Forcing refetch' : 'Fetching data'}...`);
         setIsFetching(true);
         // Set status to 'loading' only if there's no data yet
         if (!data) {
@@ -242,6 +327,7 @@ export function useQuery<
                 if (isMountedRef.current) {
                    setStatus('success');
                    setError(null);
+                   lastFetchTimeRef.current = Date.now(); // Update last fetch time on success
                 }
             }
             // Resolve the promise on success (no value needed)
@@ -262,10 +348,11 @@ export function useQuery<
                 setIsFetching(false);
             }
         }
-    }, [procedure, inputKey]); // inputKey represents stable input
+    }, [procedure, inputKey, data, staleTime, status]); // Add data, staleTime, status as dependencies
 
     useEffect(() => {
         if (enabled) {
+            // Initial fetch or refetch based on staleTime
             executeQuery();
         } else {
             // Reset state if disabled
@@ -276,32 +363,62 @@ export function useQuery<
                 setError(null);
             }
         }
-    }, [enabled, executeQuery, isFetching, data, error]); // Include state vars that trigger reset
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [enabled, executeQuery]); // Keep dependencies minimal for initial fetch trigger
 
     // Subscribe to store updates if a store is provided
     useEffect(() => {
         if (!store || !enabled) return; // Only subscribe if store exists and query is enabled
 
         // Initial data sync if store has state
-        // This assumes the store state (TState) is compatible with query output (TOutput)
-        // or that the relevant part can be selected. For now, direct cast.
-        // Only set initial data from store if query hasn't fetched yet or failed
-        if (status !== 'success' && status !== 'loading') {
+        if (status !== 'success' && status !== 'loading') { // Only sync if not already loaded/loading
              try {
-                setData(store.getOptimisticState() as TOutput);
-                // Optionally update status if we get initial data from store?
-                // setStatus('success'); // Maybe? Needs careful thought.
+                 const currentState = store.getOptimisticState();
+                 if (select) {
+                     setData(select(currentState));
+                 } else {
+                     // Warn if store is present but no selector and types might mismatch
+                     // Basic check: if state is object and output might be primitive/array, warn.
+                     // This is imperfect but better than nothing.
+                     if (typeof currentState === 'object' && currentState !== null && (typeof data === 'undefined' || typeof data !== 'object')) {
+                          if (process.env.NODE_ENV !== 'production') {
+                              console.warn("[useQuery] OptimisticStore provided without a 'select' function, and the store state type might differ from the query output type. Direct state usage might lead to errors or unexpected behavior. Consider providing a 'select' function in useQuery options.");
+                          }
+                     }
+                     // Explicitly cast through unknown to acknowledge potential type mismatch
+                     setData(currentState as unknown as TOutput);
+                 }
+                 // Optionally update status if we get initial data from store?
+                 // setStatus('success'); // Let's avoid this for now, let fetch determine success
              } catch (e) {
-                console.error("[useQuery] Error getting initial optimistic state:", e);
+                console.error("[useQuery] Error getting/selecting initial optimistic state:", e);
              }
         }
 
-
-        const listener = (optimisticState: any /* TState */) => {
+        const listener = (optimisticState: TState) => {
              if (isMountedRef.current) {
-                // TODO: Refine state selection. Assuming optimisticState IS TOutput for now.
-                setData(optimisticState as TOutput);
-                // Don't change fetch status here, this is a background update
+                 try {
+                     if (select) {
+                         setData(select(optimisticState));
+                     } else {
+                         // Apply same warning logic as initial sync if applicable
+                         if (typeof optimisticState === 'object' && optimisticState !== null && (typeof data === 'undefined' || typeof data !== 'object')) {
+                             if (process.env.NODE_ENV !== 'production') {
+                                 // Avoid spamming the warning on every update, maybe track if warned already?
+                                 // For simplicity, warn only on initial sync for now.
+                             }
+                         }
+                          // Explicitly cast through unknown to acknowledge potential type mismatch
+                         setData(optimisticState as unknown as TOutput);
+                     }
+                     // Don't change fetch status here, this is a background update
+                 } catch (selectError: any) {
+                     console.error("[useQuery] Error selecting state from optimistic update:", selectError);
+                     // Set the hook's error state if selection fails
+                     const errorObj = selectError instanceof Error ? selectError : new Error(String(selectError));
+                     setError(errorObj);
+                     setStatus('error');
+                 }
             }
         };
 
@@ -313,9 +430,9 @@ export function useQuery<
             unsubscribe();
             console.log("[useQuery] Unsubscribed from OptimisticStore updates.");
         };
-    }, [store, enabled, status]); // Re-subscribe if store or enabled status changes
+    }, [store, enabled, status, select, data]); // Add select and data to dependencies
 
-    // TODO: Implement refetchOnWindowFocus, staleTime etc.
+    // TODO: Implement refetchOnWindowFocus, cacheTime etc.
 
 
     return {
@@ -326,7 +443,7 @@ export function useQuery<
         isError: status === 'error',
         error,
         status,
-        refetch: executeQuery,
+        refetch: () => executeQuery(true), // Pass forceRefetch=true to refetch function
     };
 }
 
@@ -454,9 +571,9 @@ export interface UseMutationResult<TOutput, TInput, TState = any> {
 export function useMutation<
     // Ensure the procedure's mutate expects MutationCallOptions
     TProcedure extends { mutate: (opts: MutationCallOptions<any, any>) => Promise<any> },
-    // Infer TInput from the 'input' property of the options expected by procedure.mutate
-    TInputArgs = Parameters<TProcedure['mutate']>[0], // Get the options object type { input: TIn, optimistic?: ... }
-    TInput = TInputArgs extends MutationCallOptions<infer In, any> ? In : never, // Extract TInput
+    // Infer TInput directly from the 'input' property of the options object
+    TInputArgs = Parameters<TProcedure['mutate']>[0],
+    TInput = TInputArgs extends { input: infer In } ? In : never, // Infer from input property
     TOutput = Awaited<ReturnType<TProcedure['mutate']>>, // Infer output from the promise
     TState = any // Add state generic for store
 >(

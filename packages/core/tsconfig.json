@@ -25,7 +25,7 @@
     "exactOptionalPropertyTypes": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
+    // "noUncheckedIndexedAccess": true, // Removed duplicate
     "noImplicitOverride": true,
     "noPropertyAccessFromIndexSignature": true,
     // "allowUnusedLabels": false, // Default: true

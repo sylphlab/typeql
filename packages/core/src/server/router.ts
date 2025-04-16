@@ -10,7 +10,7 @@ import type { AnyProcedure, ProcedureContext } from './procedure';
 export type ProcedureRouterRecord = Record<string, AnyProcedure | AnyRouter>;
 
 /** Internal definition of a router */
-export interface RouterDef<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> {
+export interface RouterDef<_TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> { // Mark TContext as unused
     _def: {
         router: true;
         procedures: TRecord; // Store the actual procedures/nested routers

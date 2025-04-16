@@ -99,6 +99,7 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
      let isConnected = false;
      let reconnectTimeoutId: ReturnType<typeof setTimeout> | undefined; // Use correct timer type
      const connectionChangeListeners = new Set<(connected: boolean) => void>();
+     const disconnectListeners = new Set<() => void>(); // Set for disconnect callbacks
 
      // Store pending requests (query/mutation) waiting for a response
      const pendingRequests = new Map<string | number, { resolve: (result: ProcedureResultMessage) => void; reject: (reason?: any) => void; timer?: ReturnType<typeof setTimeout> }>();
@@ -248,6 +249,8 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                   console.error("[TypeQL WS Transport] WebSocket error:", event?.message || event?.type || event);
                   updateConnectionStatus(false);
                   const error = new Error(`WebSocket error: ${event?.message || event?.type || 'Unknown error'}`);
+                  // Notify disconnect listeners on error
+                  disconnectListeners.forEach(cb => cb());
                   // Clean up before rejecting/scheduling reconnect
                   if(ws) { ws.onopen = ws.onerror = ws.onclose = ws.onmessage = null; ws = null; }
                   connectionPromise = null; // Clear promise *before* rejecting or scheduling
@@ -258,7 +261,8 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
               const handleClose = (event: any) => {
                   console.log(`[TypeQL WS Transport] Disconnected from ${url} (Code: ${event?.code}, Reason: ${event?.reason})`);
                   updateConnectionStatus(false);
-                  const wasConnectedBeforeClose = isConnected; // Check previous status
+                  // Notify disconnect listeners on close
+                  disconnectListeners.forEach(cb => cb());
                   const error = new Error(`WebSocket closed (Code: ${event?.code}, Reason: ${event?.reason})`);
 
                   // Reject pending requests immediately
@@ -664,9 +668,18 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
             // This function doesn't wait for a response, it just fires the request.
          },
 
+         // Implementation for onDisconnect
+         onDisconnect: (callback: () => void) => {
+             disconnectListeners.add(callback);
+             // Return unregister function
+             return () => {
+                 disconnectListeners.delete(callback);
+             };
+         },
+
      }; // *** End of transport object ***
 
-    // Initiate connection eagerly? Or wait for first request/subscribe? Eager for now.
+     // Initiate connection eagerly? Or wait for first request/subscribe? Eager for now.
     // Use void operator to explicitly ignore the promise result here if not needed
     void connectWebSocket().catch((error: any) => { // Added type annotation for error
         console.error("[TypeQL WS Transport] Initial connection failed:", error);

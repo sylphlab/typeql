@@ -5,7 +5,7 @@ import type { SubscriptionDataMessage } from '../core/types'; // Use new message
 // subscription consistency and recovery (e.g., if sequence numbers are optional or handled differently).
 
 /** Interface for storing and retrieving historical update messages. */
-export interface UpdateHistory<Delta = any> {
+export interface UpdateHistory { // Removed unused Delta generic
     /**
  * Adds a subscription data message to the history for a specific topic/path.
  * Handles pruning based on buffer size. Assumes messages have a `serverSeq`.

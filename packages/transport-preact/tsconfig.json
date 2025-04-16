@@ -1,0 +1,21 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "jsx": "react-jsx", // Use react-jsx for Preact 10+
+    "jsxImportSource": "preact",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"], // Include DOM libs for hooks
+    "module": "ESNext", // Ensure ESNext module system
+    "moduleResolution": "bundler", // Use bundler resolution
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true // Enable composite for project references
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [
+    { "path": "../core" } // Reference the core package
+  ]
+}

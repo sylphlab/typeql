@@ -2,21 +2,26 @@
   "name": "reqdelta-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Monorepo for ReqDelta core library and transport adapters",
+  "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylph/typeql)",
   "scripts": {
-    "build": "npm run build -ws",
-    "test": "npm run test -ws"
+    "test": "vitest run",
+    "build": "cd packages/core && bun run build && cd ../react && bun run build && cd ../transport-preact && bun run build && cd ../transport-http && bun run build && cd ../transport-vscode && bun run build && cd ../transport-websocket && bun run build && cd ../..",
+    "release": "bun run build && bun changeset publish"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "workspaces": [
     "packages/*",
-    "packages/react",
-    "packages/transport-websocket"
+    "examples/*"
   ],
   "devDependencies": {
+    "@changesets/cli": "^2.29.1",
     "@types/node": "^22.14.1",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  },
+  "dependencies": {
+    "fast-json-patch": "^3.1.1"
   }
 }

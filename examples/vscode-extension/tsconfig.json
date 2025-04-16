@@ -1,0 +1,36 @@
+{
+  "extends": "../../tsconfig.base.json", // Inherit from root
+  "compilerOptions": {
+    "module": "commonjs", // VSCode extensions use CommonJS
+    "target": "ES2020", // Target compatible with VSCode's Node.js version
+    "outDir": "dist", // Output directory for compiled JS
+    "lib": ["ES2020", "dom"], // Libs for Node.js environment + DOM for webview
+    "sourceMap": true, // Generate source maps
+    "rootDir": "src", // Source directory
+    "strict": true, // Enforce strict types
+    "composite": true, // Enable project references
+    "declarationMap": true, // Generate declaration maps
+    "baseUrl": ".", // Base URL for path mapping
+    "paths": { // Map workspace packages to their source
+      "@typeql/core": ["../../packages/core/src"],
+      "@typeql/core/*": ["../../packages/core/src/*"],
+      "@typeql/transport-vscode": ["../../packages/transport-vscode/src"],
+      "@typeql/transport-vscode/*": ["../../packages/transport-vscode/src/*"],
+      "@typeql/react": ["../../packages/react/src"], // Add mapping for react package
+      "@typeql/react/*": ["../../packages/react/src/*"]
+    },
+    // Remove options not suitable for CommonJS/Node environment
+    // "moduleResolution": "bundler",
+    // "allowImportingTsExtensions": true,
+    // "isolatedModules": true, // Conflicts with composite?
+    // "noEmit": false, // Already false due to outDir
+    "jsx": "react-jsx", // Needed for webview TSX files
+  },
+  "include": ["src/**/*.ts", "src/webview/**/*.tsx"], // Include extension TS and webview TSX files
+  "exclude": ["node_modules", ".vscode-test"], // Exclude node_modules and test runner files
+  "references": [ // Reference dependent workspace packages' tsconfig files
+    { "path": "../../packages/core/tsconfig.json" },
+    { "path": "../../packages/transport-vscode/tsconfig.json" },
+    { "path": "../../packages/react/tsconfig.json" } // Removed prepend: false, not needed here
+  ]
+}

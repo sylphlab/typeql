@@ -9,7 +9,7 @@ import { // Changed to regular import for TypeQLClientError
     SubscribeMessage,
     UnsubscribeFn,
     // SubscriptionHandlers, // Removed
-    ProcedureResultMessage,
+    // ProcedureResultMessage, // Removed as unused
     // SubscriptionResult, // Removed
     SubscriptionDataMessage, // Added
     SubscriptionErrorMessage, // Added
@@ -98,14 +98,16 @@ export function createClient<TRouter extends AnyRouter, TState = any>( // Add TS
 
 // --- Proxy Logic ---
 
-// Type helper to recursively build the client proxy type
-type CreateClientProxy<TRouter extends AnyRouter | AnyProcedure> = TRouter extends AnyRouter
-    ? {
-        [K in keyof TRouter['_def']['procedures']]: CreateClientProxy<TRouter['_def']['procedures'][K]>;
+// Revised Type helper: Ensure base case returns the correct object structure
+type CreateClientProxy<TRouterOrProcedure extends AnyRouter | AnyProcedure, TState = any> =
+    TRouterOrProcedure extends AnyRouter // Check if it's a router first
+    ? { // If yes, recurse
+        [K in keyof TRouterOrProcedure['_def']['procedures']]: CreateClientProxy<TRouterOrProcedure['_def']['procedures'][K], TState>;
     }
-    : TRouter extends AnyProcedure // Base case: a procedure
-    ? CreateProcedureClient<TRouter>
-    : never;
+    : TRouterOrProcedure extends AnyProcedure // Base case: a procedure
+    // Return the object { query: ... } or { mutate: ... } or { subscribe: ... } directly
+    ? CreateProcedureClient<TRouterOrProcedure, TState>
+    : never; // Should not happen
 
 /** Input options for mutation calls, allowing optimistic updates. */
 export interface MutationCallOptions<TInput, TState> {
@@ -162,9 +164,10 @@ function createProcedureProxy<TState = any>( // Add TState generic
                 }
             } catch (error: any) {
                  console.error(`[TypeQL Client] Query '${pathString}' failed:`, error);
-                 // Ensure error is re-thrown or handled appropriately
-                 if (error instanceof Error) throw error;
-                 throw new Error(`Query failed: ${error}`);
+                 // Wrap in TypeQLClientError for consistency
+                 if (error instanceof TypeQLClientError) throw error;
+                 if (error instanceof Error) throw new TypeQLClientError(error.message);
+                 throw new TypeQLClientError(`Query failed: ${error}`);
             }
         },
         // --- Mutation ---
@@ -204,14 +207,32 @@ function createProcedureProxy<TState = any>( // Add TState generic
                     // Handle server error response
                     const errorInfo = resultMessage.result.error;
                     console.error(`[TypeQL Client] Mutation '${pathString}' received server error:`, errorInfo);
-                    // TODO: If optimistic, notify store about rejection?
+                    // If optimistic, reject the pending mutation in the store
+                    if (store && clientSeq !== undefined) {
+                        try {
+                            store.rejectPendingMutation(clientSeq);
+                            console.log(`[TypeQL Client] Rejected pending mutation (clientSeq: ${clientSeq}) due to server error for '${pathString}'.`);
+                        } catch (rejectError: any) {
+                            console.error(`[TypeQL Client] Error rejecting pending mutation (clientSeq: ${clientSeq}) after server error:`, rejectError);
+                        }
+                    }
                     throw new TypeQLClientError(errorInfo.message, errorInfo.code);
                 }
             } catch (transportError: any) {
                  // Handle transport-level errors (network, timeout, etc.)
                  console.error(`[TypeQL Client] Mutation transport request '${pathString}' failed:`, transportError);
-                 // TODO: If optimistic, potentially rollback or mark mutation as failed in store?
-                 if (transportError instanceof TypeQLClientError || transportError instanceof Error) throw transportError;
+                 // If optimistic, reject the pending mutation in the store
+                 if (store && clientSeq !== undefined) {
+                     try {
+                         store.rejectPendingMutation(clientSeq);
+                         console.log(`[TypeQL Client] Rejected pending mutation (clientSeq: ${clientSeq}) due to transport error for '${pathString}'.`);
+                     } catch (rejectError: any) {
+                         console.error(`[TypeQL Client] Error rejecting pending mutation (clientSeq: ${clientSeq}) after transport error:`, rejectError);
+                     }
+                 }
+                 // Re-throw wrapped error
+                 if (transportError instanceof TypeQLClientError) throw transportError;
+                 if (transportError instanceof Error) throw new TypeQLClientError(transportError.message);
                  throw new TypeQLClientError(`Mutation failed: ${transportError}`);
             }
         },

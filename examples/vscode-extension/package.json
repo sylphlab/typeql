@@ -1,0 +1,43 @@
+{
+  "name": "typeql-vscode-example",
+  "displayName": "TypeQL VSCode Example",
+  "description": "Example VSCode extension using TypeQL for communication.",
+  "version": "0.0.2",
+  "publisher": "vscode-samples",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "typeql-vscode-example.showPanel",
+        "title": "Show TypeQL Example Panel"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "@types/node": "18.x",
+    "eslint": "^8.40.0",
+    "@typescript-eslint/parser": "^5.59.0",
+    "@typescript-eslint/eslint-plugin": "^5.59.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@sylph/typeql-core": "workspace:*",
+    "@sylph/typeql-transport-vscode": "workspace:*"
+  }
+}

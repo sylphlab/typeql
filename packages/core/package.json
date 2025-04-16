@@ -1,6 +1,6 @@
 {
-  "name": "@typeql/core",
-  "version": "0.0.1",
+  "name": "@sylph/typeql-core",
+  "version": "0.0.2",
   "description": "Core library for TypeQL - TypeScript-first realtime API framework.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -19,6 +19,7 @@
   "license": "ISC",
   "devDependencies": {
     "@types/node": "^22.14.1",
+    "fast-json-patch": "^3.1.1",
     "typescript": "^5.8.3"
   },
   "publishConfig": {

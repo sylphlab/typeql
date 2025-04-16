@@ -1,0 +1,47 @@
+{
+  "name": "@sylph/typeql-transport-vscode",
+  "version": "0.0.2",
+  "description": "TypeQL transport adapter for VSCode Extension communication (postMessage)",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --external @typeql/core",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --external @typeql/core --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "typeql",
+    "typescript",
+    "rpc",
+    "realtime",
+    "vscode",
+    "transport"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@sylph/typeql-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0",
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  },
+  "peerDependencies": {
+    "@types/vscode": "^1.80.0"
+  }
+}

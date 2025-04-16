@@ -155,7 +155,7 @@ export interface TypeQLTransport {
      * @param message The subscription initiation message.
      * @returns An object containing the AsyncIterableIterator and an unsubscribe function.
      */
-    subscribe<TData = unknown>(message: SubscribeMessage): {
+    subscribe(message: SubscribeMessage): { // Removed unused TData generic
         /** Async iterator yielding full data or error messages. Completes when the subscription ends. */
         iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>;
         /** Function to call to explicitly stop the subscription. */
@@ -166,7 +166,13 @@ export interface TypeQLTransport {
     readonly connected?: boolean;
     onConnectionChange?(handler: (connected: boolean) => void): (() => void) | void;
     connect?(): Promise<void> | void; // Optional connect method
-    disconnect?(): Promise<void> | void; // Optional disconnect method
+    disconnect?(code?: number, reason?: string): Promise<void> | void; // Optional disconnect method with code/reason
+    /**
+     * Optional: Registers a callback to be executed when the transport detects a disconnection.
+     * @param callback The function to call on disconnect.
+     * @returns A function to unregister the callback.
+     */
+    onDisconnect?: (callback: () => void) => () => void;
 
     /**
      * Optional: Sends a subscription-related message from the server back to the client.
@@ -237,7 +243,28 @@ export interface ReplaceDelta<S> {
   path?: string[];
 }
 
-// TODO: Consider adding 'move', 'patch' (JSON Patch)
+/** Represents moving an item within or between collections. Assumes items have an 'id'. */
+export interface MoveDelta {
+  type: 'move';
+  /** The ID of the item to move. */
+  id: string;
+  /** The source path (JSON Pointer) of the item. */
+  fromPath: string;
+  /** The target path (JSON Pointer) where the item should be moved. */
+  toPath: string;
+  /** Optional: Index or key within the target path. */
+  index?: number | string;
+}
+
+/** Represents applying a JSON Patch (RFC 6902) to the state or a sub-part. */
+export interface PatchDelta {
+  type: 'patch';
+  /** An array of JSON Patch operations. */
+  patch: { op: string; path: string; value?: any; from?: string }[];
+  /** Optional path to the target location within the state. Defaults to root. */
+  path?: string[];
+}
+
 
 /**
  * A union type for common standard delta operations, primarily for collections of items with an 'id'.
@@ -247,7 +274,9 @@ export type StandardDelta<T extends { id: string }, S = any> =
   | AddDelta<T>
   | UpdateDelta<T>
   | RemoveDelta
-  | ReplaceDelta<S>;
+  | ReplaceDelta<S>
+  | MoveDelta // Added MoveDelta
+  | PatchDelta; // Added PatchDelta
 
 
 // --- Standard Operation Types (for Client Actions) ---
@@ -283,7 +312,18 @@ export interface RemoveOperation {
     path?: string[];
 }
 
-// TODO: Consider 'move' operation
+/** Represents a client operation to move an item optimistically. */
+export interface MoveOperation {
+    type: 'move';
+    /** The ID of the item to move. */
+    id: string;
+    /** The source path (JSON Pointer) of the item. */
+    fromPath: string;
+    /** The target path (JSON Pointer) where the item should be moved. */
+    toPath: string;
+    /** Optional: Index or key within the target path. */
+    index?: number | string;
+}
 
 /**
  * A union type for common standard client operations intended for optimistic updates.
@@ -292,7 +332,8 @@ export interface RemoveOperation {
 export type StandardOperation<T extends { id: string }> =
   | AddOperation<T>
   | UpdateOperation<T>
-  | RemoveOperation;
+  | RemoveOperation
+  | MoveOperation; // Added MoveOperation
 
 
 // --- Custom Error Type ---

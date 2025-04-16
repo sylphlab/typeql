@@ -1,0 +1,44 @@
+{
+  // "extends": "../../tsconfig.base.json", // Remove inheritance
+  "compilerOptions": {
+    /* Base Options (Copied from base, adjust as needed) */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "allowJs": false, // Typically false for server code
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+
+    /* Strictness (Copied from base) */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+
+    /* Node.js Specific Overrides */
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo",
+    "lib": ["ES2023"], // Node.js environment
+    "module": "NodeNext", // Modern Node.js modules
+    "moduleResolution": "NodeNext",
+    "noEmit": false, // Emit JavaScript
+    "outDir": "dist/server", // Output directory
+
+    /* Project References / Monorepo */
+    "composite": true, // Enable project references
+    "declarationMap": true, // Generate declaration maps
+    "baseUrl": ".", // Base URL for paths
+    "paths": { // Ensure paths point to SOURCE for correct type resolution
+      "@typeql/core": ["../../packages/core/src"],
+      "@typeql/core/*": ["../../packages/core/src/*"]
+      // No need for react/transport paths in server config
+    },
+
+    /* Linting (Copied from previous) */
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["server/**/*.ts"], // Only include server code
+  "references": [ // Reference the core package
+    { "path": "../../packages/core" }
+  ]
+}

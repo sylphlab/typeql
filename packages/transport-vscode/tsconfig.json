@@ -1,0 +1,20 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    // Inherit target, module, lib, strictness etc. from base
+    // Ensure settings required for project references are present:
+    "composite": true,      // Required for project references
+    "declaration": true,    // Required for project references
+    "declarationMap": true, // Optional: Better DX for referenced projects
+    "sourceMap": true,      // Optional: For debugging compiled output
+    "noEmit": false         // MUST be false or absent for composite projects
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "**/*.test.ts"], // Exclude tests
+  "references": [ // Add reference to core
+    { "path": "../core" }
+  ]
+}

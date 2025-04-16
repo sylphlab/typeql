@@ -1,6 +1,6 @@
 {
-  "name": "@typeql/transport-websocket",
-  "version": "0.0.0",
+  "name": "@sylph/typeql-transport-websocket",
+  "version": "0.0.1",
   "description": "WebSocket transport adapter for TypeQL",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -21,7 +21,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@typeql/core": "workspace:*"
+    "@sylph/typeql-core": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.5.0",

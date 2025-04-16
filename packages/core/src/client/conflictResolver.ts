@@ -4,6 +4,15 @@
 export type ConflictResolutionStrategy = 'client-wins' | 'server-wins' | 'custom';
 
 /**
+ * Indicates the outcome of the conflict resolution process.
+ */
+export type ConflictResolutionOutcome =
+    | 'server-applied' // Server delta was used as is.
+    | 'client-applied' // Client delta was used as is.
+    | 'merged'         // Custom resolver produced a merged delta.
+    | 'error';         // Resolution failed, fell back to server-wins.
+
+/**
  * Interface for a custom conflict resolver function.
  * Takes the client's delta and the conflicting server delta and returns the resolved delta.
  */
@@ -21,38 +30,52 @@ export interface ConflictResolverConfig<Delta = any> {
 }
 
 /**
- * TODO: Implement actual conflict resolution logic based on the chosen strategy.
- * This might involve comparing timestamps, applying specific rules, or using the custom resolver.
- * For now, this is a placeholder.
- * Decides which delta 'wins' in a conflict scenario.
+ * Result object returned by the conflict resolver.
+ */
+export interface ConflictResolutionResult<Delta = any> {
+    resolvedDelta: Delta;
+    outcome: ConflictResolutionOutcome;
+}
+
+
+/**
+ * Decides which delta 'wins' in a conflict scenario based on the configured strategy
+ * and returns the resolved delta along with the outcome.
  */
 export function resolveConflict<Delta>(
     clientDelta: Delta,
     serverDelta: Delta, // Changed parameter name for clarity
     config: ConflictResolverConfig<Delta>
-): Delta {
+): ConflictResolutionResult<Delta> { // Changed return type
     console.warn(`[ReqDelta Client] Conflict detected between client delta and server delta. Strategy: ${config.strategy}`);
 
     switch (config.strategy) {
         case 'client-wins':
-            return clientDelta;
+            // Client's delta is chosen, outcome indicates client preference applied
+            return { resolvedDelta: clientDelta, outcome: 'client-applied' };
         case 'server-wins':
-            return serverDelta;
+            // Server's delta is chosen, outcome indicates server preference applied
+            return { resolvedDelta: serverDelta, outcome: 'server-applied' };
         case 'custom':
             if (config.customResolver) {
                 try {
-                    return config.customResolver(clientDelta, serverDelta);
+                    // Custom logic determines the final delta
+                    const mergedDelta = config.customResolver(clientDelta, serverDelta);
+                    // Outcome indicates a merge or custom resolution occurred
+                    return { resolvedDelta: mergedDelta, outcome: 'merged' };
                 } catch (err) {
                     console.error('[ReqDelta Client] Custom conflict resolver failed:', err);
-                    // Fallback strategy if custom resolver fails (e.g., server wins)
-                    return serverDelta;
+                    // Fallback to server-wins if custom logic fails, outcome indicates error
+                    return { resolvedDelta: serverDelta, outcome: 'error' };
                 }
             } else {
                 console.error('[ReqDelta Client] Conflict strategy set to "custom" but no customResolver provided. Falling back to "server-wins".');
-                return serverDelta;
+                 // Fallback to server-wins if custom resolver is missing, outcome indicates error
+                return { resolvedDelta: serverDelta, outcome: 'error' };
             }
         default:
             console.warn(`[ReqDelta Client] Unknown conflict strategy "${config.strategy}". Falling back to "server-wins".`);
-            return serverDelta;
+             // Fallback for unknown strategy, outcome indicates error
+            return { resolvedDelta: serverDelta, outcome: 'error' };
     }
 }

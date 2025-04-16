@@ -1,0 +1,43 @@
+{
+  "name": "@sylph/typeql-transport-http",
+  "version": "0.0.2",
+  "description": "TypeQL transport adapter for HTTP communication (fetch)",
+  "private": false,
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist/**"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format esm,cjs --dts --external @typeql/core",
+    "dev": "tsup src/index.ts --format esm,cjs --dts --external @typeql/core --watch",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "typeql",
+    "typescript",
+    "rpc",
+    "http",
+    "fetch",
+    "transport"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "dependencies": {
+    "@sylph/typeql-core": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.2",
+    "typescript": "^5.3.3"
+  }
+}

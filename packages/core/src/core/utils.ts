@@ -17,6 +17,7 @@ export function generateId(length: number = 8): string {
 
 // --- Path Navigation & Standard Delta Application ---
 import type { StandardDelta } from './types'; // Assuming types.ts is in the same dir
+import { applyPatch as applyJsonPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // Import for patch/move
 
 /**
  * Safely retrieves a value from a nested object or array using a path array.
@@ -117,11 +118,13 @@ export function applyStandardDelta<State, Item extends { id: string }>(
   state: State,
   delta: StandardDelta<Item, State> // Import StandardDelta from types.ts
 ): State {
-  const path = delta.path ?? []; // Default path to root if not specified
+  // Path access needs to happen inside the switch cases where it's guaranteed to exist
+  // const path = delta.path ?? []; // REMOVED: Access path inside relevant cases
 
   try {
       switch (delta.type) {
           case 'add': {
+              const path = delta.path ?? []; // Get path here
               // Get the current collection (or an empty array if path leads nowhere)
               const currentCollection = getIn(state, path) ?? [];
               if (!Array.isArray(currentCollection)) {
@@ -134,6 +137,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
           }
 
           case 'update': {
+              const path = delta.path ?? []; // Get path here
               const currentCollection = getIn(state, path) ?? [];
               if (!Array.isArray(currentCollection)) {
                   console.error(`ReqDelta: Cannot apply 'update' delta. Path [${path.join(', ')}] does not point to an array.`);
@@ -156,6 +160,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
           }
 
           case 'remove': {
+              const path = delta.path ?? []; // Get path here
               const currentCollection = getIn(state, path) ?? [];
               if (!Array.isArray(currentCollection)) {
                   console.error(`ReqDelta: Cannot apply 'remove' delta. Path [${path.join(', ')}] does not point to an array.`);
@@ -173,12 +178,36 @@ export function applyStandardDelta<State, Item extends { id: string }>(
           }
 
           case 'replace': {
+              const path = delta.path ?? []; // Get path here
               // Replace the state at the specified path
               return setIn(state, path, delta.state);
           }
-
-          // TODO: Handle other standard types like 'move', 'patch'...
-
+          
+          case 'move': {
+              // Convert MoveDelta to a JSON Patch 'move' operation
+              // Note: This assumes fromPath and toPath are valid JSON Pointers
+              const patch: JsonPatchOperation[] = [{ op: 'move', from: delta.fromPath, path: delta.toPath }];
+              try {
+                  // Apply the patch immutably (fast-json-patch handles cloning)
+                  const result = applyJsonPatch(state, patch, true, false); // validate = true, mutateDocument = false
+                  return result.newDocument as State;
+              } catch (patchError) {
+                  console.error(`ReqDelta: Error applying 'move' delta (converted to JSON Patch):`, delta, patchError);
+                  return state; // Return original state on error
+              }
+          }
+          
+          case 'patch': {
+              try {
+                  // Apply the JSON Patch immutably, casting patch type
+                  const result = applyJsonPatch(state, delta.patch as JsonPatchOperation[], true, false); // validate = true, mutateDocument = false
+                  return result.newDocument as State;
+              } catch (patchError) {
+                  console.error(`ReqDelta: Error applying 'patch' delta:`, delta, patchError);
+                  return state; // Return original state on error
+              }
+          }
+          
           default:
               // This case should ideally be prevented by TypeScript's discriminated union checks
               // If it happens, it's an unknown delta type
@@ -208,9 +237,11 @@ export function standardOperationToDelta<Item extends { id: string }, State = an
     operation: StandardOperation<Item>,
     // Note: We might need the current state here for some complex conversions (e.g., 'move')
 ): StandardDelta<Item, State> | null {
-    const path = operation.path;
+    // Path access needs to happen inside the switch cases where it's guaranteed to exist
+    // const path = operation.path; // REMOVED: Access path inside relevant cases
     switch (operation.type) {
-        case 'add':
+        case 'add': {
+            const path = operation.path; // Get path here
             // Create the delta using the client's temporary ID
             return {
                 type: 'add',
@@ -220,7 +251,9 @@ export function standardOperationToDelta<Item extends { id: string }, State = an
                 ...(path !== undefined && { path }),
                 tempId: operation.tempId // Include tempId in the delta for potential server correlation
             };
-        case 'update':
+        }
+        case 'update': {
+            const path = operation.path; // Get path here
             return {
                 type: 'update',
                 id: operation.id,
@@ -228,17 +261,29 @@ export function standardOperationToDelta<Item extends { id: string }, State = an
                 // Explicitly handle undefined path
                 ...(path !== undefined && { path })
             };
-        case 'remove':
+        }
+        case 'remove': {
+            const path = operation.path; // Get path here
             return {
                 type: 'remove',
                 id: operation.id,
                 // Explicitly handle undefined path
                 ...(path !== undefined && { path })
             };
-        // TODO: Handle 'move' operation conversion
-        default:
-            console.warn('ReqDelta: Unsupported standard operation type for delta conversion:', (operation as any).type);
-            return null;
+        }
+            case 'move':
+                // Convert MoveOperation directly to MoveDelta
+                return {
+                    type: 'move',
+                    id: operation.id,
+                    fromPath: operation.fromPath,
+                    toPath: operation.toPath,
+                    ...(operation.index !== undefined && { index: operation.index }), // Include index if present
+                    // Note: StandardDelta doesn't have a 'path' property for move, it uses fromPath/toPath
+                };
+            default:
+                console.warn('ReqDelta: Unsupported standard operation type for delta conversion:', (operation as any).type);
+                return null;
     }
 }
 
@@ -255,12 +300,20 @@ export function standardMatchesPendingOperation<Item extends { id: string }, Sta
     delta: StandardDelta<Item, State>,
     operation: StandardOperation<Item>
 ): boolean {
-    // Basic check: Must target the same path (or both undefined)
-    const deltaPathStr = delta.path?.join('.') ?? '';
-    const opPathStr = operation.path?.join('.') ?? '';
-    if (deltaPathStr !== opPathStr) {
-        return false;
-    }
+    // Path check needs to be type-aware
+    // if (delta.type !== 'move' && operation.type !== 'move') { // Check if NOT move ops
+    //     const deltaPathStr = delta.path?.join('.') ?? '';
+    //     const opPathStr = operation.path?.join('.') ?? '';
+    //     if (deltaPathStr !== opPathStr) {
+    //         return false;
+    //     }
+    // } else if (delta.type === 'move' && operation.type === 'move') {
+    //     // For move, paths are different (from/to), rely on ID match below
+    // } else {
+    //      // If types mismatch regarding 'move', they can't match
+    //      return false;
+    // }
+    // Simplified: Rely on ID matching below for most cases. Path matching is complex with 'move'.
 
     // Type-specific matching
     if (operation.type === 'add' && delta.type === 'add') {
@@ -282,11 +335,14 @@ export function standardMatchesPendingOperation<Item extends { id: string }, Sta
         // Match based on the ID of the item being removed
         return delta.id === operation.id;
     }
-
-    // TODO: Handle 'move' matching
-
+    if (operation.type === 'move' && delta.type === 'move') {
+        // Match based on the ID of the item being moved
+        return delta.id === operation.id;
+    }
+    // Note: 'patch' delta doesn't have a direct corresponding client 'operation' in StandardOperation yet.
+    
     return false; // Default to no match
-}
+    }
 
 // --- State Cloning Utility ---
 

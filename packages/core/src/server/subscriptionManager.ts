@@ -1,51 +1,36 @@
-import type { TypeQLTransport, SubscriptionDataMessage, SubscribeMessage } from '../core/types';
-import type { SubscriptionResolver } from './procedure'; // Corrected import path/presence
+// Removed unused imports
+// import type { TypeQLTransport, SubscriptionDataMessage, SubscribeMessage } from '../core/types';
+// import type { SubscriptionResolver } from './procedure'; // Corrected import path/presence
 
 /**
- * Represents an active subscription.
+ * Represents the cleanup function for an active subscription.
  */
-interface ActiveSubscription {
-  clientId: string; // Identifier for the client connection (might be connection-specific ID)
-  subscriptionId: number | string; // ID from the original SubscribeMessage
-  transport: TypeQLTransport; // The specific transport instance for this client connection
-  // Type cleanupFn explicitly based on SubscriptionResolver definition
-  cleanupFn: Promise<() => void> | (() => void);
-}
+type SubscriptionCleanup = Promise<() => void> | (() => void);
 
 /**
- * Manages client subscriptions based on TypeQL's SubscribeMessage ID.
- * Allows adding, removing subscriptions, and retrieving subscribers.
- * NOTE: This manager might need significant refactoring to align with TypeQL's path-based procedures
- * rather than simple topics. This needs further refinement based on transport layer specifics.
+ * Manages active subscription cleanup functions globally.
+ * Allows adding and removing subscriptions by their unique ID.
  */
 export class SubscriptionManager {
-  // Map where keys are subscription IDs (from SubscribeMessage) and values are ActiveSubscription objects.
-  private subscriptions: Map<number | string, ActiveSubscription> = new Map();
-  // TODO: Need a way to associate client connections (transports) with client IDs if needed globally,
-  // or pass transport directly during subscription. This simplified version assumes transport is known at subscribe time.
+  // Map where keys are subscription IDs (from SubscribeMessage) and values are cleanup functions.
+  private subscriptions: Map<number | string, SubscriptionCleanup> = new Map();
 
   /**
-   * Registers a new subscription initiated by a client.
-   * @param subMessage The original SubscribeMessage.
-   * @param clientId An identifier for the client connection.
-   * @param transport The transport instance associated with this client.
+   * Registers a new subscription's cleanup function.
+   * @param subscriptionId The unique ID of the subscription (from SubscribeMessage).
    * @param cleanupFn The cleanup function returned by the subscription resolver.
    */
   addSubscription(
-      subMessage: SubscribeMessage,
-      clientId: string,
-      transport: TypeQLTransport,
-      // Use the correct union type here as well
-      cleanupFn: Promise<() => void> | (() => void)
+      subscriptionId: number | string,
+      cleanupFn: SubscriptionCleanup
   ): void {
-    const subId = subMessage.id;
-    if (this.subscriptions.has(subId)) {
-      console.warn(`[TypeQL SubManager] Subscription with ID ${subId} already exists. Overwriting.`);
+    if (this.subscriptions.has(subscriptionId)) {
+      console.warn(`[TypeQL SubManager] Subscription cleanup with ID ${subscriptionId} already exists. Overwriting.`);
        // Ensure old cleanup is called before overwriting
-        this.removeSubscription(subId);
+        this.removeSubscription(subscriptionId);
     }
-    this.subscriptions.set(subId, { clientId, subscriptionId: subId, transport, cleanupFn });
-    console.log(`[TypeQL Server] Client ${clientId} started subscription ${subId} for path ${subMessage.path}`);
+    this.subscriptions.set(subscriptionId, cleanupFn);
+    console.log(`[TypeQL SubManager] Added cleanup for subscription ${subscriptionId}`);
   }
 
   /**
@@ -53,13 +38,12 @@ export class SubscriptionManager {
    * @param subscriptionId The ID of the subscription to remove.
    */
   removeSubscription(subscriptionId: number | string): void {
-    const subscription = this.subscriptions.get(subscriptionId);
-    if (subscription) {
+    const cleanupTask = this.subscriptions.get(subscriptionId);
+    if (cleanupTask) {
       this.subscriptions.delete(subscriptionId);
-        console.log(`[TypeQL SubManager] Removed subscription ${subscriptionId} for client ${subscription.clientId}.`);
+        console.log(`[TypeQL SubManager] Removed subscription ${subscriptionId}. Executing cleanup.`);
         // Execute cleanup, handling potential promise
         try {
-           const cleanupTask = subscription.cleanupFn; // Get the function or promise
            // Check if it's a function before calling directly
            if (typeof cleanupTask === 'function') {
                cleanupTask(); // Call synchronous cleanup
@@ -74,48 +58,23 @@ export class SubscriptionManager {
                });
            }
         } catch (err) {
-            // Catch synchronous errors from accessing cleanupFn itself (less likely)
            // Catch synchronous errors from calling cleanupFn itself
-          console.error(`[TypeQL SubManager] Error during cleanup for subscription ${subscriptionId}:`, err);
+          console.error(`[TypeQL SubManager] Error during cleanup execution for subscription ${subscriptionId}:`, err);
       }
     } else {
       console.warn(`[TypeQL SubManager] Attempted to remove non-existent subscription ID: ${subscriptionId}`);
     }
   }
 
-   /**
-   * Removes all subscriptions associated with a specific client ID and executes their cleanup.
-   * @param clientId The ID of the client whose subscriptions should be removed.
-   */
-  removeClientSubscriptions(clientId: string): void {
-    let count = 0;
-    const subsToRemove: (number | string)[] = [];
-    this.subscriptions.forEach((subscription, subId) => {
-      if (subscription.clientId === clientId) {
-        subsToRemove.push(subId);
-      }
-    });
-
-    subsToRemove.forEach(subId => {
-      this.removeSubscription(subId); // This handles cleanup and deletion
-      count++;
-    });
-
-    if (count > 0) {
-      console.log(`[TypeQL SubManager] Removed ${count} subscriptions for disconnected client ${clientId}.`);
-    }
-  }
-
-
   /**
-   * Retrieves the transport associated with a specific subscription ID.
+   * Checks if a subscription exists.
    * @param subscriptionId The ID of the subscription.
-   * @returns The transport instance or undefined if the subscription doesn't exist.
+   * @returns True if the subscription exists, false otherwise.
    */
-  getTransportForSubscription(subscriptionId: number | string): TypeQLTransport | undefined {
-    return this.subscriptions.get(subscriptionId)?.transport;
+  hasSubscription(subscriptionId: number | string): boolean {
+    return this.subscriptions.has(subscriptionId);
   }
 
-  // Removed getSubscriber - if needed, can be added back.
-  // Removed publishSubscriptionData - Publishing is now handled by the caller (requestHandler) via context/transport.
+  // Removed removeClientSubscriptions - Client-specific cleanup should be handled by RequestHandler
+  // Removed getTransportForSubscription - Transport is managed by RequestHandler
 }
