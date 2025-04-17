@@ -20,7 +20,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "pnpm exec tsup",
     "dev": "tsup src/index.ts --format esm,cjs --external preact @sylph/typeql-shared @sylph/typeql-client --watch",
     "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
