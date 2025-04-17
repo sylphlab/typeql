@@ -33,16 +33,16 @@ jobs:
         with:
           node-version: 'lts/*' # Use latest LTS Node.js version
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
         with:
-          bun-version: latest
+          version: 10 # Or match the version in package.json
 
       - name: Install Dependencies
-        run: bun install
+        run: pnpm install
 
       - name: Run Build
-        run: bun run build
+        run: pnpm run build
         
       - name: Create Release Pull Request or Publish to npm
         id: changesets
@@ -50,7 +50,7 @@ jobs:
         with:
           # This expects you to have a script called 'release' in your package.json
           # which runs 'changeset publish'. We defined 'release' as 'bun run build && changeset publish'.
-          publish: bun run release
+          publish: pnpm run release
           # Optional: Use 'createGithubReleases: true' to create GitHub releases
           # Optional: Use 'commit: "chore: update versions"' to commit directly instead of PR
         env:
