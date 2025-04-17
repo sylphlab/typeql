@@ -20,7 +20,7 @@ export interface RouterDef<TContext extends ProcedureContext, TRecord extends Pr
  * Holds the definition containing procedures and context type.
  */
 // Use interface merging for AnyRouter if needed, or just use BaseRouter internally
-class Router<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> implements AnyRouter { // Implement AnyRouter from shared
+export class Router<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> implements AnyRouter { // Implement AnyRouter from shared
     // Expose the internal definition for type inference
     public readonly _def: RouterDef<TContext, TRecord>; // Use extended RouterDef
 

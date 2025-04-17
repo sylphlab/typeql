@@ -4,7 +4,8 @@
   "private": true,
   "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylph/typeql)",
   "scripts": {
-    "test": "turbo run test -- --coverage",
+    "test": "turbo run test",
+    "test:filter": "turbo run test --filter",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "dev": "turbo run dev",

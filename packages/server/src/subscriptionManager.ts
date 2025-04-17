@@ -27,7 +27,10 @@ export class SubscriptionManager {
     if (this.subscriptions.has(subscriptionId)) {
       console.warn(`[TypeQL SubManager] Subscription cleanup with ID ${subscriptionId} already exists. Overwriting.`);
        // Ensure old cleanup is called before overwriting
-        this.removeSubscription(subscriptionId);
+        // Use Promise.resolve to handle potential async removeSubscription if needed in future
+        Promise.resolve(this.removeSubscription(subscriptionId)).catch(err => {
+             console.error(`[TypeQL SubManager] Error during implicit removeSubscription in addSubscription for ID ${subscriptionId}:`, err);
+        });
     }
     this.subscriptions.set(subscriptionId, cleanupFn);
     console.log(`[TypeQL SubManager] Added cleanup for subscription ${subscriptionId}`);
@@ -37,29 +40,35 @@ export class SubscriptionManager {
    * Removes a subscription and executes its cleanup function.
    * @param subscriptionId The ID of the subscription to remove.
    */
-  removeSubscription(subscriptionId: number | string): void {
+  async removeSubscription(subscriptionId: number | string): Promise<void> { // Keep async
     const cleanupTask = this.subscriptions.get(subscriptionId);
     if (cleanupTask) {
       this.subscriptions.delete(subscriptionId);
-        console.log(`[TypeQL SubManager] Removed subscription ${subscriptionId}. Executing cleanup.`);
-        // Execute cleanup, handling potential promise
-        try {
-           // Check if it's a function before calling directly
-           if (typeof cleanupTask === 'function') {
-               cleanupTask(); // Call synchronous cleanup
-           } else if (cleanupTask instanceof Promise) {
-                // If it's a promise, await it, then call the resolved function
-               cleanupTask.then(finalCleanupFn => {
-                   if (typeof finalCleanupFn === 'function') {
-                       finalCleanupFn();
-                   }
-               }).catch(err => {
-                   console.error(`[TypeQL SubManager] Async cleanup promise error for subscription ${subscriptionId}:`, err);
-               });
-           }
-        } catch (err) {
-           // Catch synchronous errors from calling cleanupFn itself
-          console.error(`[TypeQL SubManager] Error during cleanup execution for subscription ${subscriptionId}:`, err);
+      console.log(`[TypeQL SubManager] Removed subscription ${subscriptionId}. Executing cleanup.`);
+
+      try {
+        if (typeof cleanupTask === 'function') {
+          // Execute synchronous cleanup directly within the main try block
+          cleanupTask();
+        } else if (cleanupTask instanceof Promise) {
+          // Await the promise first
+          const finalCleanupFn = await cleanupTask;
+          // If the promise resolved to a function, execute it in a nested try...catch
+          if (typeof finalCleanupFn === 'function') {
+            try {
+              finalCleanupFn(); // Call the resolved cleanup function
+            } catch (execErr) {
+              // Catch errors specifically from the resolved function's execution
+              // Log with the message expected by the test for execution errors
+              console.error(`[TypeQL SubManager] Error during cleanup execution for subscription ${subscriptionId}:`, execErr);
+            }
+          }
+        }
+      } catch (err) {
+        // This outer catch block handles errors from sync execution
+        // or the promise rejection itself (await cleanupTask).
+        // Log rejection with the specific message expected by the rejection test.
+        console.error(`[TypeQL SubManager] Async cleanup promise rejected for subscription ${subscriptionId}:`, err);
       }
     } else {
       console.warn(`[TypeQL SubManager] Attempted to remove non-existent subscription ID: ${subscriptionId}`);

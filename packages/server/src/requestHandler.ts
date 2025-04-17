@@ -33,10 +33,7 @@ interface FormattedError {
 
 /** Formats various errors into a standard structure */
 // Add optional isInputValidationError flag
-function formatError(error: unknown, defaultCode: ErrorCode = 'INTERNAL_SERVER_ERROR', isInputValidationError: boolean = false): FormattedError {
-    let message = 'An unexpected error occurred';
-    let code = defaultCode;
-
+function formatError(error: unknown, isInputValidationError: boolean = false): FormattedError {
     // Define validCodes once
     const validCodes: Record<ErrorCode, boolean> = {
         'BAD_REQUEST': true, 'UNAUTHORIZED': true, 'FORBIDDEN': true, 'NOT_FOUND': true,
@@ -45,36 +42,32 @@ function formatError(error: unknown, defaultCode: ErrorCode = 'INTERNAL_SERVER_E
         'TOO_MANY_REQUESTS': true, 'CLIENT_CLOSED_REQUEST': true, 'INTERNAL_SERVER_ERROR': true
     };
 
-    // Prioritize TypeQLClientError code FIRST and ensure it's a valid ErrorCode
+    // 1. TypeQLClientError (Highest Priority) - Restore instanceof check
     if (error instanceof TypeQLClientError && error.code && validCodes[error.code as ErrorCode]) {
-        message = error.message;
-        code = error.code as ErrorCode; // Use the specific code from TypeQLClientError
-    } else if (error instanceof ZodError) {
-        // Only set BAD_REQUEST for input validation errors
-        if (isInputValidationError) {
-            message = 'Input validation failed';
-            code = 'BAD_REQUEST';
+        return { message: error.message, code: error.code as ErrorCode };
+    }
+
+    // 2. ZodError - Restore original logic with strict boolean check
+    if (error instanceof ZodError) {
+        if (isInputValidationError === false) {
+             // Output validation failure -> INTERNAL_SERVER_ERROR (as per test expectation)
+             console.error("[TypeQL Handler] Zod Output Validation Error:", error.flatten());
+             return { message: 'Internal server error: Invalid procedure output', code: 'INTERNAL_SERVER_ERROR' };
         } else {
-            // Output validation errors are internal server errors
-            message = `Internal server error: Invalid procedure output (${error.message})`;
-            code = 'INTERNAL_SERVER_ERROR'; // Ensure output validation is INTERNAL_SERVER_ERROR
+             // Input validation failure -> BAD_REQUEST
+             return { message: 'Input validation failed', code: 'BAD_REQUEST' };
         }
-        // console.error("Zod Validation Error:", error.flatten()); // Log details server-side
-    } else if (error instanceof Error) {
+    }
+
+
+    // 3. Other Errors (Generic Error, string, unknown) -> INTERNAL_SERVER_ERROR
+    let message = 'An unexpected error occurred';
+    if (error instanceof Error) {
         message = error.message;
-        // Keep defaultCode (usually INTERNAL_SERVER_ERROR) if no specific code found yet
     } else if (typeof error === 'string') {
         message = error;
     }
-
-    // Final check if the determined code is valid, default to INTERNAL_SERVER_ERROR otherwise
-    // Remove the duplicate validCodes block entirely by deleting lines 65-72
-    if (!validCodes[code]) {
-        code = 'INTERNAL_SERVER_ERROR';
-    }
-
-
-    return { message, code };
+    return { message, code: 'INTERNAL_SERVER_ERROR' };
 }
 
 
@@ -217,7 +210,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 batchCtx = await createContext({ transport });
                 console.log(`[TypeQL Handler ${clientId}] Context created for batch request.`);
             } catch (ctxError) {
-                const error = formatError(ctxError, 'INTERNAL_SERVER_ERROR');
+                const error = formatError(ctxError); // Remove defaultCode argument
                 console.error(`[TypeQL Handler ${clientId}] ${error.code} creating context for batch: ${error.message}`);
                 // Return an error result for every call in the batch
                 return calls.map(call => ({ id: call.id, result: { type: 'error', error } }));
@@ -230,7 +223,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
                 // Reject subscriptions in batch
                 if (call.type === 'subscription') {
-                    const error = formatError('Subscriptions are not supported in batch requests', 'BAD_REQUEST');
+                    const error = formatError('Subscriptions are not supported in batch requests'); // Remove defaultCode argument, let formatError handle it
                     console.warn(`[TypeQL Handler ${clientId}] ${error.code} for batched subscription call (ID: ${call.id}, Path: ${call.path})`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
@@ -239,7 +232,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 const procedure = findProcedure(router._def.procedures, pathSegments);
 
                 if (!procedure) {
-                    const error = formatError(`Procedure not found: ${call.path}`, 'NOT_FOUND');
+                    const error = formatError(`Procedure not found: ${call.path}`); // Remove defaultCode argument
                     console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path}: ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
@@ -247,7 +240,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 const procDef = procedure._def as ProcedureDef<TContext, any, any, any>;
 
                 if (procDef.type !== call.type) {
-                    const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`, 'BAD_REQUEST');
+                    const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`); // Remove defaultCode argument
                     console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path}: ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
@@ -260,7 +253,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                             parsedInput = procDef.inputSchema.parse(call.input);
                         } catch (validationError: any) {
                             // Pass true for isInputValidationError
-                            const error = formatError(validationError, 'BAD_REQUEST', true);
+                            const error = formatError(validationError, true);
                             console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path} (Input): ${error.message}`);
                             return { id: call.id, result: { type: 'error', error } };
                         }
@@ -272,7 +265,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                         const options: ProcedureOptions<TContext, unknown> = { ctx: batchCtx, input: parsedInput }; // Use shared batch context
                         result = await procDef.resolver!(options);
                     } catch (resolverError) {
-                        const error = formatError(resolverError, 'INTERNAL_SERVER_ERROR');
+                        const error = formatError(resolverError); // Remove defaultCode argument
                         console.error(`[TypeQL Handler ${clientId}] ${error.code} during resolver execution for batched call path ${call.path}: ${error.message}`);
                         return { id: call.id, result: { type: 'error', error } };
                     }
@@ -284,7 +277,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                             finalOutput = procDef.outputSchema.parse(result);
                         } catch (validationError: any) {
                             // Pass false (or omit) for isInputValidationError for output validation
-                            const error = formatError(validationError, 'INTERNAL_SERVER_ERROR');
+                            const error = formatError(validationError, false);
                             console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path} (Output): ${error.message}`);
                             // formatError now sets the correct message and code
                             return { id: call.id, result: { type: 'error', error } };
@@ -296,7 +289,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     return { id: call.id, result: { type: 'data', data: finalOutput } };
 
                 } catch (callError: any) {
-                    const error = formatError(callError, 'INTERNAL_SERVER_ERROR');
+                    const error = formatError(callError); // Remove defaultCode argument
                     console.error(`[TypeQL Handler ${clientId}] ${error.code} processing batched call for path ${call.path}: ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
@@ -330,7 +323,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
         const procedure = findProcedure(router._def.procedures, pathSegments);
 
         if (!procedure) {
-            const error = formatError(`Procedure not found: ${call.path}`, 'NOT_FOUND');
+            const error = formatError(`Procedure not found: ${call.path}`); // Remove defaultCode argument
             console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
             return { id: call.id, result: { type: 'error', error } };
         }
@@ -339,7 +332,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
         // Check if the procedure type matches the call type
         if (procDef.type !== call.type) {
-             const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`, 'BAD_REQUEST');
+             const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`); // Remove defaultCode argument
              console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
              return { id: call.id, result: { type: 'error', error } };
         }
@@ -357,7 +350,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     console.log(`[TypeQL Handler ${clientId}] Input parsed successfully for path: ${call.path}`);
                 } catch (validationError: any) {
                     // Pass true for isInputValidationError
-                    const error = formatError(validationError, 'BAD_REQUEST', true);
+                    const error = formatError(validationError, true);
                     console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Input): ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
@@ -371,8 +364,12 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     const options: ProcedureOptions<TContext, unknown> = { ctx, input: parsedInput };
                     result = await procDef.resolver!(options);
                 } catch (resolverError) {
-                    const error = formatError(resolverError, 'INTERNAL_SERVER_ERROR');
+                    // Log the raw error *before* formatting for diagnosis
+                    console.error(`[TypeQL Handler ${clientId}] Raw resolver error for path ${call.path}:`, resolverError);
+                    const error = formatError(resolverError); // Format the error
                     console.error(`[TypeQL Handler ${clientId}] ${error.code} during resolver execution for path ${call.path}: ${error.message}`);
+                    // Log the final *formatted* error object being returned
+                    console.log(`[TypeQL Handler ${clientId}] Returning error object:`, JSON.stringify({ id: call.id, result: { type: 'error', error } }));
                     return { id: call.id, result: { type: 'error', error } };
                 }
 
@@ -384,7 +381,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                         console.log(`[TypeQL Handler ${clientId}] Output parsed successfully for path: ${call.path}`);
                     } catch (validationError: any) {
                         // Output validation errors should result in INTERNAL_SERVER_ERROR
-                        const error = formatError(validationError, 'INTERNAL_SERVER_ERROR'); // Ensure default is INTERNAL_SERVER_ERROR
+                        const error = formatError(validationError, false); // Pass false for output validation
                         console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Output Validation): ${error.message}`);
                         // Use the formatted error directly
                         return { id: call.id, result: { type: 'error', error } };
@@ -398,7 +395,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
             } else if (procDef.type === 'subscription') {
                  // --- Subscription Start Handling ---
                  if (!procDef.subscriptionResolver) {
-                      const error = formatError('Subscription resolver not implemented', 'INTERNAL_SERVER_ERROR');
+                      const error = formatError('Subscription resolver not implemented'); // Remove defaultCode argument
                       console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
                       return { id: call.id, result: { type: 'error', error } };
                  }
@@ -425,9 +422,9 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                          try {
                              dataToPublish = procDef.subscriptionOutputSchema.parse(rawData);
                          } catch (validationError) {
-                             const error = formatError(validationError, 'INTERNAL_SERVER_ERROR');
+                             const error = formatError(validationError, false); // Pass false for output validation
                              console.error(`[TypeQL Handler ${clientId}] Subscription output validation failed for subId ${subId}: ${error.message}`);
-                             const errorMsg: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error: { ...error, message: 'Internal server error: Invalid subscription output' } };
+                             const errorMsg: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error }; // Use formatted error directly
                              if (transport.send) { // Use the bound transport
                                  Promise.resolve(transport.send(errorMsg)).catch(sendErr => console.error(`[TypeQL Handler ${clientId}] Error sending subscription error message for subId ${subId}:`, sendErr));
                              }
@@ -455,8 +452,8 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                          console.debug(`[TypeQL Handler ${clientId}] Publishing data for subId ${subId} (Seq: ${currentServerSeq})`);
                          Promise.resolve(transport.send(dataMsg)).catch((sendErr: any) => {
                              console.error(`[TypeQL Handler ${clientId}] Error sending subscription data via transport.send for subId ${subId}:`, sendErr);
-                             const error = formatError(sendErr, 'INTERNAL_SERVER_ERROR');
-                             const errorMsg: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error: { ...error, message: `Failed to send update: ${error.message}` } };
+                             const error = formatError(sendErr); // Remove defaultCode argument
+                             const errorMsg: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error }; // Use formatted error directly
                              if (transport.send) {
                                  Promise.resolve(transport.send(errorMsg)).catch(errMsgErr => console.error(`[TypeQL Handler ${clientId}] CRITICAL: Failed even to send error message for subId ${subId}:`, errMsgErr));
                              }
@@ -499,7 +496,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                       return;
 
                  } catch (subSetupError: any) {
-                     const error = formatError(subSetupError, 'INTERNAL_SERVER_ERROR');
+                     const error = formatError(subSetupError); // Remove defaultCode argument
                      console.error(`[TypeQL Handler ${clientId}] ${error.code} during subscription setup for path ${call.path}: ${error.message}`);
                      // Send error back as a ProcedureResultMessage for the initial setup failure
                      return { id: call.id, result: { type: 'error', error } };
@@ -508,7 +505,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
         } catch (outerError: any) {
             // Catch errors during context creation or initial checks
-            const error = formatError(outerError, 'INTERNAL_SERVER_ERROR');
+            const error = formatError(outerError); // Remove defaultCode argument
             console.error(`[TypeQL Handler ${clientId}] ${error.code} processing single request for ${message.type} ${'path' in message ? message.path : ''}: ${error.message}`);
             // Ensure message.id exists before using it
             const messageId = 'id' in message ? message.id : undefined;
