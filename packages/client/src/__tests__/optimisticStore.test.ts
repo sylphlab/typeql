@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { enablePatches } from 'immer';
 // Import DeltaApplicator instead of ApplyDeltaFn
 import { createOptimisticStore, OptimisticStore, DeltaApplicator } from '../optimisticStore';
-import type { ProcedureCallMessage, AckMessage, SubscriptionDataMessage } from '../../core/types';
+import type { ProcedureCallMessage, AckMessage, SubscriptionDataMessage } from '@sylph/typeql-shared'; // Corrected import path
 import { applyPatch as applyJsonPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // For applying client delta in tests
 
 // Enable Immer patches for testing optimistic updates
@@ -182,7 +182,7 @@ describe('OptimisticStore', () => { // Add 5 second timeout
      // Enable fake timers specifically for this test suite if global config doesn't work
      // vi.useFakeTimers(); // Moved inside the test case
 
-     it.skip('should reject a pending mutation on timeout using fake timers', () => { // Skipping due to vi.useFakeTimers error with bun test
+     it('should reject a pending mutation on timeout using fake timers', () => { // Re-enabled for pnpm
         vi.useFakeTimers(); // Enable fake timers for this specific test
 
         const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'item.update', input: { id: '1', value: 'optimistic' }, clientSeq: 1 };

@@ -34,6 +34,7 @@ interface FormattedError {
 /** Formats various errors into a standard structure */
 // Add optional isInputValidationError flag
 function formatError(error: unknown, isInputValidationError: boolean = false): FormattedError {
+    console.debug(`[formatError] Input error:`, error, `isInputValidationError:`, isInputValidationError);
     // Define validCodes once
     const validCodes: Record<ErrorCode, boolean> = {
         'BAD_REQUEST': true, 'UNAUTHORIZED': true, 'FORBIDDEN': true, 'NOT_FOUND': true,
@@ -42,32 +43,42 @@ function formatError(error: unknown, isInputValidationError: boolean = false): F
         'TOO_MANY_REQUESTS': true, 'CLIENT_CLOSED_REQUEST': true, 'INTERNAL_SERVER_ERROR': true
     };
 
-    // 1. TypeQLClientError (Highest Priority) - Restore instanceof check
+    // 1. TypeQLClientError (Highest Priority)
     if (error instanceof TypeQLClientError && error.code && validCodes[error.code as ErrorCode]) {
-        return { message: error.message, code: error.code as ErrorCode };
+        const formatted: FormattedError = { message: error.message, code: error.code as ErrorCode };
+        console.debug(`[formatError] Returning TypeQLClientError:`, formatted);
+        return formatted;
     }
 
-    // 2. ZodError - Restore original logic with strict boolean check
+    // 2. ZodError
     if (error instanceof ZodError) {
         if (isInputValidationError === false) {
-             // Output validation failure -> INTERNAL_SERVER_ERROR (as per test expectation)
-             console.error("[TypeQL Handler] Zod Output Validation Error:", error.flatten());
-             return { message: 'Internal server error: Invalid procedure output', code: 'INTERNAL_SERVER_ERROR' };
+             // Output validation failure -> INTERNAL_SERVER_ERROR
+             console.debug(`[formatError] Handling ZodError (Output Validation)`);
+             console.error("[TypeQL Handler] Zod Output Validation Error:", error.flatten()); // Keep original error log
+             const formatted: FormattedError = { message: 'Internal server error: Invalid procedure output', code: 'INTERNAL_SERVER_ERROR' };
+             console.debug(`[formatError] Returning Zod Output Error:`, formatted);
+             return formatted;
         } else {
              // Input validation failure -> BAD_REQUEST
-             return { message: 'Input validation failed', code: 'BAD_REQUEST' };
+             console.debug(`[formatError] Handling ZodError (Input Validation)`);
+             const formatted: FormattedError = { message: 'Input validation failed', code: 'BAD_REQUEST' };
+             console.debug(`[formatError] Returning Zod Input Error:`, formatted);
+             return formatted;
         }
     }
 
-
     // 3. Other Errors (Generic Error, string, unknown) -> INTERNAL_SERVER_ERROR
+    console.debug(`[formatError] Handling Generic Error`);
     let message = 'An unexpected error occurred';
     if (error instanceof Error) {
         message = error.message;
     } else if (typeof error === 'string') {
         message = error;
     }
-    return { message, code: 'INTERNAL_SERVER_ERROR' };
+    const formatted: FormattedError = { message, code: 'INTERNAL_SERVER_ERROR' };
+    console.debug(`[formatError] Returning Generic Error:`, formatted);
+    return formatted;
 }
 
 

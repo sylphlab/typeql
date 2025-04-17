@@ -103,6 +103,7 @@ export function createVSCodeTransport(options: VSCodeTransportOptions): TypeQLTr
             const sub = activeSubscriptions.get(msg.id);
             if (sub) {
                 console.debug(`[VSCode Transport] Found active subscription ${msg.id}, calling push...`);
+                console.debug(`[VSCode Transport] Found active subscription ${msg.id}, calling push...`);
                 sub.push(msg); // Pass correctly typed message
             } else {
                 console.warn(`[VSCode Transport] Received subscription data for unknown subscription ID: ${msg.id}`);
@@ -205,83 +206,72 @@ export function createVSCodeTransport(options: VSCodeTransportOptions): TypeQLTr
             const iterator = (async function*() {
                 const messageQueue: (SubscriptionDataMessage | SubscriptionErrorMessage)[] = [];
                 let notifyNext: (() => void) | null = null; // Signal that a message/end is ready
-                let nextMessagePromise: Promise<void> | null = null; // Promise to await
-
-                const createNextMessagePromise = () => {
-                    nextMessagePromise = new Promise<void>((resolve) => {
-                        notifyNext = resolve;
-                    });
-                };
 
                 // Push function
                 push = (msg) => {
-                    console.debug(`[VSCode Transport] push() called for ${subscriptionId}. isEnded=${isEnded}`);
+                    console.debug(`[VSCode Transport] push() called for ${subscriptionId}. isEnded=${isEnded}`); // Keep one
                     if (isEnded) return;
                     messageQueue.push(msg);
                     if (notifyNext) {
-                        console.debug(`[VSCode Transport] push() notifying awaiter for ${subscriptionId}`);
+                        console.debug(`[VSCode Transport] push() notifying awaiter for ${subscriptionId}`); // Keep one
                         notifyNext();
                         notifyNext = null; // Consume the notification
                     } else {
-                         console.debug(`[VSCode Transport] push() queued message for ${subscriptionId}, no awaiter.`);
+                         console.debug(`[VSCode Transport] push() queued message for ${subscriptionId}, no awaiter.`); // Keep one
                     }
                 };
 
                 // End function - Sets flag and notifies awaiter
                 end = () => {
-                    console.debug(`[VSCode Transport] end() called for ${subscriptionId}. isEnded=${isEnded}`);
+                    console.debug(`[VSCode Transport] end() called for ${subscriptionId}. isEnded=${isEnded}`); // Keep one
                     if (isEnded) return;
                     isEnded = true;
                     if (notifyNext) {
-                        console.debug(`[VSCode Transport] end() notifying awaiter for ${subscriptionId}`);
+                        console.debug(`[VSCode Transport] end() notifying awaiter for ${subscriptionId}`); // Keep one
                         notifyNext(); // Signal the end
                         notifyNext = null;
                     } else {
-                         console.debug(`[VSCode Transport] end() called but no awaiter for ${subscriptionId}`);
+                         console.debug(`[VSCode Transport] end() called but no awaiter for ${subscriptionId}`); // Keep one
                     }
                 };
 
-                // Initialize the first promise
-                createNextMessagePromise();
-
                 // Try/finally block
                 try {
-                    console.debug(`[VSCode Transport] Iterator starting loop for ${subscriptionId}`);
+                    console.debug(`[VSCode Transport] Iterator starting loop for ${subscriptionId}`); // Keep one
                     while (!isEnded) {
-                        console.debug(`[VSCode Transport] Iterator loop top for ${subscriptionId}. isEnded=${isEnded}, queueLength=${messageQueue.length}`);
+                        console.debug(`[VSCode Transport] Iterator loop top for ${subscriptionId}. isEnded=${isEnded}, queueLength=${messageQueue.length}`); // Keep one
                         while (messageQueue.length > 0) {
                             const msg = messageQueue.shift()!;
-                            console.debug(`[VSCode Transport] Iterator yielding message from queue for ${subscriptionId}:`, msg);
+                            console.debug(`[VSCode Transport] Iterator yielding message from queue for ${subscriptionId}:`, msg); // Keep one
                             yield msg;
                         }
 
                         // If queue is empty and not ended, wait for next message/end signal
                         if (!isEnded) {
-                            console.debug(`[VSCode Transport] Iterator awaiting next message/end signal: ${subscriptionId}`);
-                            // Ensure nextMessagePromise is not null before awaiting
-                            if (!nextMessagePromise) createNextMessagePromise();
-                            await nextMessagePromise; // Wait for push or end
-                            console.debug(`[VSCode Transport] Iterator notified for ${subscriptionId}. isEnded=${isEnded}`);
-                            // If not ended after await, create the next promise for the next loop iteration
-                            if (!isEnded) {
-                                createNextMessagePromise();
-                            }
+                            console.debug(`[VSCode Transport] Iterator awaiting next message/end signal: ${subscriptionId}`); // Keep one
+                            // Create the promise *only when* we need to wait
+                            const waitPromise = new Promise<void>((resolve) => {
+                                notifyNext = resolve;
+                            });
+                            await waitPromise; // Wait for push or end
+                            console.debug(`[VSCode Transport] Iterator notified for ${subscriptionId}. isEnded=${isEnded}`); // Keep one
+                            // No need to create another promise here, the loop will re-evaluate
                         }
                     }
-                    console.debug(`[VSCode Transport] Iterator loop finished (isEnded=${isEnded}): ${subscriptionId}`);
+                    console.debug(`[VSCode Transport] Iterator loop finished (isEnded=${isEnded}): ${subscriptionId}`); // Keep one
                 } finally {
-                    console.debug(`[VSCode Transport] Iterator finally block for ${subscriptionId}. Setting isEnded=true.`);
+                    console.debug(`[VSCode Transport] Iterator finally block for ${subscriptionId}. Setting isEnded=true.`); // Keep one
                     isEnded = true; // Ensure flag is set on exit
                     notifyNext = null; // Clear any dangling notifier
                     activeSubscriptions.delete(subscriptionId); // Centralize cleanup
-                    console.debug(`[VSCode Transport] Subscription iterator cleanup/finally block finished: ${subscriptionId}`);
+                    console.debug(`[VSCode Transport] Subscription iterator cleanup/finally block finished: ${subscriptionId}`); // Keep one
                 }
             })();
 
             /** Function to call to stop the subscription */
             const unsubscribe: UnsubscribeFn = () => {
                 if (!isEnded) {
-                    console.debug(`[VSCode Transport] Unsubscribing from ${subscriptionId}`);
+                    console.debug(`[VSCode Transport] Unsubscribing from ${subscriptionId}`); // Keep one
                     end(); // End the local iterator
                     // Send stop message to the other side
                     const unsubMessage: UnsubscribeMessage = { type: 'subscriptionStop', id: subscriptionId };
@@ -291,7 +281,7 @@ export function createVSCodeTransport(options: VSCodeTransportOptions): TypeQLTr
                         console.error(`[VSCode Transport] Failed to send unsubscribe message for ${subscriptionId}:`, error);
                     }
                 } else {
-                     console.debug(`[VSCode Transport] Unsubscribe called on already ended subscription: ${subscriptionId}`);
+                     console.debug(`[VSCode Transport] Unsubscribe called on already ended subscription: ${subscriptionId}`); // Keep one
                 }
             };
 

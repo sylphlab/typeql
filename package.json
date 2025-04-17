@@ -4,20 +4,16 @@
   "private": true,
   "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylph/typeql)",
   "scripts": {
-    "test": "turbo run test",
+    "test": "pnpm turbo run test",
     "test:filter": "turbo run test --filter",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "dev": "turbo run dev",
-    "release": "turbo run build && bun changeset publish"
+    "release": "pnpm turbo run test && pnpm turbo run build && pnpm changeset publish"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "workspaces": [
-    "packages/*",
-    "examples/*"
-  ],
   "devDependencies": {
     "@changesets/cli": "^2.29.1",
     "@microsoft/api-extractor": "^7.52.3",
@@ -34,5 +30,5 @@
   "dependencies": {
     "fast-json-patch": "^3.1.1"
   },
-  "packageManager": "bun@1.2.9"
+  "packageManager": "pnpm@10.8.0"
 }

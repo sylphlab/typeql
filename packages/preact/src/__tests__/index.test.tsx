@@ -1,10 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/preact';
 import { TypeQLProvider, useQuery, useMutation, useSubscription, useTypeQL } from '@sylph/typeql-preact'; // Correct package name
-import { createClient, TypeQLTransport, SubscriptionDataMessage, SubscriptionErrorMessage, UnsubscribeFn, SubscribeMessage, ProcedureContext } from '@sylph/typeql-core'; // Correct package name
+import { TypeQLTransport, SubscriptionDataMessage, SubscriptionErrorMessage, UnsubscribeFn, SubscribeMessage, ProcedureContext } from '@sylph/typeql-shared'; // Correct package name
+import { createClient } from '@sylph/typeql-client'; // Import createClient separately
 // Removed Router import as inferred type is used
-import { createRouter } from '@sylph/typeql-core/src/server/index.ts'; // Correct package name
-import { initTypeQL } from '@sylph/typeql-core/src/server/procedure.ts'; // Correct package name
+import { createRouter } from '@sylph/typeql-server'; // Correct package name
+import { initTypeQL } from '@sylph/typeql-server'; // Correct package name
 import * as z from 'zod'; // Import zod
 import { h } from 'preact';
 
@@ -55,18 +56,11 @@ const mockRouter = createRouter()({ // Keep () call
       // Simulate publishing initial data immediately
       publish({ delta: { initial: true }, serverSeq: 1 });
 
-      // Simulate publishing updates over time (optional for testing)
-      let counter = 1;
-      const intervalId = setInterval(() => {
-        counter++;
-        // console.log(`Mock publishing update ${counter} for topic: ${input.topic}`);
-        publish({ delta: { update: counter }, serverSeq: counter + 1, prevServerSeq: counter });
-      }, 1000); // Adjust interval as needed for tests
+      // Removed setInterval to prevent potential leaks in test environment
 
-      // Return the cleanup function
+      // Return an empty cleanup function as there's no interval
       return () => {
-        // console.log(`Mock subscription cleanup for topic: ${input.topic}`);
-        clearInterval(intervalId);
+        // console.log(`Mock subscription cleanup for topic: ${input.topic} (no interval)`);
       };
     }),
 });
@@ -84,7 +78,7 @@ const wrapper = ({ children }: { children: preact.ComponentChildren }) => (
   h(TypeQLProvider, { client: mockClient, children: children }) // Explicitly pass children prop
 );
 
-describe.skip('@typeql/preact Hooks', { timeout: 5000 }, () => { // Add .skip back
+describe('@typeql/preact Hooks', { timeout: 5000 }, () => { // Removed .skip to test memory usage
   describe('useTypeQL', () => {
     it('should return the client instance from context', () => {
       const { result } = renderHook(() => useTypeQL(), { wrapper });
