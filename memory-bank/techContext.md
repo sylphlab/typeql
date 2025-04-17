@@ -2,7 +2,7 @@
 
 *   **Language**: TypeScript
 *   **Package Manager**: bun (using Workspaces)
-*   **Monorepo Tooling**: Changesets (Setup), Turborepo (Planned)
+*   **Monorepo Tooling**: Changesets (Setup), Turborepo (Setup)
 *   **Monorepo Structure**: Yes, using bun workspaces (`packages/*`).
 *   **Core Package**: `@sylph/typeql-core` (in `packages/core`)
 *   **React Package**: `@sylph/typeql-react` (in `packages/react`)

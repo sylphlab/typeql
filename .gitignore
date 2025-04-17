@@ -123,6 +123,9 @@ build
 .DS_Store
 Thumbs.db
 
+
+# Turborepo cache
+.turbo
 # Build output
 dist
 dist-*

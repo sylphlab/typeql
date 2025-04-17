@@ -5,7 +5,7 @@
     { "path": "./packages/shared" },
     { "path": "./packages/client" },
     { "path": "./packages/server" },
-    { "path": "./packages/preact" },
+    // { "path": "./packages/preact" }, // Incorrect path, preact hooks are in transport-preact
     { "path": "./packages/react" },
     { "path": "./packages/transport-http" },
     { "path": "./packages/transport-preact" },
