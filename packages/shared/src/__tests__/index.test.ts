@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'; // Import beforeEach
 import { generateId, applyStandardDelta, StandardDelta, AddDelta, UpdateDelta, RemoveDelta, ReplaceDelta, MoveDelta, PatchDelta } from '../index'; // Adjust path as needed
 
-describe('@sylph/typeql-shared', () => {
+describe('@sylphlab/typeql-shared', () => {
   describe('generateId', () => {
     it('should generate a string ID', () => {
       const id = generateId();

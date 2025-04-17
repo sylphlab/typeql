@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { initTypeQL } from '../procedure';
-import type { ProcedureContext, AnyProcedure } from '@sylph/typeql-shared';
+import type { ProcedureContext, AnyProcedure } from '@sylphlab/typeql-shared';
 
 // Initialize the procedure builder
 const t = initTypeQL<ProcedureContext>(); // Use a generic context for testing

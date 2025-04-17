@@ -10,7 +10,7 @@ import {
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     ProcedureResultMessage,
-} from '@sylph/typeql-shared'; // Shared types
+} from '@sylphlab/typeql-shared'; // Shared types
 import {
     createClient,
     OptimisticStore,
@@ -19,7 +19,7 @@ import {
     OptimisticStoreOptions,
     OptimisticStoreError,
     createOptimisticStore,
-} from '@sylph/typeql-client'; // Client specific imports
+} from '@sylphlab/typeql-client'; // Client specific imports
 
 
 // --- Context ---

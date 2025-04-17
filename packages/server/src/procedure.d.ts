@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylph/typeql-shared';
+import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylphlab/typeql-shared';
 /** Options passed to resolver/subscription functions */
 export interface ProcedureOptions<TContext = ProcedureContext, TInput = unknown> {
     ctx: TContext;

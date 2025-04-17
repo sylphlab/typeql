@@ -1,4 +1,4 @@
-import type { SubscriptionDataMessage } from '@sylph/typeql-shared';
+import type { SubscriptionDataMessage } from '@sylphlab/typeql-shared';
 /** Interface for storing and retrieving historical update messages. */
 export interface UpdateHistory {
     /**

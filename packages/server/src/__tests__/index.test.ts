@@ -13,7 +13,7 @@ interface TestContext {
 // Initialize procedure builder with the test context
 const t = initTypeQL<TestContext>();
 
-describe('@sylph/typeql-server', () => {
+describe('@sylphlab/typeql-server', () => {
 
   describe('createRouter', () => {
     it('should create a simple router with procedures', () => {

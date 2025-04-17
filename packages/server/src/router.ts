@@ -2,7 +2,7 @@
 
 // packages/core/src/server/router.ts
 
-import type { AnyProcedure, ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylph/typeql-shared';
+import type { AnyProcedure, ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylphlab/typeql-shared';
 // Removed re-export
 
 // --- Router Definition ---

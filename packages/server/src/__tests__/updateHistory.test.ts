@@ -1,7 +1,7 @@
 // packages/server/src/__tests__/updateHistory.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createInMemoryUpdateHistory, UpdateHistory } from '../updateHistory';
-import type { SubscriptionDataMessage } from '@sylph/typeql-shared';
+import type { SubscriptionDataMessage } from '@sylphlab/typeql-shared';
 
 // Helper to create messages
 const createMsg = (id: string | number, serverSeq: number, data: any = {}): SubscriptionDataMessage => ({

@@ -5,8 +5,8 @@ import { createRequestHandler, RequestHandlerOptions } from '../requestHandler';
 import { SubscriptionManager } from '../subscriptionManager';
 import { createInMemoryUpdateHistory } from '../updateHistory';
 // Import ProcedureCallMessage instead of ProcedureCall
-import type { TypeQLTransport, ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, UnsubscribeMessage, AnyRouter, SubscriptionErrorMessage } from '@sylph/typeql-shared';
-import { TypeQLClientError } from '@sylph/typeql-shared';
+import type { TypeQLTransport, ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, UnsubscribeMessage, AnyRouter, SubscriptionErrorMessage } from '@sylphlab/typeql-shared';
+import { TypeQLClientError } from '@sylphlab/typeql-shared';
 import * as z from 'zod';
 
 // --- Mocks ---

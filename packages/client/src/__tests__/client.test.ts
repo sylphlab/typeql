@@ -10,7 +10,7 @@ import type {
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     UnsubscribeFn
-} from '@sylph/typeql-shared'; // Import TypeQLTransport and message types from shared
+} from '@sylphlab/typeql-shared'; // Import TypeQLTransport and message types from shared
 import { z } from 'zod';
 
 // Mock Transport - Use 'any' to bypass TS type checking for mock methods

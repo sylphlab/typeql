@@ -1,4 +1,4 @@
-import type { ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylph/typeql-shared';
+import type { ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylphlab/typeql-shared';
 /** Internal definition of a router, extending the base */
 export interface RouterDef<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> extends BaseRouterDef {
     procedures: TRecord;

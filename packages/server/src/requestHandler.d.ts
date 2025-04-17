@@ -1,6 +1,6 @@
-import type { AnyRouter, ProcedureContext } from '@sylph/typeql-shared';
+import type { AnyRouter, ProcedureContext } from '@sylphlab/typeql-shared';
 import { SubscriptionManager } from './subscriptionManager';
-import type { TypeQLTransport, ProcedureResultMessage, UnsubscribeMessage } from '@sylph/typeql-shared';
+import type { TypeQLTransport, ProcedureResultMessage, UnsubscribeMessage } from '@sylphlab/typeql-shared';
 /** Represents an incoming procedure call */
 export interface ProcedureCall {
     /** Path to the procedure (e.g., 'user.get' or 'item.list') */

@@ -10,5 +10,5 @@ export default defineConfig({
   clean: true,
   minify: 'terser',
   tsconfig: 'tsconfig.json',
-  external: ['react', '@sylph/typeql-shared', '@sylph/typeql-client'], // Mark externals
+  external: ['react', '@sylphlab/typeql-shared', '@sylphlab/typeql-client'], // Mark externals
 })

@@ -5,8 +5,8 @@ import type {
     SubscribeMessage,
     AckMessage, // Import AckMessage
     RequestMissingMessage, // Import RequestMissingMessage
-} from '@sylph/typeql-shared'; // Use shared package
-import { TypeQLClientError } from '@sylph/typeql-shared'; // Use shared package
+} from '@sylphlab/typeql-shared'; // Use shared package
+import { TypeQLClientError } from '@sylphlab/typeql-shared'; // Use shared package
 
 export interface HttpTransportOptions {
     /** The URL of the TypeQL HTTP endpoint. */

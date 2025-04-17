@@ -4,7 +4,7 @@
 // Inspired by tRPC procedures
 
 import * as z from 'zod';
-import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylph/typeql-shared';
+import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylphlab/typeql-shared';
 // Removed re-export
 
 // --- Core Types ---

@@ -11,13 +11,13 @@ import {
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     ProcedureResultMessage,
-} from '@sylph/typeql-shared'; // Shared types
+} from '@sylphlab/typeql-shared'; // Shared types
 import {
     createClient,
     OptimisticStore,
     MutationCallOptions,
     PredictedChange,
-} from '@sylph/typeql-client'; // Client imports
+} from '@sylphlab/typeql-client'; // Client imports
 
 
 // --- Context ---

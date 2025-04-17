@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, act } from '@testing-library/preact';
-import { TypeQLProvider, useQuery, useMutation, useSubscription, useTypeQL } from '@sylph/typeql-preact'; // Correct package name
-import { TypeQLTransport, SubscriptionDataMessage, SubscriptionErrorMessage, UnsubscribeFn, SubscribeMessage, ProcedureContext } from '@sylph/typeql-shared'; // Correct package name
-import { createClient } from '@sylph/typeql-client'; // Import createClient separately
+import { TypeQLProvider, useQuery, useMutation, useSubscription, useTypeQL } from '@sylphlab/typeql-preact'; // Correct package name
+import { TypeQLTransport, SubscriptionDataMessage, SubscriptionErrorMessage, UnsubscribeFn, SubscribeMessage, ProcedureContext } from '@sylphlab/typeql-shared'; // Correct package name
+import { createClient } from '@sylphlab/typeql-client'; // Import createClient separately
 // Removed Router import as inferred type is used
-import { createRouter } from '@sylph/typeql-server'; // Correct package name
-import { initTypeQL } from '@sylph/typeql-server'; // Correct package name
+import { createRouter } from '@sylphlab/typeql-server'; // Correct package name
+import { initTypeQL } from '@sylphlab/typeql-server'; // Correct package name
 import * as z from 'zod'; // Import zod
 import { h } from 'preact';
 

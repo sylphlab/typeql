@@ -1,8 +1,8 @@
 // packages/core/src/client/optimisticStore.ts
 
 import { produce, applyPatches, Patch } from 'immer';
-import type { ProcedureCallMessage, SubscriptionDataMessage, AckMessage } from '@sylph/typeql-shared';
-import { createClientSequenceManager, ClientSequenceManager } from '@sylph/typeql-shared';
+import type { ProcedureCallMessage, SubscriptionDataMessage, AckMessage } from '@sylphlab/typeql-shared';
+import { createClientSequenceManager, ClientSequenceManager } from '@sylphlab/typeql-shared';
 // Import conflict resolution types and result structure
 import {
     ConflictResolverConfig,

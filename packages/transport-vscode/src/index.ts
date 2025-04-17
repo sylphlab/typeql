@@ -12,7 +12,7 @@ import {
     type UnsubscribeFn,
     TypeQLClientError, // Import error type as a value
     generateId // Assuming generateId is exported
-} from '@sylph/typeql-shared'; // Use shared package
+} from '@sylphlab/typeql-shared'; // Use shared package
 
 /**
  * Interface mimicking the relevant parts of the VSCode API object

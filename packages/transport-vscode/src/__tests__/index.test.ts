@@ -11,7 +11,7 @@ import { // Import TypeQLClientError as value
     RequestMissingMessage,
     type TypeQLTransport,
     TypeQLClientError // Import as value
-} from '@sylph/typeql-shared'; // Use shared package
+} from '@sylphlab/typeql-shared'; // Use shared package
 
 // --- Mock VSCode API ---
 const mockPostMessage = vi.fn();

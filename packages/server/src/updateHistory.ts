@@ -1,4 +1,4 @@
-import type { SubscriptionDataMessage } from '@sylph/typeql-shared';
+import type { SubscriptionDataMessage } from '@sylphlab/typeql-shared';
 
 // NOTE: This history mechanism is based on the OLD ReqDelta model (topics, serverSeq).
 // It might need significant rework or replacement depending on how TypeQL handles

@@ -10,12 +10,12 @@ import {
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     UnsubscribeFn,
-} from '@sylph/typeql-shared'; // Shared types
+} from '@sylphlab/typeql-shared'; // Shared types
 import {
     createClient,
     MutationCallOptions, // Import for mutate mock
-} from '@sylph/typeql-client'; // Client imports
-import { createRouter } from '@sylph/typeql-server'; // Server imports
+} from '@sylphlab/typeql-client'; // Client imports
+import { createRouter } from '@sylphlab/typeql-server'; // Server imports
 
 // Mock Transport
 const mockTransport: TypeQLTransport = {

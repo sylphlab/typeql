@@ -10,5 +10,5 @@ export default defineConfig({
   clean: true,
   minify: 'terser',
   tsconfig: 'tsconfig.json',
-  external: ['@sylph/typeql-shared', 'vscode'], // Mark shared and vscode as external
+  external: ['@sylphlab/typeql-shared', 'vscode'], // Mark shared and vscode as external
 })

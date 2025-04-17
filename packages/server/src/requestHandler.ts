@@ -1,8 +1,8 @@
 // packages/core/src/server/requestHandler.ts
 
-import { createServerSequenceManager, ServerSequenceManager } from '@sylph/typeql-shared';
-// Consolidate imports from @sylph/typeql-shared
-import { TypeQLClientError } from '@sylph/typeql-shared'; // Import as value
+import { createServerSequenceManager, ServerSequenceManager } from '@sylphlab/typeql-shared';
+// Consolidate imports from @sylphlab/typeql-shared
+import { TypeQLClientError } from '@sylphlab/typeql-shared'; // Import as value
 import type {
     AnyRouter,
     ProcedureRouterRecord,
@@ -13,8 +13,8 @@ import type {
     ProcedureResultMessage,
     SubscriptionErrorMessage,
     UnsubscribeMessage
-} from '@sylph/typeql-shared'; // Keep others as types
-// Removed original line 4 which was: import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylph/typeql-shared';
+} from '@sylphlab/typeql-shared'; // Keep others as types
+// Removed original line 4 which was: import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylphlab/typeql-shared';
 import type { ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure'; // Keep specific procedure types here
 import { ZodError } from 'zod';
 import { SubscriptionManager } from './subscriptionManager'; // Import manager CLASS

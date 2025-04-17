@@ -2,7 +2,7 @@
 
 // packages/core/src/client/client.ts
 
-import type { AnyRouter, AnyProcedure } from '@sylph/typeql-shared'; // Use package import
+import type { AnyRouter, AnyProcedure } from '@sylphlab/typeql-shared'; // Use package import
 import * as z from 'zod';
 import { // Changed to regular import for TypeQLClientError
     TypeQLTransport,
@@ -15,12 +15,12 @@ import { // Changed to regular import for TypeQLClientError
     SubscriptionDataMessage, // Added
     SubscriptionErrorMessage, // Added
     TypeQLClientError, // Keep custom error here
-} from '@sylph/typeql-shared'; // Use package import
-import { generateId } from '@sylph/typeql-shared'; // Use package import
+} from '@sylphlab/typeql-shared'; // Use package import
+import { generateId } from '@sylphlab/typeql-shared'; // Use package import
 // Import PredictedChange as a type, OptimisticStore as a value/type
 import type { PredictedChange } from './optimisticStore';
 import { OptimisticStore } from './optimisticStore';
-import { createClientSequenceManager, ClientSequenceManager } from '@sylph/typeql-shared'; // Use package import
+import { createClientSequenceManager, ClientSequenceManager } from '@sylphlab/typeql-shared'; // Use package import
 
 
 // --- Client Creation ---
