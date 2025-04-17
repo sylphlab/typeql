@@ -17,9 +17,15 @@
         *   Modified `examples/web-app/package.json` build script to separate `tsc -b` for server and `vite build` for client.
     *   Successfully built all packages using `pnpm run -r build`.
     *   Attempted to publish using `bun run release` but failed due to npm authentication error (`ENEEDAUTH`).
+    *   Switched build scripts back to `bun` (`bun run -F '*' build`) to test build stability.
+    *   Encountered TypeScript errors (TS2305, TS7016, TS2353, TS5096) during `bun` build, likely related to `bun`'s handling of `tsc` and project references.
+    *   Reverted build scripts back to use `pnpm run -r build` and associated `tsconfig` changes.
+    *   Successfully built all packages again using `pnpm run -r build`. Confirmed `pnpm` is currently required for stable builds.
 *   **Next Steps (Plan)**:
-    1.  ~~Publish initial version using Changesets.~~ **(Blocked)**
+    1.  Commit changes related to build script reversion.
+    2.  ~~Publish initial version using Changesets.~~ **(Blocked)**
 *   **Blockers**:
     *   **Publishing requires npm login (`npm adduser` must be run manually in the terminal).**
+    *   **Build process currently relies on `pnpm run -r build` due to instability/errors when using `bun run -F '*' build`.**
     *   Preact tests are currently skipped due to unresolved memory issues when running under `jsdom`. Further investigation needed post-release.
     *   Tests relying on fake timers are skipped. Need alternative test strategies post-release.
