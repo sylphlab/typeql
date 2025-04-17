@@ -5,8 +5,8 @@
   "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylph/typeql)",
   "scripts": {
     "test": "node --max-old-space-size=8192 ./node_modules/vitest/vitest.mjs run",
-    "build": "cd packages/core && bun run build && cd ../react && bun run build && cd ../transport-preact && bun run build && cd ../transport-http && bun run build && cd ../transport-vscode && bun run build && cd ../transport-websocket && bun run build && cd ../..",
-    "release": "bun run build && bun changeset publish"
+    "build": "pnpm run -r build",
+    "release": "pnpm run build && bun changeset publish"
   },
   "keywords": [],
   "author": "",
@@ -17,8 +17,12 @@
   ],
   "devDependencies": {
     "@changesets/cli": "^2.29.1",
+    "@microsoft/api-extractor": "^7.52.3",
     "@types/node": "^22.14.1",
+    "rimraf": "^6.0.1",
+    "tsup": "^8.4.0",
     "typescript": "^5.8.3",
+    "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^3.1.1"
   },
   "dependencies": {

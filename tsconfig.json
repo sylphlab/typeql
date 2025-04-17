@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [], // No files in the root, just references
+  "references": [
+    { "path": "./packages/shared" },
+    { "path": "./packages/client" },
+    { "path": "./packages/server" },
+    { "path": "./packages/preact" },
+    { "path": "./packages/react" },
+    { "path": "./packages/transport-http" },
+    { "path": "./packages/transport-preact" },
+    { "path": "./packages/transport-vscode" },
+    { "path": "./packages/transport-websocket" },
+    { "path": "./examples/vscode-extension" },
+    { "path": "./examples/web-app" }
+  ]
+}

@@ -4,7 +4,6 @@ import { createContext, h, FunctionalComponent, ComponentChildren } from 'preact
 import { useContext, useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks';
 // Correct import paths using workspace alias
 import {
-    createClient,
     AnyRouter,
     TypeQLClientError,
     TypeQLTransport,
@@ -12,10 +11,13 @@ import {
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     ProcedureResultMessage,
+} from '@sylph/typeql-shared'; // Shared types
+import {
+    createClient,
     OptimisticStore,
     MutationCallOptions,
     PredictedChange,
-} from '@sylph/typeql-core';
+} from '@sylph/typeql-client'; // Client imports
 
 
 // --- Context ---
@@ -617,9 +619,9 @@ export function useMutation<
 // Note: This assumes the iterator yields SubscriptionDataMessage | SubscriptionErrorMessage
 type inferSubscriptionDataType<TProcedure> =
     TProcedure extends { subscribe: (...args: any[]) => { iterator: AsyncIterableIterator<infer TMessage> } }
-        ? TMessage extends SubscriptionDataMessage // Check if the yielded type is SubscriptionDataMessage
-            ? TMessage['data'] // Extract the 'data' type (which is unknown)
-            : unknown // Fallback if not SubscriptionDataMessage
+        ? TMessage extends { type: 'subscriptionData'; data: infer TData } // Check structure and infer data type
+            ? TData // Use the inferred data type
+            : unknown // Fallback if not the expected structure
         : unknown;
 
 // Helper type to infer the input type from the client's subscribe method

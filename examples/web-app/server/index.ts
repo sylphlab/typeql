@@ -1,12 +1,14 @@
 import {
-    createRouter,
-    initTypeQL, // Import procedure builder initializer
-    createRequestHandler,
-    SubscriptionManager, // Import SubscriptionManager class
     ProcedureContext, // Import base context type
     ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCall, UnsubscribeMessage,
     TypeQLTransport // Import TypeQLTransport type
-} from '@typeql/core';
+} from '@sylph/typeql-shared'; // Shared types
+import {
+    createRouter,
+    initTypeQL, // Import procedure builder initializer
+    createRequestHandler,
+    SubscriptionManager // Import SubscriptionManager class
+} from '@sylph/typeql-server'; // Server functions
 import { z } from 'zod';
 
 // --- Debugging: Catch unhandled errors ---
@@ -47,19 +49,19 @@ const counterRouter = createRouter<ProcedureContext>()({ // Pass context type to
     getCount: t.query.resolve(() => currentCount), // Use t.query.resolve
     increment: t.mutation // Use t.mutation.input().resolve()
         .input(z.object({ amount: z.number().optional().default(1) }))
-        .resolve(({ input }) => {
+        .resolve(({ input }: { input: { amount: number } }) => { // Add explicit type
             currentCount += input.amount;
             counterObservable.next(currentCount); // Notify subscribers
             return currentCount;
         }),
     decrement: t.mutation // Use t.mutation.input().resolve()
         .input(z.object({ amount: z.number().optional().default(1) }))
-        .resolve(({ input }) => {
+        .resolve(({ input }: { input: { amount: number } }) => { // Add explicit type
             currentCount -= input.amount;
             counterObservable.next(currentCount); // Notify subscribers
             return currentCount;
         }),
-    onCountUpdate: t.subscription.subscribe(({ publish }) => { // Use t.subscription.subscribe and get publish from options
+    onCountUpdate: t.subscription.subscribe(({ publish }: { publish: (data: number) => void }) => { // Add explicit type for publish
             // This function should set up the subscription and return a cleanup function.
             console.log('[Server] Client subscribed to onCountUpdate');
 
@@ -95,7 +97,7 @@ const createContext = async (): Promise<ProcedureContext> => {
     return {};
 };
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws: WebSocket) => { // Add type for ws
     console.log('Client connected');
 
     // Define a function to send messages back to this specific client
@@ -130,12 +132,12 @@ wss.on('connection', (ws) => {
             };
         }, // Close onDisconnect method
         // Add dummy implementations for methods not used by server handler but required by type
-        request: async (message) => {
+        request: async (message: ProcedureCall) => { // Add type for message
             console.error("Server handler transport should not call 'request'", message);
             // Return an error result matching ProcedureResultMessage structure
             return { id: message.id, result: { type: 'error', error: { message: 'Internal Server Error: Invalid transport usage' } } };
         },
-        subscribe: (message) => {
+        subscribe: (message: ProcedureCall) => { // Add type for message
             console.error("Server handler transport should not call 'subscribe'", message);
             // Return a dummy subscription object
             return {
@@ -163,7 +165,7 @@ wss.on('connection', (ws) => {
     );
 
     // Handle incoming messages from this client
-    ws.on('message', async (message) => {
+    ws.on('message', async (message: Buffer | ArrayBuffer | Buffer[]) => { // Add type for message
          try {
              const messageString = message.toString();
              const parsedMessage = JSON.parse(messageString) as ProcedureCall | UnsubscribeMessage;
@@ -188,7 +190,7 @@ wss.on('connection', (ws) => {
     // Note: 'close' and 'error' listeners for cleanup are now implicitly handled
     // by the `onDisconnect` logic passed to createRequestHandler.
     // We still keep top-level listeners for general logging if desired.
-    ws.on('error', (error) => {
+    ws.on('error', (error: Error) => { // Add type for error
         console.error('WebSocket error occurred (top-level):', error);
     });
 

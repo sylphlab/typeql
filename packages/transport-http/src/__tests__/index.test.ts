@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
 import { createHttpTransport, HttpTransportOptions } from '../index';
-import type { ProcedureCallMessage, ProcedureResultMessage } from '@typeql/core';
-import { TypeQLClientError } from '@typeql/core';
+import type { ProcedureCallMessage, ProcedureResultMessage } from '@sylph/typeql-shared'; // Use shared package
+import { TypeQLClientError } from '@sylph/typeql-shared'; // Use shared package
 
 // Mock global fetch
 const mockFetch = vi.fn();

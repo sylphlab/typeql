@@ -1,13 +1,15 @@
 import * as vscode from 'vscode';
 import {
+    ProcedureContext,
+    TypeQLTransport, // Import TypeQLTransport
+    ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCall, UnsubscribeMessage // Import message types
+} from '@sylph/typeql-shared'; // Use shared package
+import {
     createRouter,
     initTypeQL,
     createRequestHandler,
     SubscriptionManager,
-    ProcedureContext,
-    TypeQLTransport, // Import TypeQLTransport
-    ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCall, UnsubscribeMessage // Import message types
-} from '@typeql/core';
+} from '@sylph/typeql-server'; // Use server package
 import { createVSCodeTransport } from '@typeql/transport-vscode'; // Correct import name
 import { z } from 'zod'; // Import zod if needed for API definition
 
@@ -23,7 +25,7 @@ const t = initTypeQL<ExtensionContext>();
 const extensionRouter = createRouter<ExtensionContext>()({
     getConfiguration: t.query
         .input(z.object({ section: z.string() }))
-        .resolve(async ({ input }) => {
+        .resolve(async ({ input }: { input: { section: string } }) => { // Add input type
             // Access VSCode configuration API
             const config = vscode.workspace.getConfiguration(input.section);
             // Be careful about what configuration is exposed
@@ -34,7 +36,7 @@ const extensionRouter = createRouter<ExtensionContext>()({
         }),
     updateConfiguration: t.mutation
         .input(z.object({ section: z.string(), value: z.unknown() })) // Use z.unknown() for generic value
-        .resolve(async ({ input }) => {
+        .resolve(async ({ input }: { input: { section: string; value: unknown } }) => { // Add input type
             try {
                 const config = vscode.workspace.getConfiguration();
                 // Update configuration globally (or workspace/folder specific)
@@ -47,7 +49,7 @@ const extensionRouter = createRouter<ExtensionContext>()({
             }
         }),
     // Add a simple subscription example (e.g., notify on config change)
-    onConfigChange: t.subscription.subscribe(({ publish }) => {
+    onConfigChange: t.subscription.subscribe(({ publish }: { publish: (data: any) => void }) => { // Add publish type
         console.log('[Extension] Client subscribed to onConfigChange');
         const disposable = vscode.workspace.onDidChangeConfiguration(e => {
             // Example: Check if a specific section changed and publish
@@ -124,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
             {
                 router: extensionRouter,
                 subscriptionManager: globalSubscriptionManager,
-                createContext: (opts) => createContext(opts), // Pass the context creator
+                createContext: (opts: { transport: TypeQLTransport }) => createContext(opts), // Add opts type
                 clientId: `webview_${Date.now()}` // Example client ID
             },
             transport // Pass the transport for this panel

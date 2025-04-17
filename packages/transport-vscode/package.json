@@ -12,15 +12,17 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
-    }
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist/**"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --external @sylph/typeql-core",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --external @sylph/typeql-core --watch",
-    "clean": "rm -rf dist *.tsbuildinfo",
+    "build": "tsup",
+    "dev": "tsup src/index.ts --format esm,cjs --external @sylph/typeql-shared --watch",
+    "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -34,7 +36,7 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "@sylph/typeql-core": "workspace:*"
+    "@sylph/typeql-shared": "workspace:*"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",

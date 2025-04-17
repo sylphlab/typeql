@@ -12,25 +12,28 @@
       "import": "./dist/index.js",
       "require": "./dist/index.cjs",
       "types": "./dist/index.d.ts"
-    }
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/index.ts --format esm,cjs --dts --external preact @sylph/typeql-core",
-    "dev": "bun run build --watch",
-    "clean": "rm -rf dist .turbo node_modules",
+    "build": "tsup",
+    "dev": "tsup src/index.ts --format esm,cjs --external preact @sylph/typeql-shared @sylph/typeql-client --watch",
+    "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@sylph/typeql-core": "workspace:*",
+    "@sylph/typeql-shared": "workspace:*",
+    "@sylph/typeql-client": "workspace:*",
     "preact": "^10.0.0"
   },
   "devDependencies": {
     "@testing-library/preact": "^3.2.4",
-    "@sylph/typeql-core": "workspace:*",
+    "@sylph/typeql-client": "workspace:*",
     "eslint": "^8.57.0",
     "jsdom": "^26.1.0",
     "preact": "^10.22.1",

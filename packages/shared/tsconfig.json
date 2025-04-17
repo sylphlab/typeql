@@ -1,0 +1,61 @@
+{
+  "extends": "../../tsconfig.base.json", // Add extends
+  "compilerOptions": {
+    /* Base Options: */
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "target": "ES2016", // Target modern ECMAScript
+    "allowJs": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    // "isolatedModules": true, // Removed as potential conflict with tsup dts generation
+
+    /* Strictness */
+    "strict": true,
+    // "noUncheckedIndexedAccess": true, // Keep basic strictness
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    // "strictBindCallApply": true,
+    // "strictPropertyInitialization": true,
+    // "noImplicitThis": true,
+    // "useUnknownInCatchVariables": true,
+    // "alwaysStrict": true,
+    // "noUnusedLocals": true, // Keep these potentially useful ones
+    // "noUnusedParameters": true,
+    // "exactOptionalPropertyTypes": true,
+    // "noImplicitReturns": true,
+    // "noFallthroughCasesInSwitch": true,
+    // "noImplicitOverride": true,
+    // "noPropertyAccessFromIndexSignature": true,
+
+    /* If NOT transpiling with TypeScript: */
+    // "moduleResolution": "Bundler", // or "NodeNext"
+    // "module": "Preserve", // or "NodeNext"
+    // "noEmit": true,
+
+    /* If your code runs in the DOM: */
+    // "lib": ["es2022", "dom", "dom.iterable"],
+
+    /* If you're building for downstream consumers: */
+    "module": "CommonJS", // Revert module back to CommonJS
+    // "moduleResolution": "NodeNext", // Remove moduleResolution
+    "declaration": true, // Generate .d.ts files
+    "declarationMap": true, // Generate sourcemaps for .d.ts files
+    "sourceMap": true, // Generate .js.map files for debugging
+    "outDir": "./dist", // Output directory for compiled JS
+    "rootDir": "./src", // Add rootDir back
+    "lib": ["ES2016"], // Core doesn't need DOM
+    "composite": true,
+    "incremental": true,
+    "tsBuildInfoFile": "./.tsbuildinfo"
+  },
+  "files": [
+    "src/index.ts",
+    "src/types.ts",
+    "src/utils.ts",
+    "src/seqManager.ts"
+  ],
+  "exclude": ["node_modules", "dist", "examples"]
+  // No references needed for the base shared package
+}

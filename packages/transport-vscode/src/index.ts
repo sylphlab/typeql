@@ -10,9 +10,9 @@ import {
     type AckMessage,
     type RequestMissingMessage, // Import RequestMissingMessage
     type UnsubscribeFn,
-    TypeQLClientError // Import error type as a value
-} from '@sylph/typeql-core';
-import { generateId } from '@sylph/typeql-core'; // Assuming generateId is exported
+    TypeQLClientError, // Import error type as a value
+    generateId // Assuming generateId is exported
+} from '@sylph/typeql-shared'; // Use shared package
 
 /**
  * Interface mimicking the relevant parts of the VSCode API object

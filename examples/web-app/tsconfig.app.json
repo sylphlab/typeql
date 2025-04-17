@@ -10,25 +10,18 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler", // Keep for Vite compatibility
-    "allowImportingTsExtensions": true, // Keep if needed by Vite/React setup
+    "allowImportingTsExtensions": true, // Add back for Vite
     // "isolatedModules": true, // Inherited
     // "moduleDetection": "force", // Inherited
-    "noEmit": true, // Keep true, Vite handles emit
+    // "noEmit": true, // REMOVED: Must be false or absent for composite build
     "jsx": "react-jsx", // Keep React specific setting
 
     /* Project References / Monorepo */
-    "composite": false, // Disable composite for Vite app, Vite handles build
-    // "declarationMap": true, // Invalid without 'declaration' or 'composite' when 'noEmit' is true
+    "composite": true, // Restored
+    "declaration": true, // Restored
+    "declarationMap": true, // Restored
     "baseUrl": ".", // Set base URL for path mapping
-    "paths": {
-      "@typeql/core": ["../../packages/core/src"], // Map core package source
-      "@typeql/core/*": ["../../packages/core/src/*"],
-      "@typeql/react": ["../../packages/react/src"], // Map react package source
-      "@typeql/react/*": ["../../packages/react/src/*"],
-      "@typeql/transport-websocket": ["../../packages/transport-websocket/src"], // Map ws transport source
-      "@typeql/transport-websocket/*": ["../../packages/transport-websocket/src/*"]
-      // Add mappings for other packages if needed
-    },
+    // "paths": {}, // Keep paths removed
 
 
     /* Linting (Inherited or keep specific ones) */
@@ -39,10 +32,11 @@
     // "noUncheckedSideEffectImports": true // Inherited? Check base.
   },
   "include": ["src"], // Only include app source code
-  "references": [ // Add references to dependent workspace packages' tsconfig files
-    { "path": "../../packages/core/tsconfig.json" },
+  "references": [ // Restored references
+    { "path": "../../packages/shared/tsconfig.json" },
+    { "path": "../../packages/client/tsconfig.json" },
     { "path": "../../packages/react/tsconfig.json" },
     { "path": "../../packages/transport-websocket/tsconfig.json" },
-    { "path": "./tsconfig.node.json" } // Add reference to the node config
+    { "path": "./tsconfig.node.json" }
   ]
 }

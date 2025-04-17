@@ -45,7 +45,9 @@
     "vite": "^5.4.1"
   },
   "dependencies": {
-    "@sylph/typeql-core": "workspace:*",
+    "@sylph/typeql-shared": "workspace:*",
+    "@sylph/typeql-client": "workspace:*",
+    "@sylph/typeql-server": "workspace:*",
     "@sylph/typeql-transport-vscode": "workspace:*"
   }
 }

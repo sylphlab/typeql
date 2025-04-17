@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { useTypeQL, useQuery, useMutation } from '@typeql/react'; // Import TypeQL hooks
-import { TypeQLClientError } from '@typeql/core'; // Import error type
+import { useTypeQL, useQuery, useMutation } from '@sylph/typeql-react'; // Use correct package name
+import { TypeQLClientError } from '@sylph/typeql-shared'; // Use shared package
 
 // Assuming the ExtensionRouter type is somehow made available here
 // This often requires a build step or careful tsconfig setup.

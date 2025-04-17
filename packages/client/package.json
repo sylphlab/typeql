@@ -1,0 +1,52 @@
+{
+  "name": "@sylph/typeql-client",
+  "version": "0.0.1",
+  "description": "Client library for TypeQL - TypeScript-first realtime API framework.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
+    "build": "tsup",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "typeql",
+    "client",
+    "rpc",
+    "typescript",
+    "realtime",
+    "state-sync"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "terser": "^5.39.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@sylph/typeql-shared": "workspace:*",
+    "immer": "^10.1.1",
+    "zod": "^3.24.2"
+  }
+}

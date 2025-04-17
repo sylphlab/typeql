@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "baseUrl": ".", // Needed for paths to work
+    // "paths": {}, // Removed paths as we are removing project references
     /* Base Options: */
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -16,7 +18,7 @@
 
     /* If NOT transpiling with TypeScript: */
     "module": "preserve",
-    "noEmit": true,
+    // "noEmit": true, // Keep removed
 
     /* If your code runs in the DOM: */
     "lib": ["es2022", "dom", "dom.iterable"]

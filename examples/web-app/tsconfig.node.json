@@ -27,8 +27,10 @@
     "declarationMap": true, // Generate declaration maps
     "baseUrl": ".", // Base URL for paths
     "paths": { // Ensure paths point to SOURCE for correct type resolution
-      "@typeql/core": ["../../packages/core/src"],
-      "@typeql/core/*": ["../../packages/core/src/*"]
+      "@typeql/shared": ["../../packages/shared/src"],
+      "@typeql/shared/*": ["../../packages/shared/src/*"],
+      "@typeql/server": ["../../packages/server/src"],
+      "@typeql/server/*": ["../../packages/server/src/*"]
       // No need for react/transport paths in server config
     },
 
@@ -39,6 +41,7 @@
   },
   "include": ["server/**/*.ts"], // Only include server code
   "references": [ // Reference the core package
-    { "path": "../../packages/core" }
+    { "path": "../../packages/shared" },
+    { "path": "../../packages/server" }
   ]
 }

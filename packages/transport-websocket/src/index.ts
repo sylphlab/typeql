@@ -15,7 +15,7 @@ import type {
     SubscriptionEndMessage, // Added for iterator completion signaling
     AckMessage, // Import AckMessage type
     RequestMissingMessage // Import RequestMissingMessage type
-} from '@sylph/typeql-core';
+} from '@sylph/typeql-shared'; // Use shared package
 import WebSocket from 'ws'; // Using 'ws' library
 
 interface WebSocketTransportOptions {
