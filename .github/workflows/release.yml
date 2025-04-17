@@ -44,6 +44,9 @@ jobs:
         run: rm -rf node_modules .turbo
 
 
+      - name: Verify Turbo Installation
+        run: ls -la node_modules/.bin/turbo
+
       - name: Run Build
         run: pnpm exec turbo run build
         
