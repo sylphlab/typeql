@@ -38,6 +38,9 @@ jobs:
         with:
           version: 10.8.0 # Match the version in package.json
 
+      - name: Install Turbo Globally
+        run: pnpm add -g turbo
+
       - name: Install Dependencies
         run: pnpm install
       - name: Clean Workspace
@@ -45,10 +48,10 @@ jobs:
 
 
       - name: Verify Turbo Installation
-        run: ls -la node_modules/.bin/turbo
+        run: turbo --version
 
       - name: Run Build
-        run: pnpm exec turbo run build
+        run: turbo run build
         
       - name: Create Release Pull Request or Publish to npm
         id: changesets
