@@ -1,5 +1,5 @@
 {
-  "name": "@sylph/typeql-preact",
+  "name": "@sylphlab/typeql-preact",
   "version": "0.1.1",
   "private": false,
   "description": "Preact hooks for TypeQL",

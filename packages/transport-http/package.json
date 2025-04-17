@@ -1,5 +1,5 @@
 {
-  "name": "@sylph/typeql-transport-http",
+  "name": "@sylphlab/typeql-transport-http",
   "version": "0.0.2",
   "description": "TypeQL transport adapter for HTTP communication (fetch)",
   "private": false,

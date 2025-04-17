@@ -1,5 +1,5 @@
 {
-  "name": "@sylph/typeql-server",
+  "name": "@sylphlab/typeql-server",
   "version": "0.0.1",
   "description": "Server library for TypeQL - TypeScript-first realtime API framework.",
   "type": "module",

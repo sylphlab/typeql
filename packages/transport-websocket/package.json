@@ -1,5 +1,5 @@
 {
-  "name": "@sylph/typeql-transport-websocket",
+  "name": "@sylphlab/typeql-transport-websocket",
   "version": "0.0.1",
   "description": "WebSocket transport adapter for TypeQL",
   "type": "module",

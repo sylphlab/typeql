@@ -1,5 +1,5 @@
 {
-  "name": "@sylph/typeql-transport-vscode",
+  "name": "@sylphlab/typeql-transport-vscode",
   "version": "0.0.2",
   "description": "TypeQL transport adapter for VSCode Extension communication (postMessage)",
   "private": false,
