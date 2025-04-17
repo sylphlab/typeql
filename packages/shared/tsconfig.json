@@ -49,6 +49,8 @@
     "composite": true,
     "incremental": true,
     "tsBuildInfoFile": "./.tsbuildinfo"
+,
+    "types": ["vitest/globals"]
   },
   "files": [
     "src/index.ts",

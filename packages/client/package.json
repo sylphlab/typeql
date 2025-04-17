@@ -25,7 +25,7 @@
   "scripts": {
     "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
     "build": "tsup",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "keywords": [
     "typeql",

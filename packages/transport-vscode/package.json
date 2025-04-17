@@ -23,7 +23,7 @@
     "build": "tsup",
     "dev": "tsup src/index.ts --format esm,cjs --external @sylph/typeql-shared --watch",
     "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   },
   "keywords": [
     "typeql",

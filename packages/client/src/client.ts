@@ -157,18 +157,26 @@ function createProcedureProxy<TState = any>( // Add TState generic
             const message: ProcedureCallMessage = { type: 'query', id: requestId, path: pathString, input };
             try {
                 const resultMessage = await transport.request(message);
-                if (resultMessage.result.type === 'data') {
+                // Check if resultMessage and resultMessage.result are defined before accessing type
+                if (resultMessage?.result?.type === 'data') {
                     return resultMessage.result.data; // Return the actual data
+                } else if (resultMessage?.result?.type === 'error') {
+                     // Throw a specific error for server errors
+                     const errorInfo = resultMessage.result.error;
+                     console.error(`[TypeQL Client] Query '${pathString}' received server error:`, errorInfo);
+                     throw new TypeQLClientError(errorInfo.message, errorInfo.code);
                 } else {
-                    // Throw an error that might be caught by the caller
-                    throw new Error(resultMessage.result.error.message);
+                     // Handle unexpected transport response structure
+                     console.error(`[TypeQL Client] Query '${pathString}' received unexpected response format:`, resultMessage);
+                     throw new TypeQLClientError('Invalid response format received from transport.');
                 }
             } catch (error: any) {
-                 console.error(`[TypeQL Client] Query '${pathString}' failed:`, error);
-                 // Wrap in TypeQLClientError for consistency
+                 // This catch block handles transport errors OR errors thrown from the 'else' blocks above
+                 console.error(`[TypeQL Client] Query request '${pathString}' failed:`, error);
+                 // Re-throw wrapped error
                  if (error instanceof TypeQLClientError) throw error;
-                 if (error instanceof Error) throw new TypeQLClientError(error.message);
-                 throw new TypeQLClientError(`Query failed: ${error}`);
+                 if (error instanceof Error) throw new TypeQLClientError(error.message, 'QUERY_FAILED'); // Use specific code
+                 throw new TypeQLClientError(`Query failed: ${String(error)}`, 'QUERY_FAILED');
             }
         },
         // --- Mutation ---
@@ -200,41 +208,40 @@ function createProcedureProxy<TState = any>( // Add TState generic
             // Send request via transport (always send, even if optimistic)
             try {
                 const resultMessage = await transport.request(message); // Send message (with or without clientSeq)
-                if (resultMessage.result.type === 'data') {
+                // Check if resultMessage and resultMessage.result are defined
+                if (resultMessage?.result?.type === 'data') {
                     // If optimistic, the store handles confirmation via Ack/Delta,
                     // but we still resolve the promise for the caller.
                     return resultMessage.result.data;
-                } else {
+                } else if (resultMessage?.result?.type === 'error') {
                     // Handle server error response
                     const errorInfo = resultMessage.result.error;
                     console.error(`[TypeQL Client] Mutation '${pathString}' received server error:`, errorInfo);
-                    // If optimistic, reject the pending mutation in the store
-                    if (store && clientSeq !== undefined) {
-                        try {
-                            store.rejectPendingMutation(clientSeq);
-                            console.log(`[TypeQL Client] Rejected pending mutation (clientSeq: ${clientSeq}) due to server error for '${pathString}'.`);
-                        } catch (rejectError: any) {
-                            console.error(`[TypeQL Client] Error rejecting pending mutation (clientSeq: ${clientSeq}) after server error:`, rejectError);
-                        }
-                    }
+                    // Throw server error (catch block will handle optimistic rejection)
                     throw new TypeQLClientError(errorInfo.message, errorInfo.code);
+                } else {
+                     // Handle unexpected transport response structure
+                     console.error(`[TypeQL Client] Mutation '${pathString}' received unexpected response format:`, resultMessage);
+                     // Throw format error (catch block will handle optimistic rejection)
+                     throw new TypeQLClientError('Invalid response format received from transport.');
                 }
-            } catch (transportError: any) {
-                 // Handle transport-level errors (network, timeout, etc.)
-                 console.error(`[TypeQL Client] Mutation transport request '${pathString}' failed:`, transportError);
+            } catch (error: any) {
+                 // Handle transport-level errors OR errors thrown from the 'else' blocks above
+                 console.error(`[TypeQL Client] Mutation request '${pathString}' failed:`, error);
                  // If optimistic, reject the pending mutation in the store
                  if (store && clientSeq !== undefined) {
                      try {
                          store.rejectPendingMutation(clientSeq);
-                         console.log(`[TypeQL Client] Rejected pending mutation (clientSeq: ${clientSeq}) due to transport error for '${pathString}'.`);
+                         console.log(`[TypeQL Client] Rejected pending mutation (clientSeq: ${clientSeq}) due to error for '${pathString}'.`);
                      } catch (rejectError: any) {
-                         console.error(`[TypeQL Client] Error rejecting pending mutation (clientSeq: ${clientSeq}) after transport error:`, rejectError);
+                         // Log secondary error during rejection, but prioritize throwing the original error
+                         console.error(`[TypeQL Client] Error rejecting pending mutation (clientSeq: ${clientSeq}) after error:`, rejectError);
                      }
                  }
                  // Re-throw wrapped error
-                 if (transportError instanceof TypeQLClientError) throw transportError;
-                 if (transportError instanceof Error) throw new TypeQLClientError(transportError.message);
-                 throw new TypeQLClientError(`Mutation failed: ${transportError}`);
+                 if (error instanceof TypeQLClientError) throw error;
+                 if (error instanceof Error) throw new TypeQLClientError(error.message, 'MUTATION_FAILED');
+                 throw new TypeQLClientError(`Mutation failed: ${String(error)}`, 'MUTATION_FAILED');
             }
         },
         // --- Subscription ---
@@ -250,15 +257,10 @@ function createProcedureProxy<TState = any>( // Add TState generic
             } catch (error: any) {
                  console.error(`[TypeQL Client] Subscription '${pathString}' failed to initiate:`, error);
                  // Rethrow the error for the caller to handle
-                 throw new TypeQLClientError(`Subscription initiation failed: ${error.message || error}`);
-                 /* // Previous dummy return removed
-                 return {
-                    iterator: (async function*() {
-                        yield { type: 'error', error: { message: `Subscription failed to initialize: ${error.message || error}` } };
-                    })(),
-                    unsubscribe: () => { console.error("Subscription failed to initialize."); }
-                 };
-                 */
+                 // Wrap and re-throw the error, ensuring it's always a TypeQLClientError
+                 if (error instanceof TypeQLClientError) throw error;
+                 if (error instanceof Error) throw new TypeQLClientError(error.message, 'SUBSCRIPTION_ERROR');
+                 throw new TypeQLClientError(`Subscription initiation failed: ${String(error)}`, 'SUBSCRIPTION_ERROR');
             }
         },
     };

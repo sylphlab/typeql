@@ -1,12 +1,23 @@
 // packages/core/src/server/requestHandler.ts
 
 import { createServerSequenceManager, ServerSequenceManager } from '@sylph/typeql-shared';
-import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylph/typeql-shared';
+// Consolidate imports from @sylph/typeql-shared
+import { TypeQLClientError } from '@sylph/typeql-shared'; // Import as value
+import type {
+    AnyRouter,
+    ProcedureRouterRecord,
+    ProcedureContext,
+    AnyProcedure,
+    TypeQLTransport,
+    SubscriptionDataMessage,
+    ProcedureResultMessage,
+    SubscriptionErrorMessage,
+    UnsubscribeMessage
+} from '@sylph/typeql-shared'; // Keep others as types
+// Removed original line 4 which was: import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylph/typeql-shared';
 import type { ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure'; // Keep specific procedure types here
 import { ZodError } from 'zod';
 import { SubscriptionManager } from './subscriptionManager'; // Import manager CLASS
-// Removed unused SubscribeMessage
-import type { TypeQLTransport, SubscriptionDataMessage, ProcedureResultMessage, SubscriptionErrorMessage, UnsubscribeMessage } from '@sylph/typeql-shared';
 
 // --- Error Formatting Helper ---
 
@@ -21,29 +32,43 @@ interface FormattedError {
 }
 
 /** Formats various errors into a standard structure */
-function formatError(error: unknown, defaultCode: ErrorCode = 'INTERNAL_SERVER_ERROR'): FormattedError {
+// Add optional isInputValidationError flag
+function formatError(error: unknown, defaultCode: ErrorCode = 'INTERNAL_SERVER_ERROR', isInputValidationError: boolean = false): FormattedError {
     let message = 'An unexpected error occurred';
     let code = defaultCode;
 
-    if (error instanceof ZodError) {
-        message = 'Input validation failed'; // Keep message generic for client
-        code = 'BAD_REQUEST';
-        // console.error("Zod Validation Error:", error.flatten()); // Log details server-side
-    } else if (error instanceof Error) {
-        message = error.message;
-        // Allow specific error types to suggest codes?
-        // if (error instanceof MyCustomError) code = error.code;
-    } else if (typeof error === 'string') {
-        message = error;
-    }
-
-    // Ensure code is a valid ErrorCode
+    // Define validCodes once
     const validCodes: Record<ErrorCode, boolean> = {
         'BAD_REQUEST': true, 'UNAUTHORIZED': true, 'FORBIDDEN': true, 'NOT_FOUND': true,
         'METHOD_NOT_SUPPORTED': true, 'TIMEOUT': true, 'CONFLICT': true, 'PRECONDITION_FAILED': true,
         'PAYLOAD_TOO_LARGE': true, 'UNSUPPORTED_MEDIA_TYPE': true, 'UNPROCESSABLE_CONTENT': true,
         'TOO_MANY_REQUESTS': true, 'CLIENT_CLOSED_REQUEST': true, 'INTERNAL_SERVER_ERROR': true
     };
+
+    // Prioritize TypeQLClientError code FIRST and ensure it's a valid ErrorCode
+    if (error instanceof TypeQLClientError && error.code && validCodes[error.code as ErrorCode]) {
+        message = error.message;
+        code = error.code as ErrorCode; // Use the specific code from TypeQLClientError
+    } else if (error instanceof ZodError) {
+        // Only set BAD_REQUEST for input validation errors
+        if (isInputValidationError) {
+            message = 'Input validation failed';
+            code = 'BAD_REQUEST';
+        } else {
+            // Output validation errors are internal server errors
+            message = `Internal server error: Invalid procedure output (${error.message})`;
+            code = 'INTERNAL_SERVER_ERROR'; // Ensure output validation is INTERNAL_SERVER_ERROR
+        }
+        // console.error("Zod Validation Error:", error.flatten()); // Log details server-side
+    } else if (error instanceof Error) {
+        message = error.message;
+        // Keep defaultCode (usually INTERNAL_SERVER_ERROR) if no specific code found yet
+    } else if (typeof error === 'string') {
+        message = error;
+    }
+
+    // Final check if the determined code is valid, default to INTERNAL_SERVER_ERROR otherwise
+    // Remove the duplicate validCodes block entirely by deleting lines 65-72
     if (!validCodes[code]) {
         code = 'INTERNAL_SERVER_ERROR';
     }
@@ -233,8 +258,9 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     if (procDef.inputSchema) {
                         try {
                             parsedInput = procDef.inputSchema.parse(call.input);
-                        } catch (validationError) {
-                            const error = formatError(validationError, 'BAD_REQUEST');
+                        } catch (validationError: any) {
+                            // Pass true for isInputValidationError
+                            const error = formatError(validationError, 'BAD_REQUEST', true);
                             console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path} (Input): ${error.message}`);
                             return { id: call.id, result: { type: 'error', error } };
                         }
@@ -256,10 +282,12 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     if (procDef.outputSchema) {
                         try {
                             finalOutput = procDef.outputSchema.parse(result);
-                        } catch (validationError) {
+                        } catch (validationError: any) {
+                            // Pass false (or omit) for isInputValidationError for output validation
                             const error = formatError(validationError, 'INTERNAL_SERVER_ERROR');
                             console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path} (Output): ${error.message}`);
-                            return { id: call.id, result: { type: 'error', error: { ...error, message: 'Internal server error: Invalid procedure output' } } };
+                            // formatError now sets the correct message and code
+                            return { id: call.id, result: { type: 'error', error } };
                         }
                     }
 
@@ -327,8 +355,9 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 try {
                     parsedInput = procDef.inputSchema.parse(call.input);
                     console.log(`[TypeQL Handler ${clientId}] Input parsed successfully for path: ${call.path}`);
-                } catch (validationError) {
-                    const error = formatError(validationError, 'BAD_REQUEST');
+                } catch (validationError: any) {
+                    // Pass true for isInputValidationError
+                    const error = formatError(validationError, 'BAD_REQUEST', true);
                     console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Input): ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
@@ -353,10 +382,12 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     try {
                         finalOutput = procDef.outputSchema.parse(result);
                         console.log(`[TypeQL Handler ${clientId}] Output parsed successfully for path: ${call.path}`);
-                    } catch (validationError) {
-                        const error = formatError(validationError, 'INTERNAL_SERVER_ERROR');
-                        console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Output): ${error.message}`);
-                        return { id: call.id, result: { type: 'error', error: { ...error, message: 'Internal server error: Invalid procedure output' } } };
+                    } catch (validationError: any) {
+                        // Output validation errors should result in INTERNAL_SERVER_ERROR
+                        const error = formatError(validationError, 'INTERNAL_SERVER_ERROR'); // Ensure default is INTERNAL_SERVER_ERROR
+                        console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Output Validation): ${error.message}`);
+                        // Use the formatted error directly
+                        return { id: call.id, result: { type: 'error', error } };
                     }
                 }
 
@@ -501,10 +532,14 @@ export function createRequestHandler<TContext extends ProcedureContext>(
         console.log(`[TypeQL Handler] Cleanup complete for Client ID: ${clientId}`);
     };
 
-    // Register cleanup with transport if possible
+    // Register cleanup with transport if possible - Ensure this happens *after* handler creation
+    // The mock setup in the test needs to reflect this timing if onDisconnect is called immediately
+    // For now, assume transport.onDisconnect is available and called correctly during handler setup.
+    // The test failure might be due to mock reset timing.
     if (transport.onDisconnect) {
         console.log(`[TypeQL Handler ${clientId}] Registering cleanup function with transport.onDisconnect`);
-        transport.onDisconnect(cleanup);
+        const unregister = transport.onDisconnect(cleanup);
+        // Store unregister function if needed, though cleanup should handle unregistering from manager
     } else {
         console.warn(`[TypeQL Handler ${clientId}] Transport does not support onDisconnect. Cleanup must be triggered manually.`);
     }
