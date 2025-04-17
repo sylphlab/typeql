@@ -1,6 +1,6 @@
 import {
     ProcedureContext, // Import base context type
-    ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCall, UnsubscribeMessage,
+    ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCallMessage, SubscribeMessage, UnsubscribeMessage,
     TypeQLTransport // Import TypeQLTransport type
 } from '@sylph/typeql-shared'; // Shared types
 import {
@@ -132,12 +132,12 @@ wss.on('connection', (ws: WebSocket) => { // Add type for ws
             };
         }, // Close onDisconnect method
         // Add dummy implementations for methods not used by server handler but required by type
-        request: async (message: ProcedureCall) => { // Add type for message
+        request: async (message: ProcedureCallMessage) => { // Add type for message
             console.error("Server handler transport should not call 'request'", message);
             // Return an error result matching ProcedureResultMessage structure
             return { id: message.id, result: { type: 'error', error: { message: 'Internal Server Error: Invalid transport usage' } } };
         },
-        subscribe: (message: ProcedureCall) => { // Add type for message
+        subscribe: (message: SubscribeMessage) => { // Add type for message
             console.error("Server handler transport should not call 'subscribe'", message);
             // Return a dummy subscription object
             return {
@@ -168,7 +168,7 @@ wss.on('connection', (ws: WebSocket) => { // Add type for ws
     ws.on('message', async (message: Buffer | ArrayBuffer | Buffer[]) => { // Add type for message
          try {
              const messageString = message.toString();
-             const parsedMessage = JSON.parse(messageString) as ProcedureCall | UnsubscribeMessage;
+             const parsedMessage = JSON.parse(messageString) as ProcedureCallMessage | UnsubscribeMessage;
 
              // Process the message using the handleMessage method of the handler object
              await handler.handleMessage(parsedMessage); // Correct: call handleMessage method

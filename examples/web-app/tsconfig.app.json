@@ -10,7 +10,7 @@
 
     /* Bundler mode */
     "moduleResolution": "bundler", // Keep for Vite compatibility
-    "allowImportingTsExtensions": true, // Add back for Vite
+    // "allowImportingTsExtensions": true, // Add back for Vite - Causes TS5096 with composite builds
     // "isolatedModules": true, // Inherited
     // "moduleDetection": "force", // Inherited
     // "noEmit": true, // REMOVED: Must be false or absent for composite build

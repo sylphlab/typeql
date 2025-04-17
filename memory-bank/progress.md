@@ -8,7 +8,7 @@
     *   [X] Server `RequestHandler` (`packages/core/src/server/requestHandler.ts`) - ***To be replaced by TypeQL router/procedure logic***
     *   [X] `generateId` util (`packages/core/src/core/utils.ts`) - *Likely reusable*
     *   [X] Monorepo structure setup - *Still valid*
-    *   [X] Core build process (`packages/core/tsconfig.json`) - *Still valid*
+    *   [X] Core build process (`packages/core/tsconfig.json`) - *Still valid, build successful for all packages.*
     *   [X] Standard Delta/Operation types (`packages/core/src/core/types.ts`) - *Adaptable, added Move/Patch*
     *   [X] Standard Delta utilities (`applyStandardDelta`, etc.) (`packages/core/src/core/utils.ts`) - *Likely reusable, added Move/Patch logic*
     *   [X] Sequence number management (`packages/core/src/core/seqManager.ts`) - *Adaptable for delta subscriptions*
@@ -69,7 +69,7 @@
     *   [X] Implement Web App Example (`examples/web-app/`) - Server and Client code complete.
     *   [X] Implement VSCode Extension Example (`examples/vscode-extension/`) - Basic structure and TypeQL setup complete (Server & Client). *Requires build step for webview.*
 
-*   **Current Status**: **Design pivoted to TypeQL**. Core features, transports (WS, HTTP, VSCode), React hooks implemented and tested. Preact hooks implemented but tests skipped. Web App and VSCode Extension example code structures complete. Test suite passes (with skips) after applying workarounds for memory issues (increased heap, single thread, no fake timers).
+*   **Current Status**: **Design pivoted to TypeQL**. Core features, transports (WS, HTTP, VSCode), React hooks implemented and tested. Preact hooks implemented but tests skipped. Web App and VSCode Extension example code structures complete. Test suite passes (with skips) after applying workarounds for memory issues (increased heap, single thread, no fake timers). **All packages successfully built after fixing TypeScript errors in `examples/web-app`.**
 *   **Known Issues**:
     *   Performance optimization pending.
     *   `vi.useFakeTimers` / `vi.clearAllTimers` incompatible with `bun run test` (tests skipped in core, http). Need alternative test strategies.
