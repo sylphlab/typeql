@@ -24,8 +24,9 @@
     *   Fixed build error (`Cannot find module 'ajv/dist/core'`) by adding `ajv` to root `devDependencies`.
     *   Fixed TypeScript errors reported by VSCode (reinstalled types, removed conflicting `allowImportingTsExtensions`, corrected root `tsconfig.json` reference).
     *   Added `.turbo` directory to `.gitignore`.
+    *   Fixed `bun run test` failures by updating placeholder test scripts in `@sylph/typeql-shared`, `@sylph/typeql-transport-websocket`, `@sylph/typeql-transport-http`, `@sylph/typeql-transport-vscode`, `@sylph/typeql-client`, `@sylph/typeql-react`, and `@sylph/typeql-server` to use `vitest run --passWithNoTests`.
 *   **Next Steps (Plan)**:
-    1.  Commit changes related to Turborepo setup and build fixes.
+    1.  Commit changes related to Turborepo setup, build fixes, and test script updates.
     2.  ~~Publish initial version using Changesets.~~ **(Blocked)**
 *   **Blockers**:
     *   **Publishing requires npm login (`npm adduser` must be run manually in the terminal).**
