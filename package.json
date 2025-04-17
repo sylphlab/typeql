@@ -6,7 +6,7 @@
   "scripts": {
     "test": "pnpm turbo run test",
     "test:filter": "turbo run test --filter",
-    "build": "turbo run build",
+    "build": "pnpm exec turbo run build",
     "lint": "turbo run lint",
     "dev": "turbo run dev",
     "release": "pnpm turbo run test && pnpm turbo run build && pnpm changeset publish"
