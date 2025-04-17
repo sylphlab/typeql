@@ -39,7 +39,7 @@ jobs:
           version: 10.8.0 # Match the version in package.json
 
       - name: Install Dependencies
-        run: pnpm install
+        run: pnpm install --include-dev
       - name: Clean Workspace
         run: rm -rf node_modules .turbo
 
