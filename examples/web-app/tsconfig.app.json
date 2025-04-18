@@ -5,7 +5,7 @@
     // "target": "ES2020", // Inherited, base is ES2022
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"], // Match base target, keep DOM libs
-    // "module": "ESNext", // Inherited, base is "preserve" - Vite handles this
+    "module": "NodeNext", // Match moduleResolution
     // "skipLibCheck": true, // Inherited
 
     /* Bundler mode */

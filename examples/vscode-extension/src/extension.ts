@@ -36,7 +36,7 @@ const extensionRouter = createRouter<ExtensionContext>()({
         }),
     updateConfiguration: t.mutation
         .input(z.object({ section: z.string(), value: z.unknown() })) // Use z.unknown() for generic value
-        .resolve(async ({ input }: { input: { section: string; value: unknown } }) => { // Add input type
+        .resolve(async ({ input }: { input: { section: string; value?: unknown } }) => { // Make value optional
             try {
                 const config = vscode.workspace.getConfiguration();
                 // Update configuration globally (or workspace/folder specific)

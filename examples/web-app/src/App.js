@@ -1,6 +1,6 @@
 import { jsx as _jsx, jsxs as _jsxs, Fragment as _Fragment } from "react/jsx-runtime";
 import { useState } from 'react';
-import { useTypeQL, useMutation, useSubscription } from '@sylph/typeql-react'; // Use correct package name
+import { useTypeQL, useMutation, useSubscription } from '@sylphlab/typeql-react'; // Use correct package name
 import './App.css';
 // New component that receives the guaranteed client
 function Counter({ client }) {

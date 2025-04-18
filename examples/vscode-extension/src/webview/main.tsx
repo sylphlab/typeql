@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { createClient } from '@sylphlab/typeql-client'; // Use client package
 import { createVSCodeTransport } from '@sylphlab/typeql-transport-vscode'; // Use the correct transport
-import { TypeQLProvider } from '@typeql/react';
+// Removed incorrect import: import { TypeQLProvider } from '@sylphlab/typeql-react';
 import type { ExtensionRouter } from '../extension'; // Import router type from extension code
 
 // --- TypeQL Client Setup for Webview ---
@@ -28,9 +28,9 @@ if (container) {
     const root = createRoot(container);
     root.render(
         <React.StrictMode>
-            <TypeQLProvider client={client}>
+            {/* <TypeQLProvider client={client}> */}
                 <App />
-            </TypeQLProvider>
+            {/* </TypeQLProvider> */}
         </React.StrictMode>
     );
 } else {

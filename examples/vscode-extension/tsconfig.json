@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json", // Inherit from root
   "compilerOptions": {
-    "module": "commonjs", // VSCode extensions use CommonJS
+    "module": "NodeNext", // Match moduleResolution (Try for build, might break runtime)
     "target": "ES2020", // Target compatible with VSCode's Node.js version
     "outDir": "dist", // Output directory for compiled JS
     "lib": ["ES2020", "dom"], // Libs for Node.js environment + DOM for webview
