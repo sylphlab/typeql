@@ -25,7 +25,7 @@
     "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --coverage"
   },
   "peerDependencies": {
     "@sylphlab/typeql-client": "workspace:*",
@@ -35,7 +35,10 @@
   "devDependencies": {
     "@preact/signals": "^2.0.3",
     "@sylphlab/typeql-client": "workspace:*",
+    "@testing-library/jest-dom": "^6.1.4",
     "@testing-library/preact": "^3.2.4",
+    "@testing-library/preact-hooks": "^1.1.0",
+    "@vitest/coverage-v8": "^3.1.1",
     "eslint": "^8.57.0",
     "jsdom": "^26.1.0",
     "preact": "^10.22.1",
