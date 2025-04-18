@@ -166,15 +166,20 @@ export function createHttpTransport(options: HttpTransportOptions): TypeQLTransp
                  }
                  try {
                      if (typeof result !== 'object' || result === null || !('id' in result) || !('result' in result)) {
-                         throw new TypeQLClientError(`Invalid result format in batch response for ID ${originalRequest.message.id}.`);
+                         // Structure is invalid, reject this specific promise and stop processing it
+                         const individualError = new TypeQLClientError(`Invalid result format in batch response for ID ${originalRequest.message.id}.`);
+                         console.error(`[HTTP Transport] Error processing individual batch result for ID ${originalRequest.message.id}:`, individualError);
+                         originalRequest.reject(individualError);
+                         return; // Stop processing this item
                      }
                      if (result.id !== originalRequest.message.id) {
                          console.warn(`[HTTP Transport] Batch response ID mismatch at index ${index}: expected ${originalRequest.message.id}, got ${result.id}. Resolving based on index.`);
                      }
+                     // Structure is valid, resolve the promise
                      originalRequest.resolve(result as ProcedureResultMessage);
-                 } catch (individualError: any) {
-                     // Reject only the specific promise that failed processing
-                     console.error(`[HTTP Transport] Error processing individual batch result for ID ${originalRequest.message.id}:`, individualError);
+                 } catch (individualError: any) { // This catch might now be redundant but kept for safety
+                     // Should ideally not be reached if the above logic is correct
+                     console.error(`[HTTP Transport] Unexpected error processing individual batch result for ID ${originalRequest.message.id}:`, individualError);
                      originalRequest.reject(individualError instanceof TypeQLClientError ? individualError : new TypeQLClientError(`Failed processing result: ${individualError.message || individualError}`));
                  }
              });

@@ -167,11 +167,14 @@ describe('createHttpTransport', () => { // Add 5 second timeout
 
             // Now the batch should have been sent
             expect(mockFetch).toHaveBeenCalledTimes(1);
-            expect(mockFetch).toHaveBeenCalledWith(baseURL, {
+            expect(mockFetch).toHaveBeenCalledWith(baseURL, expect.objectContaining({ // Use objectContaining
                 method: 'POST',
-                headers: expect.any(Headers),
+                // headers: expect.any(Headers), // Don't check object instance
                 body: JSON.stringify([message1, message2]), // Batched array
-            });
+            }));
+            // Check headers separately
+            const headers = new Headers(mockFetch.mock.calls[0]?.[1]?.headers);
+            expect(headers.get('Content-Type')).toBe('application/json');
 
             // Check results
             await expect(p1).resolves.toEqual(mockResponse[0]);
@@ -203,8 +206,9 @@ describe('createHttpTransport', () => { // Add 5 second timeout
              const transportDefaultBatch = createHttpTransport({ url: baseURL, batching: true }); // Uses default 10ms
              const message2: ProcedureCallMessage = { id: 202, type: 'query', path: 'def.batch' };
              const mockResponse2: ProcedureResultMessage = { id: 202, result: { type: 'data', data: 'ok' } };
-             mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(mockResponse2), { status: 200 }));
-
+             // Batch responses should always be arrays
+             mockFetch.mockResolvedValueOnce(new Response(JSON.stringify([mockResponse2]), { status: 200 }));
+ 
              const p2 = transportDefaultBatch.request(message2);
              expect(mockFetch).not.toHaveBeenCalled(); // Should wait for timer
 
@@ -344,14 +348,18 @@ describe('createHttpTransport', () => { // Add 5 second timeout
             // Wait for the batch delay using real timers
             await new Promise(res => setTimeout(res, batchDelay + 10));
 
-            // Use try/catch for p2
-            await expect(p1).resolves.toEqual(mockResponse[0]);
-            let error2: any = null;
-            try { await p2; } catch (e) { error2 = e; }
+            // Use Promise.allSettled to handle mixed results robustly
+            const results = await Promise.allSettled([p1, p2]);
+
+            // Check p1 (should fulfill)
+            expect(results[0].status).toBe('fulfilled');
+            expect((results[0] as PromiseFulfilledResult<any>).value).toEqual(mockResponse[0]);
+
+            // Check p2 (should reject)
+            expect(results[1].status).toBe('rejected');
+            const error2 = (results[1] as PromiseRejectedResult).reason;
             expect(error2).toBeInstanceOf(TypeQLClientError);
             expect(error2?.message).toMatch(/Invalid result format in batch response for ID 802/);
-            // Add small delay
-            await new Promise(res => setTimeout(res, 10));
         });
 
     });

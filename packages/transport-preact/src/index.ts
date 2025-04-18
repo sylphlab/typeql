@@ -251,8 +251,8 @@ export function useQuery<
 
         console.log(`[useQuery] ${forceRefetch ? 'Forcing refetch' : 'Fetching data'}...`);
         setIsFetching(true);
-        // Set status to 'loading' only if there's no data yet
-        if (!data) {
+        // Only set loading status if the current status isn't already success/error (i.e., initial load)
+        if (status !== 'success' && status !== 'error') {
             setStatus('loading');
         }
         setError(null); // Reset error on new fetch
@@ -279,15 +279,15 @@ export function useQuery<
                  setStatus('error');
                  // Keep existing data on error, consistent with React Query
              }
-             // Reject the promise on error
-             throw errorObj; // Rethrow so await caller gets the error
+             // Reject the promise on error - Removed re-throw, state is set internally
+             // throw errorObj; // Rethrow so await caller gets the error
         } finally {
              // Check if still mounted before setting state
              if (isMountedRef.current) {
                 setIsFetching(false);
             }
         }
-    }, [procedure, inputKey, staleTime]); // Remove isFetching dependency
+    }, [procedure, inputKey, staleTime, status]); // Add status dependency
 
     useEffect(() => {
         if (enabled) {

@@ -15,7 +15,7 @@ import {
     createClient,
     MutationCallOptions, // Import for mutate mock
 } from '@sylphlab/typeql-client'; // Client imports
-import { createRouter } from '@sylphlab/typeql-server'; // Server imports
+// import { createRouter } from '@sylphlab/typeql-server'; // Server imports - Removed, unused and causes error
 
 // Mock Transport
 const mockTransport: TypeQLTransport = {
@@ -51,11 +51,36 @@ const mockTransport: TypeQLTransport = {
 };
 
 // Mock Router and Client
-const mockRouter = createRouter(); // createRouter now takes no arguments
+// const mockRouter = createRouter(); // Removed, unused
 // Use AnyRouter for mock client type as specific router type isn't needed for this test
 const mockClient = createClient<AnyRouter>({ transport: mockTransport });
 
-// --- Mock Procedures (REMOVED - Hooks call transport directly via client proxy) ---
+// --- Mock Procedures (Define objects with mock functions matching hook expectations) ---
+const mockQueryProc = {
+    query: vi.fn(async (input: any) => {
+        // Simulate client calling transport
+        const message = { id: Date.now(), type: 'query' as const, path: 'testQuery', input };
+        const result = await mockTransport.request(message);
+        if (result.result.type === 'error') throw result.result.error; // Hooks expect data or throw
+        return result.result.data;
+    })
+};
+const mockMutateProc = {
+    mutate: vi.fn(async (opts: MutationCallOptions<any, any>) => {
+         // Simulate client calling transport
+        const message = { id: Date.now(), type: 'mutation' as const, path: 'testMutation', input: opts.input };
+        const result = await mockTransport.request(message);
+        if (result.result.type === 'error') throw result.result.error; // Hooks expect data or throw
+        return result.result.data;
+    })
+};
+const mockSubscribeProc = {
+     subscribe: vi.fn((input: any) => {
+         // Simulate client calling transport
+        const message = { id: Date.now(), type: 'subscription' as const, path: 'testSubscription', input };
+        return mockTransport.subscribe(message); // Return mock iterator/unsubscribe
+    })
+};
 
 
 // Test Component using the hook
@@ -142,8 +167,8 @@ describe('Preact Hooks', { timeout: 5000 }, () => { // Unskipped top-level
     // --- useQuery Tests ---
     describe('useQuery', () => {
         const QueryComponent = ({ input, options }: { input: any, options?: any }) => {
-            // Cast the mocked procedure to the type expected by useQuery
-            const procedure = mockClient.testQuery as { query: (...args: any[]) => Promise<any> };
+            // Use the correctly typed mock procedure object
+            const procedure = mockQueryProc;
             const { data, isLoading, isFetching, isSuccess, isError, error, status, refetch } = useQuery(
                 procedure,
                 input,
@@ -239,11 +264,13 @@ describe('Preact Hooks', { timeout: 5000 }, () => { // Unskipped top-level
             expect(getByTestId('isFetching').textContent).toBe('true');
             expect(getByTestId('status').textContent).toBe('success'); // Status remains success during background refetch
 
-            // Wait for refetch to complete
+            // Wait for refetch to complete and status to be success again
             await act(async () => {
-                await waitFor(() => expect(getByTestId('isFetching').textContent).toBe('false'));
+                // Wait directly for the status to become 'success' again after refetch
+                await waitFor(() => expect(getByTestId('status').textContent).toBe('success'));
             });
-            expect(getByTestId('status').textContent).toBe('success');
+            // Double-check isFetching is false now
+            expect(getByTestId('isFetching').textContent).toBe('false');
             expect(getByTestId('data').textContent).toBe(JSON.stringify(mockData2)); // Data updated
             expect(mockTransport.request).toHaveBeenCalledTimes(2); // Called again
         });
@@ -270,8 +297,8 @@ describe('Preact Hooks', { timeout: 5000 }, () => { // Unskipped top-level
     // --- useMutation Tests ---
     describe.skip('useMutation', () => { // Skip mutation tests for now
         const MutationComponent = ({ options }: { options?: any }) => {
-            // Cast the mocked procedure to the type expected by useMutation
-            const procedure = mockClient.testMutation as { mutate: (opts: MutationCallOptions<any, any>) => Promise<any> };
+            // Use the correctly typed mock procedure object
+            const procedure = mockMutateProc;
             const { mutate, mutateAsync, data, isLoading, isSuccess, isError, error, status, reset } = useMutation(
                 procedure,
                 options
@@ -489,8 +516,8 @@ describe('Preact Hooks', { timeout: 5000 }, () => { // Unskipped top-level
         });
 
         const SubscriptionComponent = ({ input, options }: { input: any, options?: any }) => {
-            // Cast the mocked procedure to the type expected by useSubscription
-            const procedure = mockClient.testSubscription as { subscribe: (input: any) => { iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>, unsubscribe: UnsubscribeFn } };
+            // Use the correctly typed mock procedure object
+            const procedure = mockSubscribeProc;
             const { data, status, error, unsubscribe } = useSubscription(
                 procedure,
                 input,
