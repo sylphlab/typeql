@@ -5,5 +5,5 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @sylph/typeql-core@0.0.2
-  - @sylph/typeql-transport-vscode@0.0.2
+  - @sylphlab/typeql-core@0.0.2
+  - @sylphlab/typeql-transport-vscode@0.0.2

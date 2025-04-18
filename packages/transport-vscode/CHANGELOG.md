@@ -1,4 +1,4 @@
-# @sylph/typeql-transport-vscode
+# @sylphlab/typeql-transport-vscode
 
 ## 0.0.2
 
@@ -6,4 +6,4 @@
 
 - Initial release 0.0.1
 - Updated dependencies
-  - @sylph/typeql-core@0.0.2
+  - @sylphlab/typeql-core@0.0.2

@@ -1,4 +1,4 @@
-# @sylph/typeql-core
+# @sylphlab/typeql-core
 
 ## 0.0.2
 

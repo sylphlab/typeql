@@ -1,5 +1,5 @@
 // packages/core/src/server/requestHandler.ts
-import { createServerSequenceManager } from '@sylph/typeql-shared';
+import { createServerSequenceManager } from '@sylphlab/typeql-shared';
 import { ZodError } from 'zod';
 /** Formats various errors into a standard structure */
 function formatError(error, defaultCode = 'INTERNAL_SERVER_ERROR') {

@@ -1,4 +1,4 @@
-# ✨ TypeQL (@sylph/typeql) ✨
+# ✨ TypeQL (@sylphlab/typeql) ✨
 
 **Tired of REST/GraphQL boilerplate? Crave effortless, end-to-end typesafe APIs in TypeScript?**
 
@@ -26,9 +26,9 @@ Inspired by tRPC, TypeQL leverages the full power of TypeScript inference to cre
 
 ```typescript
 // server.ts
-import { createRouter, query, subscription } from '@sylph/typeql-core';
+import { createRouter, query, subscription } from '@sylphlab/typeql-core';
 import { z } from 'zod';
-import { applyStandardDelta, StandardDelta } from '@sylph/typeql-core'; // Assuming delta utils
+import { applyStandardDelta, StandardDelta } from '@sylphlab/typeql-core'; // Assuming delta utils
 
 interface Todo {
   id: string;
@@ -78,8 +78,8 @@ export type AppRouter = typeof appRouter;
 
 ```typescript
 // client.ts
-import { createClient } from '@sylph/typeql-core';
-import { createWebSocketTransport } from '@sylph/typeql-transport-websocket';
+import { createClient } from '@sylphlab/typeql-core';
+import { createWebSocketTransport } from '@sylphlab/typeql-transport-websocket';
 import type { AppRouter } from './server'; // <-- Import only the TYPE
 
 const transport = createWebSocketTransport({ url: 'ws://localhost:3000' });
@@ -128,12 +128,12 @@ main();
 
 ## 📦 Packages
 
-*   `@sylph/typeql-core`: Core library containing server/client creation logic, types, and delta utilities.
-*   `@sylph/typeql-react`: React hooks (`useQuery`, `useMutation`, `useSubscription`).
-*   `@sylph/typeql-preact`: Preact hooks.
-*   `@sylph/typeql-transport-websocket`: WebSocket transport adapter.
-*   `@sylph/typeql-transport-http`: HTTP transport adapter (supports batching).
-*   `@sylph/typeql-transport-vscode`: VSCode extension transport adapter.
+*   `@sylphlab/typeql-core`: Core library containing server/client creation logic, types, and delta utilities.
+*   `@sylphlab/typeql-react`: React hooks (`useQuery`, `useMutation`, `useSubscription`).
+*   `@sylphlab/typeql-preact`: Preact hooks.
+*   `@sylphlab/typeql-transport-websocket`: WebSocket transport adapter.
+*   `@sylphlab/typeql-transport-http`: HTTP transport adapter (supports batching).
+*   `@sylphlab/typeql-transport-vscode`: VSCode extension transport adapter.
 
 ---
 

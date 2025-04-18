@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "build": "pnpm exec tsup",
-    "dev": "tsup src/index.ts --format esm,cjs --external @sylph/typeql-shared --watch",
+    "dev": "tsup src/index.ts --format esm,cjs --external @sylphlab/typeql-shared --watch",
     "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
     "test": "vitest run"
   },

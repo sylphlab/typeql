@@ -5,6 +5,6 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @sylph/typeql-core@0.0.2
-  - @sylph/typeql-react@0.0.1
-  - @sylph/typeql-transport-websocket@0.0.1
+  - @sylphlab/typeql-core@0.0.2
+  - @sylphlab/typeql-react@0.0.1
+  - @sylphlab/typeql-transport-websocket@0.0.1

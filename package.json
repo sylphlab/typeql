@@ -2,7 +2,7 @@
   "name": "reqdelta-monorepo",
   "version": "0.0.0",
   "private": true,
-  "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylph/typeql)",
+  "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylphlab/typeql)",
   "scripts": {
     "test": "pnpm turbo run test",
     "test:filter": "turbo run test --filter",
