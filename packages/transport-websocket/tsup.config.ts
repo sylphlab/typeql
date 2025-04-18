@@ -9,6 +9,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   minify: 'terser',
-  tsconfig: 'tsconfig.json',
+  tsconfig: '../../tsconfig.base.json', // Explicitly use base config for DTS context
   external: ['ws'], // Mark only external deps like ws
 })
