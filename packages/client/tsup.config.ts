@@ -8,13 +8,7 @@ export default defineConfig({
   ],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: {
-    entry: 'src/index.ts',
-    resolve: true,
-    compilerOptions: {
-      composite: false
-    }
-  },
+  dts: false, // Use tsc --build for declarations
   splitting: false,
   sourcemap: true,
   clean: true,
