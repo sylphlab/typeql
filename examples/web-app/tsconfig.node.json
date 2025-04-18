@@ -26,11 +26,9 @@
     "composite": true, // Enable project references
     "declarationMap": true, // Generate declaration maps
     "baseUrl": ".", // Base URL for paths
-    "paths": { // Ensure paths point to SOURCE for correct type resolution
-      "@typeql/shared": ["../../packages/shared/src"],
-      "@typeql/shared/*": ["../../packages/shared/src/*"],
-      "@typeql/server": ["../../packages/server/src"],
-      "@typeql/server/*": ["../../packages/server/src/*"]
+    "paths": { // Ensure paths point to SOURCE entrypoint for correct type resolution
+      "@sylphlab/typeql-shared": ["../../packages/shared/src/index.ts"],
+      "@sylphlab/typeql-server": ["../../packages/server/src/index.ts"]
       // No need for react/transport paths in server config
     },
 

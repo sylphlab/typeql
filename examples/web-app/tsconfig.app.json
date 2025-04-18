@@ -21,6 +21,12 @@
     "declaration": true, // Restored
     "declarationMap": true, // Restored
     "baseUrl": ".", // Set base URL for path mapping
+    "paths": {
+      "@sylphlab/typeql-shared": ["../../packages/shared/src/index.ts"],
+      "@sylphlab/typeql-client": ["../../packages/client/src/index.ts"],
+      "@sylphlab/typeql-react": ["../../packages/react/src/index.ts"],
+      "@sylphlab/typeql-transport-websocket": ["../../packages/transport-websocket/src/index.ts"]
+    },
     // "paths": {}, // Keep paths removed
 
 

@@ -11,17 +11,12 @@
     "composite": true, // Enable project references
     "declarationMap": true, // Generate declaration maps
     "baseUrl": ".", // Base URL for path mapping
-    "paths": { // Map workspace packages to their source
-      "@typeql/shared": ["../../packages/shared/src"],
-      "@typeql/shared/*": ["../../packages/shared/src/*"],
-      "@typeql/client": ["../../packages/client/src"],
-      "@typeql/client/*": ["../../packages/client/src/*"],
-      "@typeql/server": ["../../packages/server/src"],
-      "@typeql/server/*": ["../../packages/server/src/*"],
-      "@typeql/transport-vscode": ["../../packages/transport-vscode/src"],
-      "@typeql/transport-vscode/*": ["../../packages/transport-vscode/src/*"],
-      "@typeql/react": ["../../packages/react/src"],
-      "@typeql/react/*": ["../../packages/react/src/*"]
+    "paths": { // Map workspace packages to their source entrypoint
+      "@sylphlab/typeql-shared": ["../../packages/shared/src/index.ts"],
+      "@sylphlab/typeql-client": ["../../packages/client/src/index.ts"],
+      "@sylphlab/typeql-server": ["../../packages/server/src/index.ts"],
+      "@sylphlab/typeql-transport-vscode": ["../../packages/transport-vscode/src/index.ts"],
+      "@sylphlab/typeql-react": ["../../packages/react/src/index.ts"] // Keep react path as it was used in webview before simplification
     },
     // Remove options not suitable for CommonJS/Node environment
     // "moduleResolution": "bundler",
