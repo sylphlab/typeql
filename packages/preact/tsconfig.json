@@ -2,16 +2,21 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
-    "composite": true, // Enable composite for project references
-    "declaration": true, // Required for composite projects
-    "declarationMap": true, // Optional: Better DX for Go To Definition
-    "jsx": "react-jsx", // Assuming Preact uses React-style JSX
-    "jsxImportSource": "preact" // Specify Preact for JSX transform
+    // "rootDir": "./src", // Remove rootDir
+    "jsx": "react-jsx", // Use react-jsx for Preact 10+
+    "jsxImportSource": "preact",
+    "lib": ["ESNext", "DOM", "DOM.Iterable"], // Include DOM libs for hooks
+    "module": "ESNext", // Ensure ESNext module system
+    "moduleResolution": "bundler", // Use bundler resolution
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "composite": true // Restore composite flag
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/**/__tests__/*"],
+  "exclude": ["node_modules", "dist", "src/__tests__"],
   "references": [
-    { "path": "../core" } // Reference the core package
+    { "path": "../shared" },
+    { "path": "../client" }
   ]
 }

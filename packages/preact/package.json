@@ -1,0 +1,49 @@
+{
+  "name": "@sylphlab/typeql-preact",
+  "version": "0.1.1",
+  "private": false,
+  "description": "Preact hooks for TypeQL",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "types": "./dist/index.d.ts"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "pnpm exec tsup",
+    "dev": "tsup src/index.ts --format esm,cjs --external preact @sylphlab/typeql-shared @sylphlab/typeql-client --watch",
+    "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
+    "lint": "eslint . --ext .ts,.tsx",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@sylphlab/typeql-client": "workspace:*",
+    "@sylphlab/typeql-shared": "workspace:*",
+    "preact": "^10.0.0"
+  },
+  "devDependencies": {
+    "@preact/signals": "^2.0.3",
+    "@sylphlab/typeql-client": "workspace:*",
+    "@testing-library/preact": "^3.2.4",
+    "eslint": "^8.57.0",
+    "jsdom": "^26.1.0",
+    "preact": "^10.22.1",
+    "tsup": "^8.2.3",
+    "typescript": "^5.5.4",
+    "vitest": "^3.1.1"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

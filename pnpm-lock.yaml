@@ -190,6 +190,40 @@ importers:
         specifier: ^3.1.1
         version: 3.1.1(@types/node@22.14.1)(jsdom@26.1.0)(terser@5.39.0)
 
+  packages/preact:
+    dependencies:
+      '@sylphlab/typeql-shared':
+        specifier: workspace:*
+        version: link:../shared
+    devDependencies:
+      '@preact/signals':
+        specifier: ^2.0.3
+        version: 2.0.3(preact@10.26.5)
+      '@sylphlab/typeql-client':
+        specifier: workspace:*
+        version: link:../client
+      '@testing-library/preact':
+        specifier: ^3.2.4
+        version: 3.2.4(preact@10.26.5)
+      eslint:
+        specifier: ^8.57.0
+        version: 8.57.1
+      jsdom:
+        specifier: ^26.1.0
+        version: 26.1.0
+      preact:
+        specifier: ^10.22.1
+        version: 10.26.5
+      tsup:
+        specifier: ^8.2.3
+        version: 8.4.0(@microsoft/api-extractor@7.52.4(@types/node@22.14.1))(postcss@8.5.3)(typescript@5.8.3)
+      typescript:
+        specifier: ^5.5.4
+        version: 5.8.3
+      vitest:
+        specifier: ^3.1.1
+        version: 3.1.1(@types/node@22.14.1)(jsdom@26.1.0)(terser@5.39.0)
+
   packages/react:
     dependencies:
       '@sylphlab/typeql-client':
@@ -252,37 +286,6 @@ importers:
       typescript:
         specifier: ^5.3.3
         version: 5.8.3
-
-  packages/transport-preact:
-    dependencies:
-      '@sylphlab/typeql-shared':
-        specifier: workspace:*
-        version: link:../shared
-    devDependencies:
-      '@sylphlab/typeql-client':
-        specifier: workspace:*
-        version: link:../client
-      '@testing-library/preact':
-        specifier: ^3.2.4
-        version: 3.2.4(preact@10.26.5)
-      eslint:
-        specifier: ^8.57.0
-        version: 8.57.1
-      jsdom:
-        specifier: ^26.1.0
-        version: 26.1.0
-      preact:
-        specifier: ^10.22.1
-        version: 10.26.5
-      tsup:
-        specifier: ^8.2.3
-        version: 8.4.0(@microsoft/api-extractor@7.52.4(@types/node@22.14.1))(postcss@8.5.3)(typescript@5.8.3)
-      typescript:
-        specifier: ^5.5.4
-        version: 5.8.3
-      vitest:
-        specifier: ^3.1.1
-        version: 3.1.1(@types/node@22.14.1)(jsdom@26.1.0)(terser@5.39.0)
 
   packages/transport-vscode:
     dependencies:
@@ -928,6 +931,14 @@ packages:
   '@pkgjs/parseargs@0.11.0':
     resolution: {integrity: sha512-+1VkjdD0QBLPodGrJUeqarH8VAIvQODIbwh9XpP5Syisf7YoQgsJKPNFoqqLQlu+VQ/tVSshMR6loPMn8U+dPg==}
     engines: {node: '>=14'}
+
+  '@preact/signals-core@1.8.0':
+    resolution: {integrity: sha512-OBvUsRZqNmjzCZXWLxkZfhcgT+Fk8DDcT/8vD6a1xhDemodyy87UJRJfASMuSD8FaAIeGgGm85ydXhm7lr4fyA==}
+
+  '@preact/signals@2.0.3':
+    resolution: {integrity: sha512-ZdC6w8+LdCMeALEoJgzwEAGw2YahqWGCQLfzRCRvRGC411SzcJOiti5gEqrSN+tKtGqMgicHtQ/eUUxWGTBw0A==}
+    peerDependencies:
+      preact: 10.x
 
   '@rollup/rollup-android-arm-eabi@4.40.0':
     resolution: {integrity: sha512-+Fbls/diZ0RDerhE8kyC6hjADCXA1K4yVNlH0EYfd2XjyH0UGgzaQ8MlT0pCXAThfxv3QUAczHaL+qSv1E4/Cg==}
@@ -3692,6 +3703,13 @@ snapshots:
 
   '@pkgjs/parseargs@0.11.0':
     optional: true
+
+  '@preact/signals-core@1.8.0': {}
+
+  '@preact/signals@2.0.3(preact@10.26.5)':
+    dependencies:
+      '@preact/signals-core': 1.8.0
+      preact: 10.26.5
 
   '@rollup/rollup-android-arm-eabi@4.40.0':
     optional: true
