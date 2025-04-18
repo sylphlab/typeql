@@ -40,7 +40,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@sylph/typeql-shared": "workspace:*"
+    "@sylphlab/typeql-shared": "workspace:*"
   },
   "devDependencies": {
     "@types/ws": "^8.5.0",
