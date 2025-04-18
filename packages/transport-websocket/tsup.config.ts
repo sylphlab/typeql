@@ -10,5 +10,5 @@ export default defineConfig({
   clean: true,
   minify: 'terser',
   tsconfig: 'tsconfig.json',
-  external: ['@sylphlab/typeql-shared', 'ws'], // Mark shared and ws as external
+  external: ['ws'], // Mark only external deps like ws
 })

@@ -10,5 +10,5 @@ export default defineConfig({
   clean: true,
   minify: 'terser',
   tsconfig: 'tsconfig.json',
-  external: ['@sylphlab/typeql-shared'], // Mark shared as external
+  external: [], // Workspace deps should not be external for DTS
 })
