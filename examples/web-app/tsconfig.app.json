@@ -9,7 +9,7 @@
     // "skipLibCheck": true, // Inherited
 
     /* Bundler mode */
-    "moduleResolution": "bundler", // Keep for Vite compatibility
+    "moduleResolution": "NodeNext", // Try NodeNext for tsc --build compatibility
     // "allowImportingTsExtensions": true, // Add back for Vite - Causes TS5096 with composite builds
     // "isolatedModules": true, // Inherited
     // "moduleDetection": "force", // Inherited

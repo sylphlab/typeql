@@ -13,6 +13,7 @@
     "baseUrl": ".", // Base URL for path mapping
     // "paths": {}, // Rely on project references
     // Remove options not suitable for CommonJS/Node environment
+    "moduleResolution": "NodeNext",
     // "moduleResolution": "bundler",
     // "allowImportingTsExtensions": true,
     // "isolatedModules": true, // Conflicts with composite?
