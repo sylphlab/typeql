@@ -3,222 +3,52 @@ import type {
     ProcedureCallMessage,
     ProcedureResultMessage,
     SubscribeMessage,
-    AckMessage, // Import AckMessage
-    RequestMissingMessage, // Import RequestMissingMessage
-} from '@sylphlab/typeql-shared'; // Use shared package
-import { TypeQLClientError } from '@sylphlab/typeql-shared'; // Use shared package
+    AckMessage,
+    RequestMissingMessage, // Keep shared imports
+} from '@sylphlab/typeql-shared';
+import { TypeQLClientError } from '@sylphlab/typeql-shared';
 
-export interface HttpTransportOptions {
-    /** The URL of the TypeQL HTTP endpoint. */
-    url: string;
-    /** Optional custom fetch implementation. Defaults to global fetch. */
-    fetch?: typeof fetch;
-    /** Optional headers to include in requests. */
-    headers?: HeadersInit | (() => HeadersInit | Promise<HeadersInit>);
-    /**
-     * Enable request batching.
-     * - `false` (default): Send requests immediately.
-     * - `true`: Batch requests using a default delay (e.g., 10ms).
-     * - `{ delayMs: number }`: Batch requests with a specific debounce delay.
-     */
-    batching?: boolean | { delayMs: number };
-}
-
-// Helper type for pending requests
-type PendingRequest = {
-    message: ProcedureCallMessage;
-    resolve: (value: ProcedureResultMessage) => void;
-    reject: (reason?: any) => void;
-};
+// Import from new modules
+import type { HttpTransportOptions } from './types';
+import { createHeaderGetter } from './headers';
+import { sendSingleRequest } from './singleRequest';
+import { createBatchProcessor, type BatchProcessor } from './batchRequest';
 
 /**
  * Creates a TypeQL transport adapter for HTTP communication using fetch.
  * Primarily supports queries and mutations. Subscriptions are not supported.
+ * Handles optional request batching.
  *
- * @param options Configuration options including the server URL.
+ * @param options Configuration options including the server URL, fetch implementation, headers, and batching settings.
  * @returns An instance of TypeQLTransport tailored for HTTP.
  */
 export function createHttpTransport(options: HttpTransportOptions): TypeQLTransport {
     const { url, fetch: fetchImpl = fetch, batching = false } = options;
     const batchDelayMs = typeof batching === 'object' ? batching.delayMs : (batching ? 10 : 0); // Default 10ms if true
+    const isBatchingEnabled = batching && batchDelayMs > 0;
 
-    // --- Variables and Helpers defined INSIDE createHttpTransport scope ---
-    let requestQueue: PendingRequest[] = [];
-    let batchTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    // Instantiate helpers from modules
+    const getHeaders = createHeaderGetter(options);
+    let batchProcessor: BatchProcessor | null = null;
 
-    const getHeaders = async (): Promise<HeadersInit> => {
-        const baseHeaders: HeadersInit = {
-            'Content-Type': 'application/json',
-            // Consider adding a specific header for batched requests?
-            // 'X-TypeQL-Batch': '1'
-        };
-        // Removed duplicate 'Content-Type' and closing brace here
-        if (!options.headers) {
-            return baseHeaders;
-        }
-        const dynamicHeaders = typeof options.headers === 'function'
-            ? await options.headers()
-            : options.headers;
+    if (isBatchingEnabled) {
+        batchProcessor = createBatchProcessor(url, fetchImpl, getHeaders, batchDelayMs);
+    }
 
-        const combined = new Headers(baseHeaders);
-        new Headers(dynamicHeaders).forEach((value, key) => {
-            combined.set(key, value);
-        });
-        return combined;
-    };
-
-    // Helper function for sending single requests (defined BEFORE transport object)
-    const sendSingleRequest = async (message: ProcedureCallMessage): Promise<ProcedureResultMessage> => {
-         console.debug(`[HTTP Transport] Sending single ${message.type} request to ${url} for path: ${message.path}`);
-         let response: Response;
-         try {
-             const headers = await getHeaders();
-             response = await fetchImpl(url, {
-                 method: 'POST',
-                 headers: headers,
-                 body: JSON.stringify(message), // Send single message object
-             });
-         } catch (error: any) {
-             console.error(`[HTTP Transport] Fetch failed for single request ${message.id}:`, error);
-             throw new TypeQLClientError(`Network request failed: ${error.message || error}`);
-         }
-
-         if (!response.ok) {
-             console.error(`[HTTP Transport] Single request failed with status ${response.status} for ID ${message.id}`);
-             let errorBody = `HTTP error ${response.status}`;
-             try { errorBody = await response.text(); } catch { /* Ignore */ }
-             throw new TypeQLClientError(`Request failed: ${response.statusText} (${response.status}) - ${errorBody}`, String(response.status));
-         }
-
-         try {
-             const resultJson = await response.json();
-             if (typeof resultJson !== 'object' || resultJson === null || !('id' in resultJson) || !('result' in resultJson)) {
-                 throw new TypeQLClientError('Invalid response format received from server.');
-             }
-             console.debug(`[HTTP Transport] Received single response for ID ${resultJson.id}`);
-             return resultJson as ProcedureResultMessage;
-         } catch (error: any) {
-             console.error(`[HTTP Transport] Failed to parse JSON response for single request ${message.id}:`, error);
-             throw new TypeQLClientError(`Failed to parse response: ${error.message || error}`);
-         }
-    };
-
-
-    // Batch Processing Logic (defined BEFORE transport object)
-    const processBatch = async () => {
-        if (batchTimeoutId) {
-            clearTimeout(batchTimeoutId);
-            batchTimeoutId = null;
-        }
-        if (requestQueue.length === 0) {
-            return;
-        }
-
-        const batch = [...requestQueue];
-        requestQueue = []; // Clear queue immediately
-
-        const messagesToSend = batch.map(req => req.message);
-        const batchId = messagesToSend.map(m => m.id).join(','); // For logging
-        console.debug(`[HTTP Transport] Processing batch (${batch.length} requests) to ${url}. IDs: ${batchId}`);
-
-        let response: Response;
-        try {
-            const headers = await getHeaders();
-            // Server MUST be adapted to handle an array of messages
-            response = await fetchImpl(url, {
-                method: 'POST',
-                headers: headers,
-                body: JSON.stringify(messagesToSend),
-            });
-        } catch (error: any) {
-            console.error(`[HTTP Transport] Fetch failed for batch ${batchId}:`, error);
-            const err = new TypeQLClientError(`Network request failed for batch: ${error.message || error}`);
-            batch.forEach(req => req.reject(err));
-            return;
-        }
-
-        if (!response.ok) {
-            console.error(`[HTTP Transport] Batch request failed with status ${response.status}. IDs: ${batchId}`);
-            let errorBody = `HTTP error ${response.status}`;
-            try { errorBody = await response.text(); } catch { /* Ignore */ }
-            const err = new TypeQLClientError(`Batch request failed: ${response.statusText} (${response.status}) - ${errorBody}`, String(response.status));
-            batch.forEach(req => req.reject(err));
-            return;
-        }
-
-        try {
-            const results = await response.json();
-            // Server MUST return an array of results in the same order
-            if (!Array.isArray(results)) {
-                throw new TypeQLClientError('Invalid batch response format: expected an array.');
-            }
-            if (results.length !== batch.length) {
-                 throw new TypeQLClientError(`Mismatched batch response length: expected ${batch.length}, got ${results.length}`);
-            }
-
-            console.debug(`[HTTP Transport] Received batch response for ${results.length} requests.`);
-
-            results.forEach((result: any, index: number) => {
-                 const originalRequest = batch[index];
-                 if (!originalRequest) {
-                     console.error(`[HTTP Transport] Batch response index ${index} out of bounds.`);
-                     return; // Skip this result if no matching request
-                 }
-                 try {
-                     if (typeof result !== 'object' || result === null || !('id' in result) || !('result' in result)) {
-                         // Structure is invalid, reject this specific promise and stop processing it
-                         const individualError = new TypeQLClientError(`Invalid result format in batch response for ID ${originalRequest.message.id}.`);
-                         console.error(`[HTTP Transport] Error processing individual batch result for ID ${originalRequest.message.id}:`, individualError);
-                         originalRequest.reject(individualError);
-                         return; // Stop processing this item
-                     }
-                     if (result.id !== originalRequest.message.id) {
-                         console.warn(`[HTTP Transport] Batch response ID mismatch at index ${index}: expected ${originalRequest.message.id}, got ${result.id}. Resolving based on index.`);
-                     }
-                     // Structure is valid, resolve the promise
-                     originalRequest.resolve(result as ProcedureResultMessage);
-                 } catch (individualError: any) { // This catch might now be redundant but kept for safety
-                     // Should ideally not be reached if the above logic is correct
-                     console.error(`[HTTP Transport] Unexpected error processing individual batch result for ID ${originalRequest.message.id}:`, individualError);
-                     originalRequest.reject(individualError instanceof TypeQLClientError ? individualError : new TypeQLClientError(`Failed processing result: ${individualError.message || individualError}`));
-                 }
-             });
-
-        } catch (error: any) { // This outer catch now only handles fetch.json(), array check, length check errors
-            console.error(`[HTTP Transport] Failed to process overall batch response for IDs ${batchId}:`, error);
-            const err = new TypeQLClientError(`Failed to process batch response: ${error.message || error}`);
-            // Reject all promises in the batch if overall processing fails (e.g., invalid JSON array)
-            batch.forEach(req => {
-                // Avoid double-rejecting if already rejected by inner catch
-                // (This requires a more complex state tracking or assumes reject is idempotent)
-                // For simplicity, we might just call reject again, letting the promise handle it.
-                req.reject(err);
-            });
-        }
-    };
-    // --- End Batch Processing Logic ---
-
-    // --- Transport Object Definition ---
     const transport: TypeQLTransport = {
         request: (message: ProcedureCallMessage): Promise<ProcedureResultMessage> => {
-            if (!batching || batchDelayMs <= 0) {
-                 if (requestQueue.length > 0) {
-                    processBatch(); // Process existing queue synchronously first
+            if (!isBatchingEnabled || !batchProcessor) {
+                 // If batching was enabled but somehow processor is null, fallback to single
+                 if (batchProcessor?.hasPending()) {
+                    // Process any previously queued items if switching off batching dynamically (though not typical)
+                    batchProcessor.flushQueue();
                  }
-                 return sendSingleRequest(message); // Send current one individually
+                 return sendSingleRequest(message, url, fetchImpl, getHeaders); // Send current one individually
             }
 
-            // Batching enabled with delay
-            return new Promise((resolve, reject) => {
-                requestQueue.push({ message, resolve, reject });
-                if (batchTimeoutId) {
-                    clearTimeout(batchTimeoutId);
-                }
-                batchTimeoutId = setTimeout(processBatch, batchDelayMs);
-            });
+            // Batching enabled
+            return batchProcessor.queueRequest(message);
         },
-
-        // sendSingleRequest is NOT part of the transport object itself
 
         subscribe: (message: SubscribeMessage) => {
             console.error("[HTTP Transport] Subscriptions are not supported over standard HTTP transport.");
@@ -234,9 +64,14 @@ export function createHttpTransport(options: HttpTransportOptions): TypeQLTransp
         },
 
         // Optional connect/disconnect are no-ops for stateless HTTP
+        // connect: () => { /* No-op */ },
+        // disconnect: () => { /* No-op */ },
     };
 
     return transport;
-} // Removed extra closing brace here
+}
 
-console.log("@typeql/transport-http loaded");
+// Re-export relevant types
+export type { HttpTransportOptions };
+
+// console.log("@typeql/transport-http loaded"); // Removed original log

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { enablePatches } from 'immer';
 // Import DeltaApplicator instead of ApplyDeltaFn
-import { createOptimisticStore, OptimisticStore, DeltaApplicator } from '../optimisticStore';
+import { createOptimisticStore, OptimisticStore, DeltaApplicator } from './optimisticStore'; // Adjusted path
 import type { ProcedureCallMessage, AckMessage, SubscriptionDataMessage } from '@sylphlab/typeql-shared'; // Corrected import path
 import { applyPatch as applyJsonPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // For applying client delta in tests
 

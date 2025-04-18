@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'; // Import Mock type
-import { createClient, TypeQLClientError, ClientOptions } from '../client'; // Adjust path if needed
-import { OptimisticStore } from '../optimisticStore';
+import { createClient, TypeQLClientError, ClientOptions } from './client'; // Adjusted path
+import { OptimisticStore } from './optimisticStore'; // Adjusted path
 import type {
     AnyRouter,
     TypeQLTransport,
