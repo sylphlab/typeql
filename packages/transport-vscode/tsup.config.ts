@@ -4,11 +4,11 @@ export default defineConfig({
   entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: false, // Use tsc --build for declarations
+  dts: true, // Generate declaration files
   splitting: false,
   sourcemap: true,
   clean: true,
   minify: 'terser',
   tsconfig: 'tsconfig.json',
-  external: ['vscode'], // Mark only true externals
+  external: ['@sylphlab/typeql-shared', 'vscode'], // Mark shared and vscode as external
 })

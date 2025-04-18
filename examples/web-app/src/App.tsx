@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useTypeQL, useMutation, useSubscription } from '@sylphlab/typeql-react'; // Use correct package name
 import { TypeQLClientError } from '@sylphlab/typeql-shared'; // Use shared package
-import type { AppRouter } from '../server/index.js'; // Import the AppRouter type with extension
+import type { AppRouter } from '../server/index.js'; // Ensure extension is present
 import './App.css';
 
 // Define types based on server definition for clarity (can be shared)

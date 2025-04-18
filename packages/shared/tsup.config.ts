@@ -4,7 +4,14 @@ export default defineConfig({
   entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: false, // Use tsc --build for declarations
+  experimentalDts: {
+    entry: 'src/index.ts',
+    compilerOptions: {
+      composite: true,
+      incremental: true,
+      tsBuildInfoFile: './.tsbuildinfo'
+    }
+  },
   splitting: false,
   sourcemap: true,
   clean: true,
