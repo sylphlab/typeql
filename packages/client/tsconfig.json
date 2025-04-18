@@ -21,12 +21,12 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "declarationDir": "./dist", // Explicitly set declaration output dir
     "lib": ["ES2016", "DOM"],
     "composite": true,
     "baseUrl": ".", // Add back baseUrl
     "paths": { // Add back paths
-      "@sylph/typeql-shared": ["../shared/src"],
-      "@sylph/typeql-shared/*": ["../shared/src/*"]
+      // "@sylphlab/typeql-shared": ["../shared/src/index.ts"] // Rely on project references
     }
   },
   "include": ["src/**/*"],

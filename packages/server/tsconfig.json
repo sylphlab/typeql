@@ -21,6 +21,7 @@
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
+    "declarationDir": "./dist", // Explicitly set declaration output dir
     "lib": ["ES2016"],
     "composite": true
   },

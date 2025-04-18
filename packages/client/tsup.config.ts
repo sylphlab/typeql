@@ -8,7 +8,13 @@ export default defineConfig({
   ],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: false, // Use tsc --build for declarations
+  dts: {
+    entry: 'src/index.ts',
+    resolve: true, // Keep resolve: true as it might be needed now
+    compilerOptions: {
+      composite: false // Keep this false as client doesn't need to be composite itself? Check if needed.
+    }
+  },
   splitting: false,
   sourcemap: true,
   clean: true,

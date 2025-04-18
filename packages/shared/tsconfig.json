@@ -42,6 +42,7 @@
     // "moduleResolution": "NodeNext", // Remove moduleResolution
     "declaration": true, // Generate .d.ts files
     "declarationMap": true, // Generate sourcemaps for .d.ts files
+    "declarationDir": "./dist", // Explicitly set declaration output dir
     "sourceMap": true, // Generate .js.map files for debugging
     "outDir": "./dist", // Output directory for compiled JS
     "rootDir": "./src", // Add rootDir back

@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
-    "build:js": "pnpm exec tsup --dts false",
+    "build": "pnpm exec tsup",
     "test": "vitest run"
   },
   "keywords": [
