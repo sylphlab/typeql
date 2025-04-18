@@ -4,14 +4,7 @@ export default defineConfig({
   entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  experimentalDts: {
-    entry: 'src/index.ts',
-    compilerOptions: {
-      composite: true,
-      incremental: true,
-      tsBuildInfoFile: './.tsbuildinfo'
-    }
-  },
+  dts: false, // Use tsc --build for declarations
   splitting: false,
   sourcemap: true,
   clean: true,
