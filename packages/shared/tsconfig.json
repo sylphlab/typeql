@@ -52,12 +52,7 @@
 ,
     "types": ["vitest/globals"]
   },
-  "files": [
-    "src/index.ts",
-    "src/types.ts",
-    "src/utils.ts",
-    "src/seqManager.ts"
-  ],
+  "include": ["src"], // Use include instead of files
   "exclude": ["node_modules", "dist", "examples"]
   // No references needed for the base shared package
 }
