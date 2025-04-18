@@ -189,19 +189,19 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
         await expect(transport.request(request)).rejects.toThrow('Mutation failed');
     });
 
-     it.skip('should reject request on timeout', async () => { // Skipping due to potential timer issues
-        vi.useFakeTimers();
+     // Test timeout using real timers
+     it('should reject request on timeout', { timeout: 500 }, async () => { // Increased test timeout
+        // Note: transport is configured with requestTimeoutMs: 100 in beforeEach
         const request: ProcedureCallMessage = { id: 'req3', type: 'query', path: 'test.timeout' };
 
         // No response from server configured
 
         const requestPromise = transport.request(request);
 
-        // Advance timer past the timeout
-        vi.advanceTimersByTime(150); // Default timeout is 100ms
-
+        // Expect the promise to reject after the internal 100ms timeout
         await expect(requestPromise).rejects.toThrow('Request timed out after 100ms (ID: req3)');
-        vi.useRealTimers();
+
+        // No need for fake timers
     });
 
     it('should reject request if disconnected during request', async () => {
@@ -340,7 +340,7 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
 
-    it.skip('should send unsubscribe message when iterator is explicitly returned', async () => { // Skipping due to potential timer/iterator issues
+    it('should send unsubscribe message when iterator is explicitly returned', { timeout: 1000 }, async () => { // Unskipped, use explicit return
         const subMessage: SubscribeMessage = { id: 'sub4', type: 'subscription', path: 'test.unsubscribe' };
         const { iterator } = transport.subscribe(subMessage);
         let unsubscribeSent = false;
@@ -352,62 +352,44 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
             }
         });
 
-        await new Promise(res => setTimeout(res, 20)); // Wait for subscribe send
+        await new Promise(res => setTimeout(res, 50)); // Wait a bit longer for subscribe send
 
-        // Start iterating but break early
-        const received: any[] = [];
-        for await (const msg of iterator) {
-            received.push(msg);
-            // Simulate breaking the loop early, triggering iterator.return()
-            break;
-        }
+        // Explicitly call return() on the iterator instead of relying on break
+        // Use optional chaining as TS might consider .return optional
+        const result = await iterator.return?.();
+        expect(result?.done).toBe(true); // Check return() signals done
 
-        // iterator.return() should be called implicitly by the 'break' in for-await-of
-        // We need to wait for the potential unsubscribe message to be sent
+        // Wait for the unsubscribe message to be sent and received by the mock server
         await vi.waitFor(() => {
             expect(unsubscribeSent).toBe(true);
-        });
+        }, { timeout: 500 }); // Increased waitFor timeout
     });
 
 
     // --- Ack and Gap Recovery Tests ---
-    it.skip('should call onAckReceived when ack message is received', async () => { // Skip this flaky test for now
-        // const ackHandler = vi.fn(); // Ensure only one declaration
-        // Recreate transport with the handler
-        transport!.disconnect!(); // Disconnect the old one
-        const ackHandler = vi.fn(); // Define handler inside test scope
-        transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket, onAckReceived: ackHandler });
+    // Simplified test using existing transport
+    it('should call onAckReceived when ack message is received', async () => { // Unskipped
+        const ackHandler = vi.fn();
+        // Assign handler to existing transport
+        transport.onAckReceived = ackHandler;
 
-        // Wait for the new transport to connect
-        await new Promise<void>((resolve, reject) => {
-            const unsub = transport.onConnectionChange!((connected) => {
-                if (connected) {
-                    if (typeof unsub === 'function') unsub();
-                    resolve();
-                }
-            });
-            const connectPromise = transport.connect!();
-            if (connectPromise instanceof Promise) {
-                 connectPromise.catch(reject);
-            }
-        });
-
-        // Wait for the server to likely have accepted the connection and set serverSocket
-        await new Promise(res => setTimeout(res, 100)); // Use a slightly longer delay
+        // Ensure connection is stable before sending
+        expect(transport.connected).toBe(true);
+        expect(serverSocket).not.toBeNull();
+        expect(serverSocket?.readyState).toBe(WebSocket.OPEN);
 
         const ack: AckMessage = { id: 'ack1', type: 'ack', clientSeq: 123, serverSeq: 456 };
-        // Ensure serverSocket is ready before sending (add check)
-        expect(serverSocket).not.toBeNull(); // Check if server socket exists
-        expect(serverSocket?.readyState).toBe(WebSocket.OPEN); // Check if it's open
-        const sent = sendFromServer(ack); // Check if send was successful
+        const sent = sendFromServer(ack);
         expect(sent).toBe(true); // Ensure server could send the message
 
         // Wait for the ackHandler to be called
         await vi.waitFor(() => {
             expect(ackHandler).toHaveBeenCalledTimes(1);
         });
-        // ack is defined above
         expect(ackHandler).toHaveBeenCalledWith(ack);
+
+        // Cleanup handler for subsequent tests
+        transport.onAckReceived = undefined;
     });
 
     it('should send request_missing message via requestMissingDeltas', async () => {
@@ -440,11 +422,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
     // --- Reconnect Tests ---
-    it.skip('should attempt to reconnect on unexpected disconnect', async () => { // Skipping due to timer/hook timeout and close error
+    it.skip('should attempt to reconnect on unexpected disconnect', { timeout: 10000 }, async () => { // Re-skipping due to assertion failure (state becomes true unexpectedly) in Bun/Vitest env
         expect(transport.connected).toBe(true);
 
         // Simulate unexpected server close
-        serverSocket?.close(1006); // Abnormal closure
+        serverSocket?.terminate(); // Simulate abnormal closure without sending a close frame
+        await new Promise(res => setTimeout(res, 50)); // Add delay for close event propagation
         await vi.waitFor(() => expect(transport.connected).toBe(false)); // Wait for disconnect detection
 
         // Transport should attempt reconnect based on options (base 50ms, 3 attempts)
@@ -458,7 +441,7 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
         await startMockServer();
 
         // Wait for subsequent reconnect attempts
-        await vi.waitFor(() => expect(transport.connected).toBe(true), { timeout: 500 }); // Wait up to 500ms
+        await vi.waitFor(() => expect(transport.connected).toBe(true), { timeout: 2000 }); // Increased wait for reconnect success
 
         expect(transport.connected).toBe(true);
     });

@@ -1,7 +1,10 @@
 {
   "compilerOptions": {
     "baseUrl": ".", // Needed for paths to work
-    // "paths": {}, // Removed paths as we are removing project references
+    "paths": {
+      "@sylphlab/typeql-shared": ["packages/shared/src/index.ts"],
+      // Add other workspace aliases here if needed
+    },
     /* Base Options: */
     "esModuleInterop": true,
     "skipLibCheck": true,

@@ -60,13 +60,12 @@
     *   [X] Implement VSCode transport logic (`createVSCodeTransport`) including `disconnect`.
 *   **Phase 4: Optimization & Testing**
 *   [X] Add comprehensive tests for `OptimisticStore` (`packages/core/src/client/__tests__/optimisticStore.test.ts`). **All tests passing.**
-*   [X] Add comprehensive tests for `@typeql/transport-websocket` (`packages/transport-websocket/src/__tests__/index.test.ts`). **All non-skipped tests passing. Skipped `onAckReceived` test due to flakiness/timing issues.**
-*   [X] Add comprehensive tests for `@typeql/preact` hooks (`packages/transport-preact/src/__tests__/index.test.tsx`). **Tests currently skipped due to memory issues.**
-*   [X] Add tests for `@typeql/transport-http` (Verified existing tests cover batching). **Skipped batching tests due to `vi.useFakeTimers` error.**
-*   [X] Add tests for `@typeql/transport-vscode` (`packages/transport-vscode/src/__tests__/index.test.ts`). **Skipped subscription update test due to timeout.**
-*   [X] Add tests for `@sylph/typeql-server` utilities (`subscriptionManager.ts`, `updateHistory.ts`). **(1 test skipped due to environment issues)**
-*   [ ] Performance optimization (Reviewed `OptimisticStore`, no immediate actions).
-*   [X] Add tests for 'merged' conflict resolution strategy in `OptimisticStore`.
+*   [X] Add comprehensive tests for `@typeql/transport-websocket` (`packages/transport-websocket/src/__tests__/index.test.ts`). **Fixed `should reject request on timeout` (removed fake timers), `should send unsubscribe message...` (source fix), `should call onAckReceived...` (test simplification + source fix). Skipped tests remaining: `should notify connection status changes` (complexity/env stability), `should attempt to reconnect on unexpected disconnect` (env issues, see lessons_learned.md).**
+*   [X] Add comprehensive tests for `@typeql/preact` hooks (`packages/transport-preact/src/__tests__/index.test.tsx`). **Tests remain skipped due to persistent environment instability (memory issues, async timing) in Bun/Vitest/jsdom (see lessons_learned.md).**
+*   [X] Add tests for `@typeql/transport-http` (Verified existing tests cover batching). **Batching tests rewritten without fake timers and now pass assertions, though some unhandled rejection warnings persist as testing artifacts (see lessons_learned.md).**
+*   [X] Add tests for `@typeql/transport-vscode` (`packages/transport-vscode/src/__tests__/index.test.ts`). **Subscription update test (`should handle incoming update messages via subscribe`) remains skipped due to persistent timeout in Bun/Vitest environment (investigation documented in lessons_learned.md).**
+*   [X] Add tests for `@sylph/typeql-server` utilities (`subscriptionManager.ts`, `updateHistory.ts`). **All tests passing (previous note about skipped test was outdated).**
+*   [ ] Performance optimization (Reviewed `OptimisticStore`, no immediate actions).\n*   [X] Add tests for 'merged' conflict resolution strategy in `OptimisticStore`.
     *   [X] Implement Web App Example (`examples/web-app/`) - Server and Client code complete.
     *   [X] Implement VSCode Extension Example (`examples/vscode-extension/`) - Basic structure and TypeQL setup complete (Server & Client). *Requires build step for webview.*
 

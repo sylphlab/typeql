@@ -159,26 +159,36 @@ export function createHttpTransport(options: HttpTransportOptions): TypeQLTransp
             console.debug(`[HTTP Transport] Received batch response for ${results.length} requests.`);
 
             results.forEach((result: any, index: number) => {
-                const originalRequest = batch[index];
-                if (!originalRequest) {
-                    console.error(`[HTTP Transport] Batch response index ${index} out of bounds.`);
-                    return;
-                }
-                if (typeof result !== 'object' || result === null || !('id' in result) || !('result' in result)) {
-                    console.error(`[HTTP Transport] Invalid result format in batch response at index ${index} for ID ${originalRequest.message.id}:`, result);
-                    originalRequest.reject(new TypeQLClientError(`Invalid result format in batch response for ID ${originalRequest.message.id}.`));
-                    return;
-                }
-                if (result.id !== originalRequest.message.id) {
-                     console.warn(`[HTTP Transport] Batch response ID mismatch at index ${index}: expected ${originalRequest.message.id}, got ${result.id}. Resolving based on index.`);
-                }
-                originalRequest.resolve(result as ProcedureResultMessage);
-            });
+                 const originalRequest = batch[index];
+                 if (!originalRequest) {
+                     console.error(`[HTTP Transport] Batch response index ${index} out of bounds.`);
+                     return; // Skip this result if no matching request
+                 }
+                 try {
+                     if (typeof result !== 'object' || result === null || !('id' in result) || !('result' in result)) {
+                         throw new TypeQLClientError(`Invalid result format in batch response for ID ${originalRequest.message.id}.`);
+                     }
+                     if (result.id !== originalRequest.message.id) {
+                         console.warn(`[HTTP Transport] Batch response ID mismatch at index ${index}: expected ${originalRequest.message.id}, got ${result.id}. Resolving based on index.`);
+                     }
+                     originalRequest.resolve(result as ProcedureResultMessage);
+                 } catch (individualError: any) {
+                     // Reject only the specific promise that failed processing
+                     console.error(`[HTTP Transport] Error processing individual batch result for ID ${originalRequest.message.id}:`, individualError);
+                     originalRequest.reject(individualError instanceof TypeQLClientError ? individualError : new TypeQLClientError(`Failed processing result: ${individualError.message || individualError}`));
+                 }
+             });
 
-        } catch (error: any) {
-            console.error(`[HTTP Transport] Failed to process batch response for IDs ${batchId}:`, error);
+        } catch (error: any) { // This outer catch now only handles fetch.json(), array check, length check errors
+            console.error(`[HTTP Transport] Failed to process overall batch response for IDs ${batchId}:`, error);
             const err = new TypeQLClientError(`Failed to process batch response: ${error.message || error}`);
-            batch.forEach(req => req.reject(err));
+            // Reject all promises in the batch if overall processing fails (e.g., invalid JSON array)
+            batch.forEach(req => {
+                // Avoid double-rejecting if already rejected by inner catch
+                // (This requires a more complex state tracking or assumes reject is idempotent)
+                // For simplicity, we might just call reject again, letting the promise handle it.
+                req.reject(err);
+            });
         }
     };
     // --- End Batch Processing Logic ---

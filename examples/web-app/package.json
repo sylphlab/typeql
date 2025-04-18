@@ -10,11 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@sylph/typeql-shared": "workspace:*",
-    "@sylph/typeql-client": "workspace:*",
-    "@sylph/typeql-server": "workspace:*",
-    "@sylph/typeql-react": "workspace:*",
-    "@sylph/typeql-transport-websocket": "workspace:*",
+    "@sylphlab/typeql-shared": "workspace:*",
+    "@sylphlab/typeql-client": "workspace:*",
+    "@sylphlab/typeql-server": "workspace:*",
+    "@sylphlab/typeql-react": "workspace:*",
+    "@sylphlab/typeql-transport-websocket": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.1",

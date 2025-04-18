@@ -43,8 +43,8 @@
     "react": "^17.0.0 || ^18.0.0"
   },
   "dependencies": {
-    "@sylph/typeql-shared": "workspace:*",
-    "@sylph/typeql-client": "workspace:*"
+    "@sylphlab/typeql-shared": "workspace:*",
+    "@sylphlab/typeql-client": "workspace:*"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",

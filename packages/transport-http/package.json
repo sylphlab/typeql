@@ -36,7 +36,7 @@
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
-    "@sylph/typeql-shared": "workspace:*"
+    "@sylphlab/typeql-shared": "workspace:*"
   },
   "devDependencies": {
     "tsup": "^8.0.2",

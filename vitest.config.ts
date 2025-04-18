@@ -1,10 +1,17 @@
 import { defineConfig } from 'vitest/config';
-// import tsconfigPaths from 'vite-tsconfig-paths'; // Remove conflicting plugin import
-import path from 'path'; // Import path - Keep import if needed elsewhere, otherwise remove
+// import tsconfigPaths from 'vite-tsconfig-paths'; // Disable plugin import
+import path from 'path'; // Import path
 
 export default defineConfig({
-  // plugins: [], // Ensure plugins array is empty or remove if not needed
-  // resolve: { alias: {...} }, // Remove alias configuration
+  // plugins: [], // Remove tsconfigPaths plugin
+  resolve: {
+    alias: {
+      '@sylphlab/typeql-shared': path.resolve(__dirname, './packages/shared/src/index.ts'),
+      '@sylphlab/typeql-client': path.resolve(__dirname, './packages/client/src/index.ts'),
+      '@sylphlab/typeql-server': path.resolve(__dirname, './packages/server/src/index.ts'),
+      // Add other aliases if needed
+    }
+  },
   test: {
     environment: 'jsdom', // Keep jsdom environment
     globals: true, // Optional: enable global APIs like describe, it, expect

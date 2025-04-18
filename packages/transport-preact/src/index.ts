@@ -287,7 +287,7 @@ export function useQuery<
                 setIsFetching(false);
             }
         }
-    }, [procedure, inputKey, staleTime, isFetching]); // Add isFetching dependency
+    }, [procedure, inputKey, staleTime]); // Remove isFetching dependency
 
     useEffect(() => {
         if (enabled) {

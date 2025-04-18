@@ -139,7 +139,7 @@ describe('createHttpTransport', () => { // Add 5 second timeout
 
     // --- Batching Tests ---
 
-    describe.skip('Batching Enabled', () => { // Skipping suite due to vi.useFakeTimers error
+    describe('Batching Enabled', () => { // Unskipped - Rewritten with real timers
         const batchDelay = 50;
         let batchTransport: ReturnType<typeof createHttpTransport>;
 
@@ -162,8 +162,8 @@ describe('createHttpTransport', () => { // Add 5 second timeout
             // Requests should not have been sent yet
             expect(mockFetch).not.toHaveBeenCalled();
 
-            // Advance time past the delay
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
             // Now the batch should have been sent
             expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -178,31 +178,43 @@ describe('createHttpTransport', () => { // Add 5 second timeout
             await expect(p2).resolves.toEqual(mockResponse[1]);
         });
 
-        it('should send immediately if batching is true but delay is effectively 0 or less', async () => {
-             const transportImmediateBatch = createHttpTransport({ url: baseURL, batching: true }); // Uses default 10ms
+        // Note: This test is slightly less relevant without fake timers,
+        // as a 0ms delay with real timers still involves a macrotask tick.
+        // We'll test that delay: 0 sends immediately *relative* to other requests.
+        it('should send immediately if batching delay is 0', async () => {
              const transportZeroDelay = createHttpTransport({ url: baseURL, batching: { delayMs: 0 } });
-
              const message1: ProcedureCallMessage = { id: 201, type: 'query', path: 'imm.one' };
              const mockResponse1: ProcedureResultMessage = { id: 201, result: { type: 'data', data: 'imm_one' } };
              mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(mockResponse1), { status: 200 }));
 
-             const p1 = transportZeroDelay.request(message1); // Should send immediately
+             const p1 = transportZeroDelay.request(message1);
+             // It might not have sent *instantly*, but before the next tick allows other code to run significantly.
+             // We expect the fetch to be called almost immediately. Let's wait briefly.
+             await new Promise(res => setTimeout(res, 5));
 
              expect(mockFetch).toHaveBeenCalledTimes(1);
              expect(mockFetch).toHaveBeenCalledWith(baseURL, expect.objectContaining({
                  body: JSON.stringify(message1), // Single message
              }));
              await expect(p1).resolves.toEqual(mockResponse1);
-             mockFetch.mockClear();
+        });
 
-             // Test with batching: true (default delay > 0) - should still batch
+        it('should still batch if batching is true (uses default delay)', async () => {
+             const transportDefaultBatch = createHttpTransport({ url: baseURL, batching: true }); // Uses default 10ms
              const message2: ProcedureCallMessage = { id: 202, type: 'query', path: 'def.batch' };
-             const p2 = transportImmediateBatch.request(message2);
+             const mockResponse2: ProcedureResultMessage = { id: 202, result: { type: 'data', data: 'ok' } };
+             mockFetch.mockResolvedValueOnce(new Response(JSON.stringify(mockResponse2), { status: 200 }));
+
+             const p2 = transportDefaultBatch.request(message2);
              expect(mockFetch).not.toHaveBeenCalled(); // Should wait for timer
-             vi.advanceTimersByTime(15); // Advance past default 10ms
+
+             // Wait past default 10ms delay
+             await new Promise(res => setTimeout(res, 15));
              expect(mockFetch).toHaveBeenCalledTimes(1); // Now it sends
-             mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ id: 202, result: { type: 'data', data: 'ok' } }), { status: 200 }));
-             await p2; // Resolve promise
+             expect(mockFetch).toHaveBeenCalledWith(baseURL, expect.objectContaining({
+                 body: JSON.stringify([message2]), // Batched array (even if only one)
+             }));
+             await expect(p2).resolves.toEqual(mockResponse2);
         });
 
 
@@ -215,12 +227,19 @@ describe('createHttpTransport', () => { // Add 5 second timeout
             const p1 = batchTransport.request(message1);
             const p2 = batchTransport.request(message2);
 
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
-            await expect(p1).rejects.toThrow(TypeQLClientError);
-            await expect(p1).rejects.toThrow(/Network request failed for batch/);
-            await expect(p2).rejects.toThrow(TypeQLClientError);
-            await expect(p2).rejects.toThrow(/Network request failed for batch/);
+            // Use try/catch to handle potential async rejection timing issues
+            let error1: any = null;
+            try { await p1; } catch (e) { error1 = e; }
+            expect(error1).toBeInstanceOf(TypeQLClientError);
+            expect(error1?.message).toMatch(/Network request failed for batch/);
+
+            let error2: any = null;
+            try { await p2; } catch (e) { error2 = e; }
+            expect(error2).toBeInstanceOf(TypeQLClientError);
+            expect(error2?.message).toMatch(/Network request failed for batch/);
         });
 
         it('should handle batch non-OK HTTP status', async () => {
@@ -231,14 +250,21 @@ describe('createHttpTransport', () => { // Add 5 second timeout
             const p1 = batchTransport.request(message1);
             const p2 = batchTransport.request(message2);
 
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
-            await expect(p1).rejects.toThrow(TypeQLClientError);
-            await expect(p1).rejects.toThrow(/Batch request failed: Internal Server Error \(500\)/);
-            await expect(p1).rejects.toMatchObject({ code: '500' });
-            await expect(p2).rejects.toThrow(TypeQLClientError);
-            await expect(p2).rejects.toThrow(/Batch request failed: Internal Server Error \(500\)/);
-            await expect(p2).rejects.toMatchObject({ code: '500' });
+            // Use try/catch
+            let error1: any = null;
+            try { await p1; } catch (e) { error1 = e; }
+            expect(error1).toBeInstanceOf(TypeQLClientError);
+            expect(error1?.message).toMatch(/Batch request failed: Internal Server Error \(500\)/);
+            expect(error1?.code).toBe('500');
+
+            let error2: any = null;
+            try { await p2; } catch (e) { error2 = e; }
+            expect(error2).toBeInstanceOf(TypeQLClientError);
+            expect(error2?.message).toMatch(/Batch request failed: Internal Server Error \(500\)/);
+            expect(error2?.code).toBe('500');
         });
 
         it('should handle batch invalid JSON response', async () => {
@@ -246,10 +272,16 @@ describe('createHttpTransport', () => { // Add 5 second timeout
             mockFetch.mockResolvedValueOnce(new Response("not an array", { status: 200 }));
 
             const p1 = batchTransport.request(message1);
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
-            await expect(p1).rejects.toThrow(TypeQLClientError);
-            await expect(p1).rejects.toThrow(/Failed to process batch response:/);
+            // Use try/catch
+            let error1: any = null;
+            try { await p1; } catch (e) { error1 = e; }
+            expect(error1).toBeInstanceOf(TypeQLClientError);
+            expect(error1?.message).toMatch(/Failed to process batch response:/);
+            // Add small delay to potentially catch late unhandled rejections within test run
+            await new Promise(res => setTimeout(res, 10));
         });
 
          it('should handle batch response length mismatch', async () => {
@@ -262,13 +294,21 @@ describe('createHttpTransport', () => { // Add 5 second timeout
 
             const p1 = batchTransport.request(message1);
             const p2 = batchTransport.request(message2);
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
-            // Both should reject because the batch response was invalid
-            await expect(p1).rejects.toThrow(TypeQLClientError);
-            await expect(p1).rejects.toThrow(/Mismatched batch response length/);
-            await expect(p2).rejects.toThrow(TypeQLClientError);
-            await expect(p2).rejects.toThrow(/Mismatched batch response length/);
+            // Use try/catch
+            let error1: any = null;
+            try { await p1; } catch (e) { error1 = e; }
+            expect(error1).toBeInstanceOf(TypeQLClientError);
+            expect(error1?.message).toMatch(/Mismatched batch response length/);
+
+            let error2: any = null;
+            try { await p2; } catch (e) { error2 = e; }
+            expect(error2).toBeInstanceOf(TypeQLClientError);
+            expect(error2?.message).toMatch(/Mismatched batch response length/);
+            // Add small delay
+            await new Promise(res => setTimeout(res, 10));
         });
 
         it('should handle individual errors within a batch response', async () => {
@@ -282,7 +322,8 @@ describe('createHttpTransport', () => { // Add 5 second timeout
 
             const p1 = batchTransport.request(message1);
             const p2 = batchTransport.request(message2);
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
             await expect(p1).resolves.toEqual(mockResponse[0]);
             // The promise resolves, but the result contains the error
@@ -300,11 +341,17 @@ describe('createHttpTransport', () => { // Add 5 second timeout
 
             const p1 = batchTransport.request(message1);
             const p2 = batchTransport.request(message2);
-            vi.advanceTimersByTime(batchDelay + 5);
+            // Wait for the batch delay using real timers
+            await new Promise(res => setTimeout(res, batchDelay + 10));
 
+            // Use try/catch for p2
             await expect(p1).resolves.toEqual(mockResponse[0]);
-            await expect(p2).rejects.toThrow(TypeQLClientError);
-            await expect(p2).rejects.toThrow(/Invalid result format in batch response for ID 802/);
+            let error2: any = null;
+            try { await p2; } catch (e) { error2 = e; }
+            expect(error2).toBeInstanceOf(TypeQLClientError);
+            expect(error2?.message).toMatch(/Invalid result format in batch response for ID 802/);
+            // Add small delay
+            await new Promise(res => setTimeout(res, 10));
         });
 
     });

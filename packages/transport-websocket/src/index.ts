@@ -199,6 +199,19 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
          }
 
          console.log(`[TypeQL WS Transport] Attempting to connect to ${url}...`);
+         // --- Proactive Cleanup ---
+         // Ensure any previous instance and its handlers are cleared *before* creating a new one
+         if (ws) {
+             console.log("[TypeQL WS Transport] Cleaning up previous WS instance before new connection attempt.");
+             ws.onopen = ws.onerror = ws.onclose = ws.onmessage = null;
+             // Attempt to close gracefully if possible, but don't wait or rely on it
+             if (ws.readyState === OPEN || ws.readyState === CONNECTING) {
+                 try { ws.close(1001, "Starting new connection attempt"); } catch { /* ignore */ }
+             }
+             ws = null;
+         }
+         // --- End Proactive Cleanup ---
+
          // Clear any pending reconnect timer *before* starting the new attempt
          if (reconnectTimeoutId) clearTimeout(reconnectTimeoutId);
          reconnectTimeoutId = undefined;
@@ -323,7 +336,7 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                        else if (message && typeof message === 'object' && message.type === 'ack' && 'clientSeq' in message && 'serverSeq' in message) {
                             const ackMessage = message as AckMessage;
                             console.debug(`[TypeQL WS Transport] Received Ack for clientSeq: ${ackMessage.clientSeq}`);
-                            onAckReceived?.(ackMessage); // Call the provided handler
+                            transport.onAckReceived?.(ackMessage); // Call handler attached to the instance
                        }
                        // --- Subscription Message Handling ---
                        else if (message && typeof message === 'object' && 'id' in message && activeSubscriptions.has(message.id)) {
@@ -633,8 +646,8 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                            currentSub.handlers.onEnd(); // Call internal handler to clean up iterator state
                        }
 
-                       // Attempt to send stop message only if connection is open and was marked active
-                       if (ws?.readyState === OPEN && currentSub.active) { // Check subEntry's active flag
+                       // Attempt to send stop message only if connection is open
+                       if (ws?.readyState === OPEN) { // Removed currentSub.active check
                             const unsubscribeMessage: UnsubscribeMessage = { type: 'subscriptionStop', id: subId };
                             sendMessage(unsubscribeMessage);
                        }

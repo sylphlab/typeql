@@ -24,16 +24,17 @@
     "dev": "tsup src/index.ts --format esm,cjs --external preact @sylph/typeql-shared @sylph/typeql-client --watch",
     "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "peerDependencies": {
-    "@sylph/typeql-shared": "workspace:*",
-    "@sylph/typeql-client": "workspace:*",
+    "@sylphlab/typeql-shared": "workspace:*",
+    "@sylphlab/typeql-client": "workspace:*",
     "preact": "^10.0.0"
   },
   "devDependencies": {
     "@testing-library/preact": "^3.2.4",
-    "@sylph/typeql-client": "workspace:*",
+    "@sylphlab/typeql-client": "workspace:*",
     "eslint": "^8.57.0",
     "jsdom": "^26.1.0",
     "preact": "^10.22.1",

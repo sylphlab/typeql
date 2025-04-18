@@ -48,16 +48,16 @@ importers:
 
   examples/vscode-extension:
     dependencies:
-      '@sylph/typeql-client':
+      '@sylphlab/typeql-client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@sylph/typeql-server':
+      '@sylphlab/typeql-server':
         specifier: workspace:*
         version: link:../../packages/server
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@sylph/typeql-transport-vscode':
+      '@sylphlab/typeql-transport-vscode':
         specifier: workspace:*
         version: link:../../packages/transport-vscode
     devDependencies:
@@ -100,19 +100,19 @@ importers:
 
   examples/web-app:
     dependencies:
-      '@sylph/typeql-client':
+      '@sylphlab/typeql-client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@sylph/typeql-react':
+      '@sylphlab/typeql-react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@sylph/typeql-server':
+      '@sylphlab/typeql-server':
         specifier: workspace:*
         version: link:../../packages/server
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@sylph/typeql-transport-websocket':
+      '@sylphlab/typeql-transport-websocket':
         specifier: workspace:*
         version: link:../../packages/transport-websocket
       react:
@@ -167,7 +167,7 @@ importers:
 
   packages/client:
     dependencies:
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
       immer:
@@ -189,10 +189,10 @@ importers:
 
   packages/react:
     dependencies:
-      '@sylph/typeql-client':
+      '@sylphlab/typeql-client':
         specifier: workspace:*
         version: link:../client
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -208,7 +208,7 @@ importers:
 
   packages/server:
     dependencies:
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -239,7 +239,7 @@ importers:
 
   packages/transport-http:
     dependencies:
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -252,11 +252,11 @@ importers:
 
   packages/transport-preact:
     dependencies:
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
-      '@sylph/typeql-client':
+      '@sylphlab/typeql-client':
         specifier: workspace:*
         version: link:../client
       '@testing-library/preact':
@@ -283,7 +283,7 @@ importers:
 
   packages/transport-vscode:
     dependencies:
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -302,7 +302,7 @@ importers:
 
   packages/transport-websocket:
     dependencies:
-      '@sylph/typeql-shared':
+      '@sylphlab/typeql-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:

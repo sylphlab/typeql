@@ -46,7 +46,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@sylph/typeql-shared": "workspace:*",
+    "@sylphlab/typeql-shared": "workspace:*",
     "immer": "^10.1.1",
     "zod": "^3.24.2"
   }
