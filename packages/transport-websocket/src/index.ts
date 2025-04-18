@@ -622,7 +622,7 @@ const defaultDeserializer = (data: string | Buffer | ArrayBuffer | Buffer[]): an
                       return this;
                   },
                   // Optional: Implement return() and throw() for cleanup on early termination
-                  async return(): Promise<IteratorResult<IteratorYieldType>> {
+                  async return(): Promise<IteratorResult<IteratorYieldType, undefined>> { // Explicitly type TReturn as undefined
                       console.log(`[TypeQL WS Transport] Iterator return called (ID: ${subId})`);
                       unsubscribe(); // Ensure cleanup
                       return { value: undefined, done: true };
