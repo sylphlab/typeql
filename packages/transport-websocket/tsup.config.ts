@@ -9,6 +9,6 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   minify: 'terser',
-  tsconfig: '../../tsconfig.base.json', // Explicitly use base config for DTS context
+  tsconfig: 'tsconfig.json',
   external: ['@sylphlab/typeql-shared', 'ws'], // Mark shared and ws as external
 })
