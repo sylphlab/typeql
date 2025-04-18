@@ -1,8 +1,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import App from './App';
-import { createClient } from '@sylph/typeql-client'; // Use client package
-import { createVSCodeTransport } from '@typeql/transport-vscode'; // Use the correct transport
+import { createClient } from '@sylphlab/typeql-client'; // Use client package
+import { createVSCodeTransport } from '@sylphlab/typeql-transport-vscode'; // Use the correct transport
 import { TypeQLProvider } from '@typeql/react';
 import type { ExtensionRouter } from '../extension'; // Import router type from extension code
 

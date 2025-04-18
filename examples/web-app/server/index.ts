@@ -2,13 +2,13 @@ import {
     ProcedureContext, // Import base context type
     ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCallMessage, SubscribeMessage, UnsubscribeMessage,
     TypeQLTransport // Import TypeQLTransport type
-} from '@sylph/typeql-shared'; // Shared types
+} from '@sylphlab/typeql-shared'; // Shared types
 import {
     createRouter,
     initTypeQL, // Import procedure builder initializer
     createRequestHandler,
     SubscriptionManager // Import SubscriptionManager class
-} from '@sylph/typeql-server'; // Server functions
+} from '@sylphlab/typeql-server'; // Server functions
 import { z } from 'zod';
 
 // --- Debugging: Catch unhandled errors ---

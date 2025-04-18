@@ -2,15 +2,15 @@ import * as vscode from 'vscode';
 import {
     ProcedureContext,
     TypeQLTransport, // Import TypeQLTransport
-    ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCall, UnsubscribeMessage // Import message types
-} from '@sylph/typeql-shared'; // Use shared package
+    ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, UnsubscribeMessage // Import message types (Removed ProcedureCall)
+} from '@sylphlab/typeql-shared'; // Use shared package
 import {
     createRouter,
     initTypeQL,
     createRequestHandler,
     SubscriptionManager,
-} from '@sylph/typeql-server'; // Use server package
-import { createVSCodeTransport } from '@typeql/transport-vscode'; // Correct import name
+} from '@sylphlab/typeql-server'; // Use server package
+import { createVSCodeTransport } from '@sylphlab/typeql-transport-vscode'; // Correct import name
 import { z } from 'zod'; // Import zod if needed for API definition
 
 // Define a simple context for the extension procedures

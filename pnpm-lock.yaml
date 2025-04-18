@@ -60,6 +60,9 @@ importers:
       '@sylphlab/typeql-transport-vscode':
         specifier: workspace:*
         version: link:../../packages/transport-vscode
+      zod:
+        specifier: ^3.24.2
+        version: 3.24.3
     devDependencies:
       '@types/node':
         specifier: 18.x

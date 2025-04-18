@@ -48,6 +48,7 @@
     "@sylphlab/typeql-shared": "workspace:*",
     "@sylphlab/typeql-client": "workspace:*",
     "@sylphlab/typeql-server": "workspace:*",
-    "@sylphlab/typeql-transport-vscode": "workspace:*"
+    "@sylphlab/typeql-transport-vscode": "workspace:*",
+    "zod": "^3.24.2"
   }
 }
