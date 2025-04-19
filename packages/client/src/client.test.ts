@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, Mock } from 'vitest'; // Import Mock type
+import { describe, it, expect, vi, beforeEach } from 'vitest'; // Removed Mocked type import
 import { createClient, TypeQLClientError, ClientOptions } from './client'; // Adjusted path
-import { OptimisticStore } from './optimisticStore'; // Adjusted path
+import { OptimisticStore, PredictedChange } from './optimisticStore'; // Adjusted path, added PredictedChange
 import type {
     AnyRouter,
     TypeQLTransport,
@@ -28,6 +28,7 @@ const mockStore = {
   rejectPendingMutation: vi.fn(),
   // Add other methods if needed
 } as unknown as OptimisticStore<any>; // Cast to satisfy type
+
 
 // Mock Router Type (Define a simple structure for testing)
 type MockProcedure<TInput, TOutput> = {
@@ -158,6 +159,24 @@ describe('createClient', () => {
       }
        expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
+
+    it('should throw TypeQLClientError on unexpected query response format', async () => {
+      const input = { id: 'bad-format' };
+      mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'unexpected' } }); // Malformed
+
+      await expect(client.user.get.query(input))
+        .rejects.toThrow(new TypeQLClientError('Invalid response format received from transport.'));
+      expect(mockTransport.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw TypeQLClientError when transport throws non-Error for query', async () => {
+      const input = { id: 'non-error' };
+      mockTransport.request.mockRejectedValueOnce('just a string error'); // Non-Error rejection
+
+      await expect(client.user.get.query(input))
+        .rejects.toThrow(new TypeQLClientError('Query failed: just a string error', 'QUERY_FAILED'));
+      expect(mockTransport.request).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Mutation Calls', () => {
@@ -218,6 +237,24 @@ describe('createClient', () => {
       }
        expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
+
+    it('should throw TypeQLClientError on unexpected mutation response format', async () => {
+      const input = { id: 'bad-format-mut' };
+      mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'weird' } }); // Malformed
+
+      await expect(client.user.update.mutate({ input }))
+        .rejects.toThrow(new TypeQLClientError('Invalid response format received from transport.'));
+      expect(mockTransport.request).toHaveBeenCalledTimes(1);
+    });
+
+    it('should throw TypeQLClientError when transport throws non-Error for mutation', async () => {
+      const input = { id: 'non-error-mut' };
+      mockTransport.request.mockRejectedValueOnce(12345); // Non-Error rejection
+
+      await expect(client.user.update.mutate({ input }))
+        .rejects.toThrow(new TypeQLClientError('Mutation failed: 12345', 'MUTATION_FAILED'));
+      expect(mockTransport.request).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Subscription Calls', () => {
@@ -256,14 +293,23 @@ describe('createClient', () => {
        }
        expect(mockTransport.subscribe).toHaveBeenCalledTimes(1);
     });
+
+    it('should throw TypeQLClientError when transport throws non-Error for subscribe', () => {
+      mockTransport.subscribe.mockImplementationOnce(() => { throw { message: 'plain object error' }; }); // Non-Error rejection
+
+      expect(() => client.post.onNew.subscribe(undefined as never))
+        .toThrow(new TypeQLClientError('Subscription initiation failed: [object Object]', 'SUBSCRIPTION_ERROR'));
+      expect(mockTransport.subscribe).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('Optimistic Updates', () => {
-     let clientWithStore: any; // Cast to any to bypass type errors for now
-     const optsWithStore: ClientOptions = { transport: mockTransport, store: mockStore };
+       let clientWithStore: any; // Cast to any to bypass type errors for now
+       // Cast mockStore to any here to satisfy ClientOptions which expects a full store
+       const optsWithStore: ClientOptions = { transport: mockTransport, store: mockStore as any };
 
-     beforeEach(() => {
-        clientWithStore = createClient<MockRouter>(optsWithStore);
+       beforeEach(() => {
+          clientWithStore = createClient<MockRouter>(optsWithStore);
      });
 
      it('should wire transport.onAckReceived to store.confirmPendingMutation', () => {
@@ -327,6 +373,111 @@ describe('createClient', () => {
         expect(mockStore.rejectPendingMutation).toHaveBeenCalledOnce();
         expect(mockStore.rejectPendingMutation).toHaveBeenCalledWith(expect.any(Number));
      });
+
+     it('should throw error if store.addPendingMutation fails', async () => {
+        const input = { id: 'store-fail-add' };
+        const predictedChange = () => {};
+        const storeError = new Error('Store add failed');
+        (mockStore.addPendingMutation as any).mockImplementationOnce(() => { throw storeError; });
+        // Mock request so it doesn't interfere, though it shouldn't be called
+        mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'data', data: { success: true } } });
+
+        await expect(clientWithStore.user.update.mutate({ input, optimistic: { predictedChange } }))
+          .rejects.toThrow(storeError); // Should throw the original store error
+
+        expect(mockStore.addPendingMutation).toHaveBeenCalledOnce();
+        expect(mockTransport.request).not.toHaveBeenCalled(); // Transport shouldn't be called if store fails first
+        expect(mockStore.rejectPendingMutation).not.toHaveBeenCalled(); // Rejection shouldn't happen if add failed
+      });
+
+      it('should log error if store.rejectPendingMutation fails during transport error', async () => {
+        const input = { id: 'store-fail-reject-transport' };
+        const predictedChange = () => {};
+        const transportError = new Error('Transport failed');
+        const rejectError = new Error('Store reject failed');
+        mockTransport.request.mockRejectedValueOnce(transportError);
+        (mockStore.rejectPendingMutation as any).mockImplementationOnce(() => { throw rejectError; });
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}); // Spy on console.error
+
+        await expect(clientWithStore.user.update.mutate({ input, optimistic: { predictedChange } }))
+          .rejects.toThrow(new TypeQLClientError(transportError.message, 'MUTATION_FAILED')); // Expect wrapped error
+
+        expect(mockStore.addPendingMutation).toHaveBeenCalledOnce();
+        expect(mockStore.rejectPendingMutation).toHaveBeenCalledOnce();
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[TypeQL Client] Error rejecting pending mutation'),
+          rejectError
+        );
+        consoleErrorSpy.mockRestore();
+      });
+
+      it('should log error if store.rejectPendingMutation fails during server error', async () => {
+        const input = { id: 'store-fail-reject-server' };
+        const predictedChange = () => {};
+        const serverErrorResult = { message: 'Server rejected', code: 'VALIDATION_ERROR' };
+        const rejectError = new Error('Store reject failed again');
+        mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'error', error: serverErrorResult } });
+        (mockStore.rejectPendingMutation as any).mockImplementationOnce(() => { throw rejectError; });
+        const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}); // Spy on console.error
+
+        await expect(clientWithStore.user.update.mutate({ input, optimistic: { predictedChange } }))
+          .rejects.toThrow(new TypeQLClientError(serverErrorResult.message, serverErrorResult.code)); // Original server error should still be thrown
+
+        expect(mockStore.addPendingMutation).toHaveBeenCalledOnce();
+        expect(mockStore.rejectPendingMutation).toHaveBeenCalledOnce();
+        expect(consoleErrorSpy).toHaveBeenCalledWith(
+          expect.stringContaining('[TypeQL Client] Error rejecting pending mutation'),
+          rejectError
+        );
+        consoleErrorSpy.mockRestore();
+      });
   });
 
+
+
+// Add a new describe block for client creation edge cases
+describe('Client Creation Edge Cases', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    mockTransport.onAckReceived = undefined; // Ensure clean state
+  });
+
+  it('should handle proxy access for non-string or "then" properties', () => {
+    const localClient = createClient<MockRouter>({ transport: mockTransport });
+    // Accessing non-string property (like a symbol, though less common in JS direct access)
+    // expect(localClient[Symbol('test')]).toBeUndefined(); // Hard to test Symbol directly
+    // Accessing 'then' property (common in promise checks)
+    expect((localClient as any).then).toBeUndefined();
+    expect((localClient.user as any).then).toBeUndefined();
+    expect((localClient.user.get as any).then).toBeUndefined();
+  });
+
+  it('should log error if store is provided without transport', () => {
+     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+     createClient<MockRouter>({ store: mockStore } as any); // Force missing transport
+     expect(consoleErrorSpy).toHaveBeenCalledWith(
+       '[TypeQL Client] OptimisticStore provided but no transport found in options.'
+     );
+     consoleErrorSpy.mockRestore();
+  });
+
+  it('should warn if transport already has onAckReceived when store is provided', () => {
+     const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+     const existingHandler = vi.fn();
+     mockTransport.onAckReceived = existingHandler;
+     // Cast mockStore to any here as well
+     createClient<MockRouter>({ transport: mockTransport, store: mockStore as any });
+     expect(consoleWarnSpy).toHaveBeenCalledWith(
+       '[TypeQL Client] Transport already has an onAckReceived handler. Overwriting with store.confirmPendingMutation.'
+     );
+     // Verify the handler was indeed overwritten
+     expect(mockTransport.onAckReceived).not.toBe(existingHandler);
+     // Simulate an ack to ensure the new handler (bound store method) is called
+     const ack = { type: 'ack', id: 1, clientSeq: 1, serverSeq: 100 } as const;
+     mockTransport.onAckReceived?.(ack);
+     expect(mockStore.confirmPendingMutation).toHaveBeenCalledWith(ack);
+
+     consoleWarnSpy.mockRestore();
+  });
+});
 });

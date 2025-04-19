@@ -159,6 +159,7 @@ export function useSubscription<
         // Iterator now yields the full message types
         let iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage> | null = null;
         let isCancelled = false; // Flag to prevent processing after cleanup
+        let errorHandledInLoop = false; // Flag to track if error occurred in loop
 
         const startSubscription = async () => {
             if (!isMountedRef.current || isCancelled) return;
@@ -173,7 +174,16 @@ export function useSubscription<
                 unsub = subResult.unsubscribe;
                 iterator = subResult.iterator; // No assertion needed, type matches
                 if (isMountedRef.current && !isCancelled) {
-                    setUnsubscribeFn(() => unsub); // Store the actual unsubscribe function
+                    // Wrap unsub to also set status to idle
+                    const manualUnsub = () => {
+                        if (unsub) {
+                            console.log("[useSubscription] Manual unsubscribe called.");
+                            unsub();
+                        }
+                        // Set status to idle regardless of previous state on manual call
+                        if (isMountedRef.current) setStatus('idle');
+                    };
+                    setUnsubscribeFn(() => manualUnsub);
                 } else {
                     // If unmounted or cancelled before setting state, immediately unsubscribe
                     unsub?.();
@@ -213,7 +223,9 @@ export function useSubscription<
                                      setStatus('error');
                                      // Pass the original error structure to the callback
                                      onErrorRef.current?.({ message: `Store error: ${err.message || err}` });
+                                     unsub?.(); // Clean up immediately on store error
                                  }
+                                 errorHandledInLoop = true; // Set flag
                                  break; // Stop iteration on store error
                             }
                         } else {
@@ -231,37 +243,42 @@ export function useSubscription<
                             setStatus('error');
                             // Pass the original error structure from the message to the callback
                             onErrorRef.current?.(result.error);
+                            unsub?.(); // Clean up immediately on subscription error message
                         }
+                        errorHandledInLoop = true; // Set flag
                         break; // Stop iteration on error
                     }
                     // Note: The loop naturally ends when the iterator is done (server sends 'end')
                 }
 
                 // Iteration finished normally (server sent 'end' or iterator completed)
-                if (isMountedRef.current && !isCancelled && status !== 'error') {
-                    console.log("[useSubscription] Subscription ended normally.");
-                    setStatus('ended');
-                    onEndRef.current?.();
+                // Let cleanup handle final state, just call the callback if needed
+                // Check flag instead of potentially stale status variable
+                if (isMountedRef.current && !isCancelled && !errorHandledInLoop) {
+                     console.log("[useSubscription] Subscription ended normally.");
+                     setStatus('ended'); // Set status on normal completion
+                     onEndRef.current?.();
                 }
 
             } catch (err: any) {
+                // Error handling sets status to 'error' correctly here
                 if (isMountedRef.current && !isCancelled) {
                     console.error("[useSubscription] Failed to initiate or iterate subscription:", err);
                     const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
                     setError(errorObj);
                     setStatus('error');
                     onErrorRef.current?.({ message: `Subscription failed: ${errorObj.message || errorObj}` });
+                    unsub?.(); // Clean up immediately on iterator error
+                    errorHandledInLoop = true; // Set flag
                 }
             } finally {
-                 if (isMountedRef.current && !isCancelled && status !== 'ended' && status !== 'error') {
-                     // If loop finishes without explicit end/error (e.g., iterator.return called), mark as ended
-                     // setStatus('ended'); // Or maybe 'idle'? Let's stick to 'ended' if it was active/connecting
-                 }
-                 // Ensure loading is false if it finishes in any state other than connecting/active
-                 if (isMountedRef.current && !isCancelled && (status === 'connecting' || status === 'active')) {
-                     // This case shouldn't ideally happen if loop finishes, but as a safeguard
-                     // setStatus('ended'); // Or 'idle'?
-                 }
+                 // Remove potentially problematic status updates in finally
+                 // if (isMountedRef.current && !isCancelled && status !== 'ended' && status !== 'error') {
+                 //     setStatus('ended');
+                 // }
+                 // if (isMountedRef.current && !isCancelled && (status === 'connecting' || status === 'active')) {
+                 //     setStatus('ended');
+                 // }
             }
         };
 

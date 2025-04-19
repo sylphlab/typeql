@@ -13,6 +13,7 @@ import {
 
 // --- JSON Patch Types (RFC 6902) ---
 /** Represents a single JSON Patch operation. */
+export 
 interface JsonPatchOperation {
     op: 'add' | 'replace' | 'remove' | 'move' | 'copy' | 'test';
     path: string; // JSON Pointer string (e.g., "/foo/bar/0")
@@ -20,12 +21,14 @@ interface JsonPatchOperation {
     from?: string; // Source path for move/copy
 }
 /** Represents a sequence of JSON Patch operations. */
+export 
 type JsonPatch = JsonPatchOperation[];
 // --- End JSON Patch Types ---
 
 // --- Immer Patch to JSON Patch Conversion ---
 
 /** Converts an Immer path array to a JSON Pointer string. */
+export 
 function immerPathToJsonPointer(path: (string | number)[]): string {
     if (path.length === 0) return '';
     // Escape '/' as '~1' and '~' as '~0' according to RFC 6901
@@ -37,6 +40,7 @@ function immerPathToJsonPointer(path: (string | number)[]): string {
  * Note: This is a basic conversion and might not handle all edge cases or complex Immer patches perfectly.
  * It currently only supports 'add', 'replace', and 'remove' ops.
  */
+export 
 function convertImmerPatchesToJsonPatches(immerPatches: Patch[]): JsonPatch {
     return immerPatches.map(patch => {
         const jsonPointerPath = immerPathToJsonPointer(patch.path);

@@ -2,7 +2,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { enablePatches } from 'immer';
 // Import DeltaApplicator instead of ApplyDeltaFn
-import { createOptimisticStore, OptimisticStore, DeltaApplicator } from './optimisticStore'; // Adjusted path
+import {
+    createOptimisticStore,
+    OptimisticStore,
+    DeltaApplicator,
+    immerPathToJsonPointer,
+    convertImmerPatchesToJsonPatches,
+    JsonPatch
+} from './optimisticStore'; // Adjusted path
+import type { Patch } from 'immer'; // Keep Immer Patch import separate
 import type { ProcedureCallMessage, AckMessage, SubscriptionDataMessage } from '@sylphlab/typeql-shared'; // Corrected import path
 import { applyPatch as applyJsonPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // For applying client delta in tests
 
@@ -21,6 +29,62 @@ type TestState = TestItem[];
 const mockTransport = {
     requestMissingDeltas: vi.fn(),
 };
+
+
+// Test suite for utility functions
+describe('OptimisticStore Utilities', () => {
+    describe('immerPathToJsonPointer', () => {
+        it('should convert basic paths', () => {
+            expect(immerPathToJsonPointer(['foo', 'bar'])).toBe('/foo/bar');
+            expect(immerPathToJsonPointer(['foo', 0, 'baz'])).toBe('/foo/0/baz');
+            expect(immerPathToJsonPointer([])).toBe('');
+        });
+
+        it('should escape special characters ~ and /', () => {
+            expect(immerPathToJsonPointer(['a~b', 'c/d'])).toBe('/a~0b/c~1d');
+            expect(immerPathToJsonPointer(['~', '/'])).toBe('/~0/~1');
+        });
+    });
+
+    describe('convertImmerPatchesToJsonPatches', () => {
+        it('should convert add, replace, remove ops', () => {
+            const immerPatches: Patch[] = [
+                { op: 'add', path: ['a', 0], value: 1 },
+                { op: 'replace', path: ['b'], value: 'test' },
+                { op: 'remove', path: ['c', 'd'] },
+            ];
+            const expectedJsonPatches: JsonPatch = [
+                { op: 'add', path: '/a/0', value: 1 },
+                { op: 'replace', path: '/b', value: 'test' },
+                { op: 'remove', path: '/c/d' },
+            ];
+            expect(convertImmerPatchesToJsonPatches(immerPatches)).toEqual(expectedJsonPatches);
+        });
+
+        it('should filter out unsupported ops', () => {
+            // Simulate an unsupported op (Immer doesn't generate these by default)
+            const immerPatches: Patch[] = [
+                { op: 'add', path: ['a'], value: 1 },
+                { op: 'test', path: ['b'], value: 2 } as any, // Cast to any to simulate
+                { op: 'remove', path: ['c'] },
+            ];
+            const expectedJsonPatches: JsonPatch = [
+                { op: 'add', path: '/a', value: 1 },
+                { op: 'remove', path: '/c' },
+            ];
+            // Suppress console warning during this test if needed
+            // const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+            expect(convertImmerPatchesToJsonPatches(immerPatches)).toEqual(expectedJsonPatches);
+            // warnSpy.mockRestore();
+        });
+
+        it('should handle empty path', () => {
+            const immerPatches: Patch[] = [{ op: 'replace', path: [], value: { a: 1 } }];
+            const expectedJsonPatches: JsonPatch = [{ op: 'replace', path: '', value: { a: 1 } }];
+            expect(convertImmerPatchesToJsonPatches(immerPatches)).toEqual(expectedJsonPatches);
+        });
+    });
+});
 
 describe('OptimisticStore', () => { // Add 5 second timeout
     let store: OptimisticStore<TestState>; // Main store for non-conflict tests
@@ -110,6 +174,37 @@ describe('OptimisticStore', () => { // Add 5 second timeout
         expect(pending[0]?.message).toEqual(mutation);
         expect(store.getConfirmedState()).toEqual(initialState); // Confirmed state unchanged
         expect(store.getOptimisticState().find((i: TestItem) => i.id === '1')?.value).toBe('optimistic'); // Optimistic state updated
+
+    }); // Close 'should add a pending mutation...' test
+
+    it('should call onError and not add mutation if predictedChange throws', () => {
+        const onErrorMock = vi.fn();
+        // Create a store instance with the mock onError for this specific test
+        const storeWithError = createOptimisticStore<TestState>({
+            initialState: JSON.parse(JSON.stringify(initialState)),
+            deltaApplicator: testDeltaApplicator,
+            onError: onErrorMock,
+        });
+
+        const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'item.update', input: { id: '1', value: 'bad change' }, clientSeq: 1 };
+        const predictedChangeError = new Error('Bad recipe!');
+        const predictedChange = (state: TestState) => {
+            throw predictedChangeError;
+        };
+
+        // Call the function directly, don't expect it to throw
+        storeWithError.addPendingMutation(mutation, predictedChange);
+
+        // Assertions
+        expect(storeWithError.getPendingMutations().length).toBe(0); // Mutation should not be added
+        expect(storeWithError.getOptimisticState()).toEqual(initialState); // State should not change
+        expect(onErrorMock).toHaveBeenCalledTimes(1); // onError should be called
+        expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ProduceError',
+            message: 'Error applying predicted change using Immer.',
+            originalError: predictedChangeError,
+            context: { clientSeq: 1 }
+        }));
     });
 
     it('should remove pending mutation and update confirmedSeq on ack', () => {
@@ -233,7 +328,396 @@ describe('OptimisticStore', () => { // Add 5 second timeout
         expect(store.getOptimisticState().find((i: TestItem) => i.id === '1')?.value).toBe('initial'); // Add explicit type
         expect(store.getConfirmedServerSeq()).toBe(0);
         expect(mockTransport.requestMissingDeltas).toHaveBeenCalledWith('sub1', 1, 10);
+
+    }); // Close 'should apply server delta correctly...' test
+
+    it('should call onError when delta application throws', () => {
+        const deltaError = new Error('Delta applicator failed!');
+        const badDeltaApplicator: DeltaApplicator<TestState> = {
+            applyDelta: (state: TestState, delta: any): TestState => {
+                throw deltaError;
+            }
+        };
+        const onErrorMock = vi.fn();
+        const storeWithError = createOptimisticStore<TestState>({
+            initialState: JSON.parse(JSON.stringify(initialState)),
+            deltaApplicator: badDeltaApplicator,
+            requestMissingDeltas: mockTransport.requestMissingDeltas,
+            onError: onErrorMock, // Pass the mock callback
+        });
+
+        const deltaMsg: SubscriptionDataMessage = {
+            id: 'sub1', type: 'subscriptionData', data: { type: 'update', id: '1', changes: { value: 'wont apply' } }, serverSeq: 1, prevServerSeq: 0
+        };
+        storeWithError.applyServerDelta(deltaMsg); // Use the correct store instance
+
+        expect(storeWithError.getConfirmedState()).toEqual(initialState); // State should not change
+        expect(storeWithError.getConfirmedServerSeq()).toBe(0); // Sequence should not advance
+        expect(onErrorMock).toHaveBeenCalledTimes(1); // Check if onError was called
+        expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'ApplyDeltaError',
+            message: 'Error applying resolved server delta to confirmed state.',
+            originalError: deltaError,
+            context: { serverSeq: 1, resolutionOutcome: 'no-conflict' } // Check context
+        }));
+        expect(mockTransport.requestMissingDeltas).not.toHaveBeenCalled(); // Gap request shouldn't happen if apply fails
     });
+
+    it('should call onError and reset state on recomputation error', () => {
+        const onErrorMock = vi.fn();
+        // Setup: server-wins, add mutation, then apply conflicting delta
+        const storeServerWins = createOptimisticStore<TestState>({
+            initialState: JSON.parse(JSON.stringify(initialState)),
+            deltaApplicator: testDeltaApplicator,
+            conflictResolverConfig: { strategy: 'server-wins' },
+            requestMissingDeltas: mockTransport.requestMissingDeltas,
+            onError: onErrorMock, // Use mock onError
+        });
+
+        const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'item.update', input: { id: '1', value: 'optimistic' }, clientSeq: 1 };
+        const predictedChangeError = new Error('Recompute recipe failed!');
+        let applyCount = 0; // Counter to track calls
+        const predictedChange = (state: TestState) => {
+            applyCount++;
+            const item = state.find((i) => i.id === '1');
+            if (item) item.value = 'optimistic';
+            // Throw only on the second call (recomputation)
+            if (applyCount > 1) {
+                 throw predictedChangeError;
+            }
+        };
+        storeServerWins.addPendingMutation(mutation, predictedChange); // Apply OK first time (applyCount = 1)
+
+        const conflictingDelta: SubscriptionDataMessage = {
+            id: 'sub1', type: 'subscriptionData', data: { type: 'update', id: '1', changes: { value: 'server conflict' } }, serverSeq: 1, prevServerSeq: 0
+        };
+
+        // Apply conflicting delta, triggering recompute which will throw (applyCount = 2)
+        storeServerWins.applyServerDelta(conflictingDelta);
+
+        // Check state: Confirmed state should reflect server delta
+        const expectedConfirmedState = [{ id: '1', value: 'server conflict', version: 0 }];
+        expect(storeServerWins.getConfirmedState()).toEqual(expectedConfirmedState);
+        expect(storeServerWins.getConfirmedServerSeq()).toBe(1);
+
+        // Check error callback
+        // Check that the RecomputationError was reported via onError
+        expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+            type: 'RecomputationError',
+            message: 'Error applying pending mutations during recomputation.',
+            originalError: predictedChangeError
+        }));
+
+        // Check state reset: Optimistic state falls back, pending mutations cleared
+        expect(storeServerWins.getOptimisticState()).toEqual(expectedConfirmedState);
+        expect(storeServerWins.getPendingMutations().length).toBe(0); // Implementation clears pending on error
+    });
+
+
+    it('should ignore confirmPendingMutation for unknown clientSeq', () => {
+        const listener = vi.fn();
+        store.subscribe(listener);
+        const ack: AckMessage = { id: 1, type: 'ack', clientSeq: 999, serverSeq: 10 }; // Unknown seq
+        store.confirmPendingMutation(ack);
+
+        expect(store.getPendingMutations().length).toBe(0);
+        expect(store.getConfirmedServerSeq()).toBe(0);
+        expect(listener).not.toHaveBeenCalled(); // No state change expected
+    });
+
+    it('should ignore rejectPendingMutation for unknown clientSeq', () => {
+        const listener = vi.fn();
+        store.subscribe(listener);
+        store.rejectPendingMutation(999); // Unknown seq
+
+        expect(store.getPendingMutations().length).toBe(0);
+        expect(listener).not.toHaveBeenCalled(); // No state change expected
+    });
+
+    it('should call onError when requestMissingDeltas throws', () => {
+        const requestError = new Error('Failed to request deltas');
+        const requestMissingDeltasMock = vi.fn().mockImplementationOnce(() => {
+            throw requestError;
+        });
+        const onErrorMock = vi.fn();
+        const storeWithError = createOptimisticStore<TestState>({
+            initialState: JSON.parse(JSON.stringify(initialState)),
+            deltaApplicator: testDeltaApplicator,
+            requestMissingDeltas: requestMissingDeltasMock, // Use the throwing mock
+            onError: onErrorMock, // Pass the mock callback
+        });
+
+        const deltaMsg: SubscriptionDataMessage = {
+            id: 'sub1', type: 'subscriptionData', data: { type: 'update', id: '1', changes: { value: 'server update' } }, serverSeq: 10, prevServerSeq: 9 // Gap
+        };
+        storeWithError.applyServerDelta(deltaMsg); // Use the correct store instance
+
+        expect(requestMissingDeltasMock).toHaveBeenCalledWith('sub1', 1, 10);
+        // Expect two calls: one warning for the gap, one error for the failed request
+        expect(onErrorMock).toHaveBeenCalledTimes(2);
+        // The first call should be the warning about the gap itself
+        expect(onErrorMock).toHaveBeenNthCalledWith(1, expect.objectContaining({
+             type: 'GapRequestError',
+             message: expect.stringContaining('Sequence gap detected!'),
+             context: { expectedPrevSeq: 0, receivedPrevSeq: 9, currentServerSeq: 10 }
+        }));
+         // The second call should be the error from calling requestMissingDeltas
+        expect(onErrorMock).toHaveBeenNthCalledWith(2, expect.objectContaining({
+            type: 'GapRequestError',
+            message: 'Error calling requestMissingDeltas function.',
+            originalError: requestError,
+            context: { fromSeq: 1, toSeq: 10 }
+        }));
+        // State should remain unchanged as delta wasn't applied and request failed
+        expect(storeWithError.getConfirmedState()).toEqual(initialState);
+        expect(storeWithError.getConfirmedServerSeq()).toBe(0);
+    });
+
+    describe('Options and Error Handling', () => {
+        it('should prune oldest mutation when maxPendingMutations is exceeded', () => {
+            const max = 2;
+            const onErrorMock = vi.fn();
+            const storeLimited = createOptimisticStore<TestState>({
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: testDeltaApplicator,
+                maxPendingMutations: max,
+                onError: onErrorMock,
+                mutationTimeoutMs: 0, // Disable timeout for this test
+            });
+
+            const mutation1: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'm1', input: {}, clientSeq: 1 };
+            const mutation2: ProcedureCallMessage = { id: 2, type: 'mutation', path: 'm2', input: {}, clientSeq: 2 };
+            const mutation3: ProcedureCallMessage = { id: 3, type: 'mutation', path: 'm3', input: {}, clientSeq: 3 };
+            const change = (state: TestState) => {}; // No-op change
+
+            storeLimited.addPendingMutation(mutation1, change);
+            storeLimited.addPendingMutation(mutation2, change);
+            expect(storeLimited.getPendingMutations().length).toBe(max);
+            expect(onErrorMock).not.toHaveBeenCalled();
+
+            // Add one more to trigger pruning
+            storeLimited.addPendingMutation(mutation3, change);
+            const pending = storeLimited.getPendingMutations();
+            expect(pending.length).toBe(max);
+            expect(pending[0]?.message.clientSeq).toBe(2); // Mutation 1 should be pruned
+            expect(pending[1]?.message.clientSeq).toBe(3);
+            expect(onErrorMock).toHaveBeenCalledTimes(1);
+            expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'PruningError',
+                message: expect.stringContaining(`Pending mutation queue exceeded ${max}`),
+                context: { clientSeq: 1, maxQueueSize: max }
+            }));
+        });
+
+        it('should not set timeouts if mutationTimeoutMs is 0', () => {
+            vi.useFakeTimers();
+            const storeNoTimeout = createOptimisticStore<TestState>({
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: testDeltaApplicator,
+                mutationTimeoutMs: 0, // Disable timeout
+            });
+            const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'm1', input: {}, clientSeq: 1 };
+            storeNoTimeout.addPendingMutation(mutation, () => {});
+
+            // Check if timeoutTimer is undefined
+            const pending = storeNoTimeout.getPendingMutations();
+            expect(pending[0]?.timeoutTimer).toBeUndefined();
+
+            // Advance time, mutation should not be rejected
+            vi.advanceTimersByTime(1000);
+            expect(storeNoTimeout.getPendingMutations().length).toBe(1);
+            vi.useRealTimers();
+        });
+
+        it('should call onError callback on mutation timeout', () => {
+            vi.useFakeTimers();
+            const onErrorMock = vi.fn();
+            const timeoutMs = 50;
+            const storeErrorCb = createOptimisticStore<TestState>({
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: testDeltaApplicator,
+                onError: onErrorMock,
+                mutationTimeoutMs: timeoutMs,
+            });
+            const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'm1', input: {}, clientSeq: 1 };
+            storeErrorCb.addPendingMutation(mutation, () => {});
+
+            vi.advanceTimersByTime(timeoutMs + 1);
+
+            expect(onErrorMock).toHaveBeenCalledTimes(1);
+            expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'TimeoutError',
+                message: expect.stringContaining(`timed out after ${timeoutMs}ms`),
+                context: { clientSeq: 1, durationMs: timeoutMs }
+            }));
+            expect(storeErrorCb.getPendingMutations().length).toBe(0); // Should be rejected
+            vi.useRealTimers();
+        });
+
+        it('should call onError callback on gap detection', () => {
+            const onErrorMock = vi.fn();
+            const storeErrorCb = createOptimisticStore<TestState>({
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: testDeltaApplicator,
+                onError: onErrorMock,
+                requestMissingDeltas: mockTransport.requestMissingDeltas,
+            });
+            const deltaMsg: SubscriptionDataMessage = {
+                id: 'sub1', type: 'subscriptionData', data: {}, serverSeq: 10, prevServerSeq: 9 // Gap
+            };
+            storeErrorCb.applyServerDelta(deltaMsg);
+
+            expect(mockTransport.requestMissingDeltas).toHaveBeenCalled();
+            expect(onErrorMock).toHaveBeenCalledTimes(1);
+            expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'GapRequestError',
+                message: expect.stringContaining('Sequence gap detected!'),
+                context: { expectedPrevSeq: 0, receivedPrevSeq: 9, currentServerSeq: 10 }
+            }));
+        });
+
+        it('should call onError callback on manual rejection', () => {
+            const onErrorMock = vi.fn();
+            const storeErrorCb = createOptimisticStore<TestState>({
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: testDeltaApplicator,
+                onError: onErrorMock,
+            });
+            const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'm1', input: {}, clientSeq: 1 };
+            storeErrorCb.addPendingMutation(mutation, () => {});
+            const rejectionReason = { serverError: 'Invalid input' };
+
+            storeErrorCb.rejectPendingMutation(1, rejectionReason);
+
+            expect(onErrorMock).toHaveBeenCalledTimes(1);
+            expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'RejectionError',
+                message: expect.stringContaining('Rejecting mutation'),
+                originalError: rejectionReason,
+                context: { clientSeq: 1 }
+            }));
+            expect(storeErrorCb.getPendingMutations().length).toBe(0);
+        });
+
+         it('should call onError callback when deltaApplicator returns undefined', () => {
+            const onErrorMock = vi.fn();
+            const badApplicator: DeltaApplicator<TestState> = {
+                applyDelta: () => undefined // Always fails
+            };
+            const storeErrorCb = createOptimisticStore<TestState>({
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: badApplicator,
+                onError: onErrorMock,
+            });
+            const deltaMsg: SubscriptionDataMessage = {
+                id: 'sub1', type: 'subscriptionData', data: { type: 'update', id: '1', changes: {} }, serverSeq: 1, prevServerSeq: 0
+            };
+            storeErrorCb.applyServerDelta(deltaMsg);
+
+            expect(onErrorMock).toHaveBeenCalledTimes(1);
+            expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'ApplyDeltaError',
+                message: 'deltaApplicator.applyDelta returned undefined.',
+                context: { serverSeq: 1 }
+            }));
+            expect(storeErrorCb.getConfirmedState()).toEqual(initialState); // State unchanged
+            expect(storeErrorCb.getConfirmedServerSeq()).toBe(0); // Sequence unchanged
+        });
+
+        it('should call onError callback when conflict resolver throws', () => {
+            const resolverError = new Error('Resolver failed!');
+            const customResolver = vi.fn(() => { throw resolverError; });
+            const onErrorMock = vi.fn();
+
+            const storeErrorCb = createOptimisticStore<TestState, JsonPatchOperation[]>({ // Specify Delta type
+                initialState: JSON.parse(JSON.stringify(initialState)),
+                deltaApplicator: testDeltaApplicator,
+                conflictResolverConfig: { strategy: 'custom', customResolver: customResolver as any }, // Cast to any temporarily if TS struggles with mock signature vs generic type
+                onError: onErrorMock,
+            });
+            storeErrorCb.subscribe(vi.fn()); // Add a listener
+
+            // Setup conflict scenario
+            const delta1: SubscriptionDataMessage = { id: 'sub1', type: 'subscriptionData', data: [{ op: 'replace', path: '/0/value', value: 'server val 1' }], serverSeq: 1, prevServerSeq: 0 };
+            storeErrorCb.applyServerDelta(delta1);
+            const mutationA: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'item.update', input: { id: '1', value: 'client val A' }, clientSeq: 1 };
+            storeErrorCb.addPendingMutation(mutationA, (state) => { state.find(i => i.id === '1')!.value = 'client val A'; });
+            onErrorMock.mockClear(); // Clear mock calls after setup
+
+            // Apply conflicting delta
+            const conflictingDeltaData: JsonPatchOperation[] = [{ op: 'replace', path: '/0/value', value: 'server val 2 CONFLICT' }];
+            const conflictingDelta: SubscriptionDataMessage = {
+                id: 'sub1', type: 'subscriptionData', data: conflictingDeltaData, serverSeq: 2, prevServerSeq: 1
+            };
+            storeErrorCb.applyServerDelta(conflictingDelta);
+
+            expect(customResolver).toHaveBeenCalled();
+            // Check that the ConflictResolutionError from the resolver was reported via onError
+            expect(onErrorMock).toHaveBeenCalledWith(expect.objectContaining({
+                type: 'ConflictResolutionError',
+                message: 'Error executing conflict resolver.',
+                originalError: resolverError,
+                context: expect.objectContaining({ serverSeq: 2 })
+            }));
+            // Server delta should be applied as fallback
+            expect(storeErrorCb.getConfirmedState()).toEqual([{ id: '1', value: 'server val 2 CONFLICT', version: 0 }]);
+            expect(storeErrorCb.getConfirmedServerSeq()).toBe(2);
+            // Pending mutation remains in fallback (like server-wins)
+            expect(storeErrorCb.getPendingMutations().length).toBe(1);
+        });
+
+    });
+
+    // Removed extra closing brace here
+
+    it('should throw error if addPendingMutation called without clientSeq', () => {
+        const mutationNoSeq: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'item.update', input: { id: '1', value: 'optimistic' } }; // No clientSeq
+        const predictedChange = (state: TestState) => {};
+
+        expect(() => store.addPendingMutation(mutationNoSeq as any, predictedChange))
+            .toThrow("ProcedureCallMessage must include clientSeq for optimistic mutation.");
+        expect(store.getPendingMutations().length).toBe(0);
+    });
+
+    it('should apply first delta correctly when prevServerSeq is 0 and confirmedServerSeq is 0', () => {
+        const listener = vi.fn();
+        store.subscribe(listener);
+        const firstDelta: SubscriptionDataMessage = {
+            id: 'sub1', type: 'subscriptionData', data: { type: 'update', id: '1', changes: { value: 'first server update' } }, serverSeq: 1, prevServerSeq: 0
+        };
+        store.applyServerDelta(firstDelta);
+
+        expect(mockTransport.requestMissingDeltas).not.toHaveBeenCalled();
+        expect(store.getConfirmedState()).toEqual([{ id: '1', value: 'first server update', version: 0 }]);
+        expect(store.getConfirmedServerSeq()).toBe(1);
+        expect(store.getOptimisticState()).toEqual([{ id: '1', value: 'first server update', version: 0 }]);
+        expect(listener).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not add the same listener twice', () => {
+        const listener = vi.fn();
+        const unsub1 = store.subscribe(listener);
+        const unsub2 = store.subscribe(listener); // Subscribe same listener again
+
+        // Trigger a change
+        const mutation: ProcedureCallMessage = { id: 1, type: 'mutation', path: 'm1', input: {}, clientSeq: 1 };
+        store.addPendingMutation(mutation, () => {});
+
+        // Listener should only be called once
+        expect(listener).toHaveBeenCalledTimes(1);
+
+        unsub1(); // Unsubscribe once
+
+        // Trigger another change
+        const mutation2: ProcedureCallMessage = { id: 2, type: 'mutation', path: 'm2', input: {}, clientSeq: 2 };
+        store.addPendingMutation(mutation2, () => {});
+
+        // Listener should not be called again as it should be removed
+        expect(listener).toHaveBeenCalledTimes(1);
+
+        // unsub2(); // Calling second unsub shouldn't matter/error
+    });
+
 
     it('should detect a gap and request missing deltas', () => {
         const deltaMsg1: SubscriptionDataMessage = {

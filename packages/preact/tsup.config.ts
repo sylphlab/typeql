@@ -4,7 +4,7 @@ export default defineConfig({
   entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: true, // Generate declaration files
+  dts: false, // Disable tsup DTS generation, let tsc handle it
   splitting: false,
   sourcemap: true,
   clean: true,

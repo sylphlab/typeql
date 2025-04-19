@@ -8,8 +8,8 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"], // Include DOM libs for hooks
     "module": "ESNext", // Ensure ESNext module system
     "moduleResolution": "bundler", // Use bundler resolution
-    "declaration": true,
-    "declarationMap": true,
+    "declaration": true, // Re-enable tsc DTS generation
+    "declarationMap": true, // Re-enable tsc DTS generation
     "sourceMap": true,
     "composite": true // Restore composite flag
   },

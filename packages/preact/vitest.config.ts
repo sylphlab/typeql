@@ -3,8 +3,14 @@ import { resolve } from 'path';
 
 export default defineConfig({
   test: {
-    environment: 'jsdom',
+    environment: 'happy-dom', // Switch to happy-dom
     setupFiles: ['./test/setup.ts'],
+    poolOptions: {
+      threads: {
+        // execArgv: ['--max-old-space-size=8192'], // Keep commented out for now
+        // singleThread: true // Re-enable parallel execution
+      }
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],

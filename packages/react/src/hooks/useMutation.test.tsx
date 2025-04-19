@@ -95,11 +95,11 @@ describe('useMutation', () => {
 
     // --- Tests ---
 
-    it('should be in idle state initially', () => {
+    it('should be in idle state initially', async () => { // Add async keyword
       const { getLatestState } = renderMutationHook({ procedure: mockMutationProcedure });
-      // Wait for initial render cycle
-      expect(getLatestState()).toBeDefined();
-      const initialState = getLatestState();
+      // Wait for initial state to be captured
+      await waitFor(() => expect(getLatestState()).toBeDefined());
+      const initialState = getLatestState()!; // Add non-null assertion
       expect(initialState.isLoading).toBe(false);
       expect(initialState.isSuccess).toBe(false);
       expect(initialState.isError).toBe(false);
@@ -117,15 +117,16 @@ describe('useMutation', () => {
 
       let mutationPromise: Promise<any> | undefined;
 
-      // Trigger the mutation (returns a promise)
-      // No act needed here just to *call* it, but updates need act
-      mutationPromise = mutateFn!(mockInput);
+      // Trigger the mutation within act to handle immediate state updates
+      act(() => {
+          mutationPromise = mutateFn!(mockInput);
+      });
 
       // Assert loading state immediately after calling mutateFn
       // State update might be slightly delayed, so use waitFor
       await waitFor(() => {
-          expect(getLatestState().status).toBe('loading');
-          expect(getLatestState().isLoading).toBe(true);
+          expect(getLatestState()!.status).toBe('loading'); // Add !
+          expect(getLatestState()!.isLoading).toBe(true); // Add !
       });
 
       // Wrap the promise settlement and subsequent state updates in act
@@ -135,10 +136,10 @@ describe('useMutation', () => {
 
       // Wait for the final success state
       await waitFor(() => {
-          expect(getLatestState().status).toBe('success');
+          expect(getLatestState()!.status).toBe('success'); // Add !
       });
 
-      const finalState = getLatestState();
+      const finalState = getLatestState()!; // Add !
       // Verify the *mocked procedure* was called correctly
       expect(mockProcedureMutate).toHaveBeenCalledWith({ input: mockInput }); // Check args passed to mock
       expect(finalState.isLoading).toBe(false);
@@ -155,13 +156,14 @@ describe('useMutation', () => {
 
       let mutationPromise: Promise<any> | undefined;
 
-      // Trigger the mutation and attach catch
-      // No act needed here just to *call* it
-      mutationPromise = mutateFn!(mockInput).catch(() => {}); // Catch expected rejection
+      // Trigger the mutation within act and attach catch
+      act(() => {
+          mutationPromise = mutateFn!(mockInput).catch(() => {}); // Catch expected rejection
+      });
 
       // Assert loading state immediately after calling mutateFn
       await waitFor(() => {
-          expect(getLatestState().status).toBe('loading');
+          expect(getLatestState()!.status).toBe('loading'); // Add !
       });
 
       // Wrap the promise settlement (rejection) and subsequent state updates in act
@@ -171,10 +173,10 @@ describe('useMutation', () => {
 
       // Wait for the final error state
       await waitFor(() => {
-          expect(getLatestState().status).toBe('error');
+          expect(getLatestState()!.status).toBe('error'); // Add !
       });
 
-      const finalState = getLatestState();
+      const finalState = getLatestState()!; // Add !
       expect(mockProcedureMutate).toHaveBeenCalledWith({ input: mockInput });
       expect(finalState.isLoading).toBe(false);
       expect(finalState.status).toBe('error');
@@ -237,12 +239,12 @@ describe('useMutation', () => {
       const mutateFn = getMutateFn();
 
       await act(async () => { await mutateFn!(mockInput); });
-      await waitFor(() => { expect(getLatestState().status).toBe('success'); });
-      expect(getLatestState().data).toEqual(mockOutput);
+      await waitFor(() => { expect(getLatestState()!.status).toBe('success'); }); // Add !
+      expect(getLatestState()!.data).toEqual(mockOutput); // Add !
 
       let resetFn: (() => void) | undefined;
       await waitFor(() => {
-          resetFn = getLatestState().reset;
+          resetFn = getLatestState()!.reset; // Add !
           expect(resetFn).toBeInstanceOf(Function);
       });
 
@@ -250,10 +252,10 @@ describe('useMutation', () => {
 
       // Wait for state to update after reset
       await waitFor(() => {
-          expect(getLatestState().status).toBe('idle');
+          expect(getLatestState()!.status).toBe('idle'); // Add !
       });
 
-      const finalState = getLatestState();
+      const finalState = getLatestState()!; // Add !
       expect(finalState.isLoading).toBe(false);
       expect(finalState.isSuccess).toBe(false);
       expect(finalState.isError).toBe(false);

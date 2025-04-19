@@ -95,12 +95,19 @@ describe('@sylphlab/typeql-react context', () => {
     // --- Provider & Core Hook Tests ---
     describe('TypeQLProvider and useTypeQL', () => {
         it('should throw error if useTypeQL is used outside of TypeQLProvider', () => {
-            // Test by expecting render to throw the specific error
-            expect(() => render(<TestComponent />)).toThrow(
-                '`useTypeQL` must be used within a `TypeQLProvider`.'
-            );
-            // Check if console.error was called by React's error boundary (it might be)
-            // expect(consoleErrorSpy).toHaveBeenCalled();
+            // Suppress console.error for this specific expected error
+            const originalError = console.error;
+            console.error = vi.fn();
+            try {
+                render(<TestComponent />);
+                // If render doesn't throw, fail the test
+                expect.fail('Render should have thrown an error.');
+            } catch (error: any) {
+                expect(error.message).toContain('`useTypeQL` must be used within a `TypeQLProvider`.');
+            } finally {
+                // Restore console.error
+                console.error = originalError;
+            }
         });
 
         it('should provide the client instance via useTypeQL when only client is passed', () => {

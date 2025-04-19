@@ -20,7 +20,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm exec tsup",
+    "build": "pnpm exec tsup && tsc --emitDeclarationOnly --project tsconfig.json",
     "dev": "tsup src/index.ts --format esm,cjs --external preact @sylphlab/typeql-shared @sylphlab/typeql-client --watch",
     "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
@@ -40,6 +40,7 @@
     "@testing-library/preact-hooks": "^1.1.0",
     "@vitest/coverage-v8": "^3.1.1",
     "eslint": "^8.57.0",
+    "happy-dom": "^17.4.4",
     "jsdom": "^26.1.0",
     "preact": "^10.22.1",
     "tsup": "^8.2.3",

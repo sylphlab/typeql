@@ -38,6 +38,12 @@ export interface ConflictResolutionResult<Delta = any> {
 }
 
 
+/** Helper to check if a delta (assumed JSON Patch array) is empty */
+function isDeltaEmpty(delta: any): boolean {
+    // Basic check, might need refinement based on actual Delta types used
+    return Array.isArray(delta) && delta.length === 0;
+}
+
 /**
  * Decides which delta 'wins' in a conflict scenario based on the configured strategy
  * and returns the resolved delta along with the outcome.
@@ -49,6 +55,17 @@ export function resolveConflict<Delta>(
 ): ConflictResolutionResult<Delta> { // Changed return type
     console.warn(`[ReqDelta Client] Conflict detected between client delta and server delta. Strategy: ${config.strategy}`);
 
+    // Handle empty deltas first - assumes JSON Patch array format for Delta
+    if (isDeltaEmpty(clientDelta)) {
+        // If client delta is empty, server delta always applies
+        return { resolvedDelta: serverDelta, outcome: 'server-applied' };
+    }
+    if (isDeltaEmpty(serverDelta)) {
+        // If server delta is empty, client delta always applies
+        return { resolvedDelta: clientDelta, outcome: 'client-applied' };
+    }
+
+    // Proceed with strategy if neither delta is empty
     switch (config.strategy) {
         case 'client-wins':
             // Client's delta is chosen, outcome indicates client preference applied
