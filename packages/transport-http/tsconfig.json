@@ -4,13 +4,12 @@
     "outDir": "./dist",
     // "rootDir": "./src", // Remove rootDir
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "composite": true, // Add composite back
+    "composite": true, // Restore composite flag for project references
     "declaration": true,
+    "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "src/**/__tests__/*"],
-  "references": [
-    { "path": "../shared" }
-  ]
+  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
 }

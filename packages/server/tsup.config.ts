@@ -4,11 +4,10 @@ export default defineConfig({
   entry: ['src/index.ts'],
   outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: true, // Generate declaration files
+  dts: true,
   splitting: false,
   sourcemap: true,
   clean: true,
-  minify: 'terser',
   tsconfig: 'tsconfig.json',
-  external: ['@sylphlab/typeql-shared'], // Mark shared as external
+  external: ['@sylphlab/typeql-shared'] // Mark internal workspace deps as external
 })

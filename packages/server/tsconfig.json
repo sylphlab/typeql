@@ -23,11 +23,12 @@
     "outDir": "./dist",
     "declarationDir": "./dist", // Explicitly set declaration output dir
     "lib": ["ES2016"],
-    "composite": true
+    "composite": true // Restore composite flag for project references
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/**/__tests__"],
-  "references": [ // Add back references
+  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
+  "references": [
     { "path": "../shared" }
-  ]
+  ],
 }

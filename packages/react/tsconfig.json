@@ -6,13 +6,14 @@
     "jsx": "react-jsx", // Use modern JSX transform
     "lib": ["DOM", "ESNext"], // Include DOM types for React
     "declaration": true,
+    "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true,
     "sourceMap": true,
-    "composite": true // Remove trailing comma if it's the last item
+    "composite": true // Restore composite flag for project references
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"],
-  "references": [
+  "references": [ // Restore references
     { "path": "../shared" },
     { "path": "../client" }
   ]

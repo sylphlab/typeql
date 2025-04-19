@@ -16,14 +16,16 @@
     "strictFunctionTypes": true,
 
     /* Build options */
-    "module": "CommonJS",
+    "module": "ESNext", // Align with preact/react
+    "moduleResolution": "bundler", // Required for module: ESNext with resolveJsonModule
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
     "outDir": "./dist",
     "declarationDir": "./dist", // Explicitly set declaration output dir
     "lib": ["ES2016", "DOM"],
-    "composite": true,
+    "rootDir": "./src", // Explicitly set root directory
+    "composite": true, // Restore composite flag for project references
     "baseUrl": ".", // Add back baseUrl
     "paths": { // Add back paths
       // "@sylphlab/typeql-shared": ["../shared/src/index.ts"] // Rely on project references
@@ -31,7 +33,8 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/__tests__"],
-  "references": [ // Add back references
+  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
+  "references": [
     { "path": "../shared" }
-  ]
+  ],
 }

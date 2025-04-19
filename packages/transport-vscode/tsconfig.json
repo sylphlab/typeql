@@ -6,8 +6,9 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     // Inherit target, module, lib, strictness etc. from base
     // Ensure settings required for project references are present:
-    "composite": true,      // Add composite back
+    // "composite": true,      // Removed again as per user feedback
     "declaration": true,    // Required for project references
+    "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true, // Optional: Better DX for referenced projects
     "sourceMap": true,      // Optional: For debugging compiled output
     "noEmit": false         // MUST be false or absent for composite projects

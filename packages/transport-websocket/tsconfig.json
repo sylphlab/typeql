@@ -5,13 +5,12 @@
     // "rootDir": "./src", // Remove rootDir
     "lib": ["ESNext"], // Suitable for Node.js/browser WebSocket usage
     "declaration": true,
+    "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true,
-    "sourceMap": true,
-    "composite": true // Restore composite flag
+    "sourceMap": true
+    // "composite": true // Removed again as per user feedback
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"],
-  "references": [
-    { "path": "../shared" } // Reference the shared package
-  ]
+  "exclude": ["node_modules", "dist"]
+  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
 }

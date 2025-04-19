@@ -34,8 +34,4 @@
     "noFallthroughCasesInSwitch": true
   },
   "include": ["server/**/*.ts"], // Only include server code
-  "references": [ // Reference the core package
-    { "path": "../../packages/shared" },
-    { "path": "../../packages/server" }
-  ]
 }

@@ -47,7 +47,7 @@
     "outDir": "./dist", // Output directory for compiled JS
     "rootDir": "./src", // Add rootDir back
     "lib": ["ES2016"], // Core doesn't need DOM
-    "composite": true,
+    "composite": true, // Restore composite flag for project references
     "incremental": true,
     "tsBuildInfoFile": "./.tsbuildinfo"
 ,

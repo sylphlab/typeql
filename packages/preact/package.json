@@ -20,7 +20,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm exec tsup && tsc --emitDeclarationOnly --project tsconfig.json",
+    "build": "pnpm exec tsup",
     "dev": "tsup src/index.ts --format esm,cjs --external preact @sylphlab/typeql-shared @sylphlab/typeql-client --watch",
     "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
