@@ -1,7 +1,7 @@
 {/* packages/react/src/hooks/useSubscription.test.tsx */}
-import React from 'react';
+import React, { ReactNode } from 'react'; // Import ReactNode
 import { describe, it, expect, vi, beforeEach, afterEach, Mock, afterAll } from 'vitest';
-import { render, act, waitFor, cleanup } from '@testing-library/react';
+import { render, renderHook, act, waitFor, cleanup } from '@testing-library/react'; // Import renderHook
 import '@testing-library/jest-dom'; // Ensure matchers are available via setup
 
 // Import hook under test and provider/context
@@ -45,16 +45,15 @@ describe('useSubscription', () => {
         end: () => void;
         error: (err: Error) => void;
     };
-    let mockUnsubscribeFn: Mock<() => void>; // Try function signature as single type arg
+    let mockUnsubscribeFn: Mock<() => void>;
 
     const mockSubscriptionProcedure = {
-      subscribe: vi.fn((_input: any) => { // Underscore input as it's not used in mock logic
+      subscribe: vi.fn((_input: any) => {
         const buffer: (SubscriptionDataMessage | SubscriptionErrorMessage)[] = [];
         let resolveNext: ((value: IteratorResult<SubscriptionDataMessage | SubscriptionErrorMessage>) => void) | null = null;
         let rejectNext: ((reason?: any) => void) | null = null;
         let ended = false;
 
-        // Define controller inside the mock function scope
         mockIteratorController = {
             push: (value) => {
                 if (resolveNext) {
@@ -80,8 +79,6 @@ describe('useSubscription', () => {
                     resolveNext = null;
                     rejectNext = null;
                 } else {
-                    // If error happens before next() is called, push an error message
-                    // This might not be the exact behavior, adjust if needed
                     buffer.push({ type: 'subscriptionError', id: 'ctrl-error-id', error: { message: err.message } });
                 }
             }
@@ -91,7 +88,6 @@ describe('useSubscription', () => {
             async next() {
                 if (buffer.length > 0) {
                     const value = buffer.shift()!;
-                    // Don't need special handling for error type here, just return it
                     return { value, done: false };
                 }
                 if (ended) {
@@ -105,10 +101,8 @@ describe('useSubscription', () => {
             [Symbol.asyncIterator]() { return this; },
         };
 
-        // Define unsubscribe inside the mock function scope
         mockUnsubscribeFn = vi.fn(() => {
-            // console.log("[TEST] Mock unsubscribe called");
-            mockIteratorController?.end(); // Use optional chaining
+            mockIteratorController?.end();
         });
 
         return { iterator, unsubscribe: mockUnsubscribeFn };
@@ -127,8 +121,11 @@ describe('useSubscription', () => {
       getOptimisticStateMock.mockReturnValue({});
       applyServerDeltaMock.mockClear();
       mockSubscriptionProcedure.subscribe.mockClear();
-      // mockUnsubscribeFn is defined within the subscribe mock, clear its calls if needed
       mockUnsubscribeFn?.mockClear();
+    });
+
+    afterEach(() => {
+        cleanup();
     });
 
     // Helper component
@@ -163,11 +160,10 @@ describe('useSubscription', () => {
 
     // --- Tests ---
 
-    it('should initially be in connecting state when enabled', async () => { // Add async
+    it('should initially be in connecting state when enabled', async () => {
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput });
-      // Wait for initial state to be captured
       await waitFor(() => expect(getLatestState()).toBeDefined());
-      const initialState = getLatestState()!; // Add !
+      const initialState = getLatestState()!;
       expect(initialState.status).toBe('connecting');
       expect(initialState.data).toBeNull();
       expect(initialState.error).toBeNull();
@@ -178,47 +174,57 @@ describe('useSubscription', () => {
       const onDataMock = vi.fn();
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput, options: { onData: onDataMock } });
 
-      await waitFor(() => expect(getLatestState()!.status).toBe('connecting')); // Add ! Ensure connection starts
+      await waitFor(() => expect(getLatestState()!.status).toBe('connecting'));
 
-      // Push first data message
       await act(async () => { mockIteratorController.push(mockData1); });
 
-      // Wait for state transition and data processing
       await waitFor(() => {
-          expect(getLatestState()!.status).toBe('active'); // Add !
-          expect(getLatestState()!.data).toEqual(mockData1.data); // Add !
+          expect(getLatestState()!.status).toBe('active');
+          expect(getLatestState()!.data).toEqual(mockData1.data);
       });
 
-      const activeState1 = getLatestState()!; // Add !
+      const activeState1 = getLatestState()!;
       expect(activeState1.error).toBeNull();
       expect(onDataMock).toHaveBeenCalledWith(mockData1.data);
-      expect(applyServerDeltaMock).toHaveBeenCalledWith(mockData1); // Verify store interaction
+      expect(applyServerDeltaMock).toHaveBeenCalledWith(mockData1);
 
-      // Push second data message
       await act(async () => { mockIteratorController.push(mockData2); });
 
       await waitFor(() => {
-          expect(getLatestState()!.data).toEqual(mockData2.data); // Add !
+          expect(getLatestState()!.data).toEqual(mockData2.data);
       });
 
-      const activeState2 = getLatestState()!; // Add !
-      expect(activeState2.status).toBe('active'); // Should remain active
+      const activeState2 = getLatestState()!;
+      expect(activeState2.status).toBe('active');
       expect(activeState2.error).toBeNull();
       expect(onDataMock).toHaveBeenCalledWith(mockData2.data);
-      expect(applyServerDeltaMock).toHaveBeenCalledWith(mockData2); // Verify store interaction again
+      expect(applyServerDeltaMock).toHaveBeenCalledWith(mockData2);
+    });
+
+    it('should handle input serialization error and warn', () => {
+        const circularInput: any = { id: 1 };
+        circularInput.self = circularInput;
+        const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+        renderSubscriptionHook({
+            procedure: mockSubscriptionProcedure,
+            input: circularInput
+        });
+
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+            "useSubscription: Failed to stringify input for dependency key. Updates may be missed for complex objects."
+        );
+        consoleWarnSpy.mockRestore();
     });
 
     it('should handle subscription error messages from iterator', async () => {
       const onErrorMock = vi.fn();
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput, options: { onError: onErrorMock } });
 
-      await waitFor(() => expect(getLatestState()!.status).toBe('connecting')); // Add !
+      await waitFor(() => expect(getLatestState()!.status).toBe('connecting'));
 
-      // Push error message
-      // Push error message within act
       await act(async () => { mockIteratorController.push(mockSubErrorMsg); });
 
-      // Wait specifically for the error status and error object
       await waitFor(() => {
           const latestState = getLatestState()!;
           expect(latestState.status).toBe('error');
@@ -226,28 +232,26 @@ describe('useSubscription', () => {
           expect(latestState.error?.message).toBe(mockSubErrorMsg.error.message);
       });
 
-      const errorState = getLatestState()!; // Re-fetch state after waiting
+      const errorState = getLatestState()!;
       expect(errorState.error).toBeInstanceOf(TypeQLClientError);
       expect(errorState.error?.message).toBe(mockSubErrorMsg.error.message);
-      expect(onErrorMock).toHaveBeenCalledWith(mockSubErrorMsg.error); // Pass original error structure
+      expect(onErrorMock).toHaveBeenCalledWith(mockSubErrorMsg.error);
     });
 
      it('should handle iterator errors (e.g., network failure)', async () => {
       const onErrorMock = vi.fn();
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput, options: { onError: onErrorMock } });
 
-      await waitFor(() => expect(getLatestState()!.status).toBe('connecting')); // Add !
+      await waitFor(() => expect(getLatestState()!.status).toBe('connecting'));
 
-      // Trigger iterator error
       await act(async () => { mockIteratorController.error(mockIteratorError); });
 
       await waitFor(() => {
           expect(getLatestState()!.status).toBe('error');
       });
 
-      const errorState = getLatestState()!; // Add !
-      expect(errorState.error).toEqual(mockIteratorError); // Hook should store the raw error
-      // Callback receives a structured error message
+      const errorState = getLatestState()!;
+      expect(errorState.error).toEqual(mockIteratorError);
       expect(onErrorMock).toHaveBeenCalledWith({ message: `Subscription failed: ${mockIteratorError.message}` });
     });
 
@@ -262,21 +266,18 @@ describe('useSubscription', () => {
           options: { onError: onErrorMock }
       });
 
-      await waitFor(() => expect(getLatestState()!.status).toBe('connecting')); // Add !
+      await waitFor(() => expect(getLatestState()!.status).toBe('connecting'));
 
-      // Push data that will cause store error
-      // Push data within act
       await act(async () => { mockIteratorController.push(mockData1); });
 
-      // Wait specifically for the error status and error object caused by applyServerDeltaMock
       await waitFor(() => {
           const latestState = getLatestState()!;
           expect(latestState.status).toBe('error');
           expect(latestState.error).toEqual(storeError);
       });
 
-      const errorState = getLatestState()!; // Re-fetch state after waiting
-      expect(errorState.error).toEqual(storeError); // Hook stores the raw store error
+      const errorState = getLatestState()!;
+      expect(errorState.error).toEqual(storeError);
       expect(onErrorMock).toHaveBeenCalledWith({ message: `Store error: ${storeError.message}` });
       expect(applyServerDeltaMock).toHaveBeenCalledWith(mockData1);
     });
@@ -285,11 +286,10 @@ describe('useSubscription', () => {
       const onEndMock = vi.fn();
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput, options: { onEnd: onEndMock } });
 
-      await waitFor(() => expect(getLatestState()!.status).toBe('connecting')); // Add !
-      await act(async () => { mockIteratorController.push(mockData1); }); // Ensure it becomes active first
-      await waitFor(() => expect(getLatestState()!.status).toBe('active')); // Add !
+      await waitFor(() => expect(getLatestState()!.status).toBe('connecting'));
+      await act(async () => { mockIteratorController.push(mockData1); });
+      await waitFor(() => expect(getLatestState()!.status).toBe('active'));
 
-      // End the iterator
       await act(async () => { mockIteratorController.end(); });
 
       await waitFor(() => {
@@ -300,9 +300,8 @@ describe('useSubscription', () => {
 
     it('should call unsubscribe when the component unmounts', async () => {
       const { unmount } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput });
-      // Wait for subscription to potentially establish and set unsubscribeFn
       await waitFor(() => expect(mockSubscriptionProcedure.subscribe).toHaveBeenCalled());
-      expect(mockUnsubscribeFn).toBeDefined(); // Ensure unsubscribe mock was created
+      expect(mockUnsubscribeFn).toBeDefined();
       expect(mockUnsubscribeFn).not.toHaveBeenCalled();
       unmount();
       expect(mockUnsubscribeFn).toHaveBeenCalled();
@@ -311,31 +310,97 @@ describe('useSubscription', () => {
      it('should call unsubscribe manually and transition to idle', async () => {
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput });
 
-      // Wait for unsubscribe function to be available in state
       await waitFor(() => {
           expect(getLatestState()?.unsubscribe).toBeInstanceOf(Function);
       });
-      const stateWithUnsub = getLatestState()!; // Add !
+      const stateWithUnsub = getLatestState()!;
       expect(mockUnsubscribeFn).toBeDefined();
       expect(mockUnsubscribeFn).not.toHaveBeenCalled();
 
-      // Call manual unsubscribe
-      // Wrap the unsubscribe call in act as it triggers state updates
       act(() => { stateWithUnsub.unsubscribe?.(); });
 
       expect(mockUnsubscribeFn).toHaveBeenCalled();
-      // Wait specifically for the idle status
       await waitFor(() => {
           expect(getLatestState()!.status).toBe('idle');
       });
     });
 
-    it('should be in idle state if enabled is false', async () => { // Add async
+    it('should be in idle state if enabled is false', async () => {
       const { getLatestState } = renderSubscriptionHook({ procedure: mockSubscriptionProcedure, input: mockInput, options: { enabled: false } });
       expect(mockSubscriptionProcedure.subscribe).not.toHaveBeenCalled();
-      // Need to wait briefly for initial state capture if using useEffect for state reporting
-      await waitFor(() => expect(getLatestState()).toBeDefined()); // Add await
-      expect(getLatestState()!.status).toBe('idle'); // Add !
+      await waitFor(() => expect(getLatestState()).toBeDefined());
+      expect(getLatestState()!.status).toBe('idle');
+    });
+
+    it('should unsubscribe and reset state when disabled', async () => {
+      const { getLatestState, rerender } = renderSubscriptionHook({
+        procedure: mockSubscriptionProcedure,
+        input: mockInput,
+        options: { enabled: true }
+      });
+
+      await waitFor(() => {
+        expect(getLatestState()?.unsubscribe).toBeInstanceOf(Function);
+        expect(mockSubscriptionProcedure.subscribe).toHaveBeenCalled();
+      });
+      expect(mockUnsubscribeFn).not.toHaveBeenCalled();
+
+      // Disable the hook using rerender with the correct structure
+      const onStateChange = (state: UseSubscriptionResult<any>) => {
+          // Find the stateChanges array in the outer scope or pass it down
+          // For simplicity, assuming stateChanges is accessible or handled differently
+          // console.log("Rerender state change:", state.status);
+      };
+      rerender(
+        <TypeQLProvider client={{ ...mockClient, testSub: mockSubscriptionProcedure } as any} store={mockStore}>
+          <SubscriptionViewer
+            procedure={mockSubscriptionProcedure}
+            input={mockInput}
+            options={{ enabled: false }} // Disable here
+            onStateChange={onStateChange} // Need a valid onStateChange
+          />
+        </TypeQLProvider>
+      );
+
+      await waitFor(() => {
+        expect(getLatestState()?.status).toBe('idle');
+      });
+      expect(mockUnsubscribeFn).toHaveBeenCalled();
+      expect(getLatestState()?.data).toBeNull();
+      expect(getLatestState()?.error).toBeNull();
+    });
+
+    it('should call onData but not applyServerDelta when no store is provided', async () => {
+      const onDataMock = vi.fn();
+
+      // Custom render helper for this test to provide undefined store
+      const stateChanges: UseSubscriptionResult<any>[] = [];
+      const onStateChange = (state: UseSubscriptionResult<any>) => stateChanges.push(state);
+      render(
+           <TypeQLProvider client={{ ...mockClient, testSub: mockSubscriptionProcedure } as any} store={undefined}> {/* Store is undefined */}
+               <SubscriptionViewer
+                 procedure={mockSubscriptionProcedure}
+                 input={mockInput}
+                 options={{ onData: onDataMock }}
+                 onStateChange={onStateChange}
+               />
+           </TypeQLProvider>
+      );
+      const getLatestState = () => stateChanges[stateChanges.length - 1];
+
+      await waitFor(() => expect(getLatestState()?.status).toBe('connecting'));
+
+      // Push data
+      await act(async () => { mockIteratorController.push(mockData1); });
+
+      // Wait for state transition and data processing
+      await waitFor(() => {
+          expect(getLatestState()?.status).toBe('active');
+          expect(getLatestState()?.data).toEqual(mockData1.data);
+      });
+
+      expect(onDataMock).toHaveBeenCalledWith(mockData1.data);
+      expect(applyServerDeltaMock).not.toHaveBeenCalled(); // Crucial check
     });
 
 }); // End of useSubscription describe

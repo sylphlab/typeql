@@ -199,11 +199,19 @@ export function useMutation<
             const result = await procedure.mutate(mutationArgs);
 
             if (isMountedRef.current) {
-                setData(result as TOutput);
-                setStatus('success');
-                optionsRef.current?.onSuccess?.(result as TOutput, input);
-                return result as TOutput;
+                // Call onSuccess BEFORE setting state, allowing it to potentially unmount first
+                await optionsRef.current?.onSuccess?.(result as TOutput, input);
+                // Check mount status AGAIN after potentially async onSuccess
+                if (isMountedRef.current) {
+                    setData(result as TOutput);
+                    setStatus('success');
+                    return result as TOutput;
+                } else {
+                     // If unmounted during onSuccess, throw the specific error
+                     throw new TypeQLClientError("Component unmounted after mutation success but before state update.");
+                }
             } else {
+                 // This path might be less likely now, but keep for safety
                  throw new TypeQLClientError("Component unmounted after mutation success but before state update.");
             }
         } catch (err: any) {

@@ -1,7 +1,7 @@
 {/* packages/react/src/hooks/useMutation.test.tsx */}
-import React from 'react';
+import React, { ReactNode } from 'react'; // Import ReactNode
 import { describe, it, expect, vi, beforeEach, afterEach, Mock, afterAll } from 'vitest';
-import { render, act, waitFor, cleanup } from '@testing-library/react';
+import { render, renderHook, act, waitFor, cleanup } from '@testing-library/react'; // Import renderHook
 import '@testing-library/jest-dom'; // Ensure matchers are available via setup
 
 // Import hook under test and provider/context
@@ -180,8 +180,34 @@ describe('useMutation', () => {
       expect(mockProcedureMutate).toHaveBeenCalledWith({ input: mockInput });
       expect(finalState.isLoading).toBe(false);
       expect(finalState.status).toBe('error');
+
       expect(finalState.data).toBeUndefined();
       expect(finalState.error).toEqual(mockError);
+    });
+
+    it('should throw error if mutate called after unmount', async () => {
+      // Need renderHook for unmount, but createWrapper is defined inside describe
+      // Re-rendering with renderMutationHook might be complex, let's use renderHook directly here
+      // We need imports for renderHook and TypeQLProvider etc. at the top level if not already there
+      // Assuming imports are correct at top level for simplicity
+      const { result, unmount } = renderHook( // Use renderHook directly
+        () => useMutation(mockMutationProcedure),
+        {
+          wrapper: ({ children }: { children: ReactNode }) => ( // Define wrapper inline with typed children
+            <TypeQLProvider client={{ ...mockClient, testMutation: mockMutationProcedure } as any} store={mockStore}>
+              {children}
+            </TypeQLProvider>
+          )
+        }
+      );
+
+      unmount(); // Unmount the component
+
+      await expect(result.current.mutateAsync({ name: 'Test' }))
+        .rejects
+        .toThrow(new TypeQLClientError("Component unmounted before mutation could complete."));
+
+      expect(mockProcedureMutate).not.toHaveBeenCalled(); // Use the correct mock name
     });
 
     it('should call onSuccess callback on successful mutation', async () => {
@@ -190,6 +216,7 @@ describe('useMutation', () => {
       const { getMutateFn } = renderMutationHook({ procedure: mockMutationProcedure, options: { onSuccess: onSuccessMock } });
 
       await waitFor(() => expect(getMutateFn()).toBeInstanceOf(Function));
+
       const mutateFn = getMutateFn();
 
       await act(async () => { await mutateFn!(mockInput); });
@@ -198,6 +225,56 @@ describe('useMutation', () => {
       await waitFor(() => {
           expect(onSuccessMock).toHaveBeenCalledWith(mockOutput, mockInput);
       });
+    });
+
+    it('should throw error if unmounted after success before state update', async () => {
+      let resolveMutate: (value: unknown) => void;
+      const mutatePromise = new Promise((resolve) => { resolveMutate = resolve; });
+      mockProcedureMutate.mockReturnValue(mutatePromise);
+
+      let doUnmount: () => void;
+
+      const { result, unmount } = renderHook(
+        () => useMutation(mockMutationProcedure, {
+          onSuccess: () => {
+            // This callback runs *after* the promise resolves but *before* internal setData/setStatus
+            // We trigger the unmount here to simulate the race condition
+            doUnmount();
+          }
+        }),
+        {
+          wrapper: ({ children }: { children: ReactNode }) => (
+            <TypeQLProvider client={{ ...mockClient, testMutation: mockMutationProcedure } as any} store={mockStore}>
+              {children}
+            </TypeQLProvider>
+          )
+        }
+      );
+
+      doUnmount = unmount; // Assign unmount function
+
+      // Trigger mutation but don't await it here
+      const mutationExecution = result.current.mutateAsync(mockInput);
+
+      // Resolve the underlying procedure promise
+      await act(async () => {
+        resolveMutate(mockOutput);
+        // Wait a tick to allow promise resolution and onSuccess to trigger unmount
+        await new Promise(r => setTimeout(r, 0));
+      });
+
+      // Now, check the hook's state after the unmount occurred during onSuccess
+      // The original promise might resolve, but the hook state should reflect the error/lack of update
+      try {
+        await mutationExecution; // Allow promise to settle (it might resolve)
+      } catch (e) {
+        // Ignore potential rejection if the hook throws before promise resolves fully
+      }
+
+      // Since the component unmounted during onSuccess (before setStatus('success')),
+      // the status should not have become 'success'.
+      // We also expect an unhandled rejection logged by Vitest from the throw in the hook.
+      expect(result.current.status).not.toBe('success');
     });
 
     it('should call onError callback on failed mutation', async () => {

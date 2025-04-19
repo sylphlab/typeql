@@ -149,6 +149,40 @@ describe('useQuery', () => {
       expect(result.current.error).toEqual(mockError);
     });
 
+    it('should handle TypeQLClientError from fetch', async () => {
+      const typeqlError = new TypeQLClientError('Fetch Failed Specific');
+      let rejectFetch: (reason?: any) => void;
+      const fetchPromise = new Promise((_, reject) => { rejectFetch = reject; });
+      mockQueryProcedure.query.mockReturnValueOnce(fetchPromise);
+
+      const wrapper = createWrapper();
+      const { result } = renderHook(
+        ({ procedure, input, options }) => useQuery(procedure, input, options),
+        {
+          initialProps: { procedure: mockQueryProcedure, input: mockInput, options: { enabled: true } },
+          wrapper,
+        }
+      );
+
+      await waitFor(() => {
+          expect(mockQueryProcedure.query).toHaveBeenCalledWith(mockInput);
+      });
+
+      await act(async () => {
+          rejectFetch(typeqlError);
+          try { await fetchPromise; } catch (e) { /* Ignore rejection */ }
+      });
+      await act(async () => { await Promise.resolve(); }); // Flush
+
+      await waitFor(() => {
+          expect(result.current.status).toBe('error');
+      }, { timeout: 2000 });
+
+      expect(result.current.error).toBeInstanceOf(TypeQLClientError);
+      expect(result.current.error).toEqual(typeqlError);
+    });
+
+
     it('should not fetch if enabled is false', async () => {
       const wrapper = createWrapper();
       const { result } = renderHook(
@@ -167,6 +201,91 @@ describe('useQuery', () => {
       expect(result.current.data).toBeUndefined();
       expect(result.current.error).toBeNull();
     });
+
+    it('should reset state if disabled after successful fetch', async () => {
+      let resolveFetch: (value: unknown) => void;
+      const fetchPromise = new Promise((resolve) => { resolveFetch = resolve; });
+      mockQueryProcedure.query.mockReturnValueOnce(fetchPromise);
+
+      const wrapper = createWrapper();
+      const { result, rerender } = renderHook(
+        ({ procedure, input, options }) => useQuery(procedure, input, options),
+        {
+          initialProps: { procedure: mockQueryProcedure, input: mockInput, options: { enabled: true } },
+          wrapper,
+        }
+      );
+
+      // Resolve initial fetch
+      await act(async () => {
+          resolveFetch(mockOutput);
+          await fetchPromise;
+      });
+      await act(async () => { await Promise.resolve(); }); // Flush
+
+      // Wait for initial success state
+      await waitFor(() => {
+        expect(result.current.status).toBe('success');
+        expect(result.current.data).toEqual(mockOutput);
+      }, { timeout: 2000 });
+
+      // Re-render with enabled: false
+      rerender({ procedure: mockQueryProcedure, input: mockInput, options: { enabled: false } });
+
+      // Wait for state to reset fully
+      await waitFor(() => {
+        expect(result.current.isFetching).toBe(false);
+        expect(result.current.status).toBe('success'); // Should reset to success (idle)
+        expect(result.current.data).toBeUndefined();
+        expect(result.current.error).toBeNull();
+      });
+    });
+
+    it('should fetch when enabled after starting disabled', async () => {
+      const wrapper = createWrapper();
+      const { result, rerender } = renderHook(
+        ({ procedure, input, options }) => useQuery(procedure, input, options),
+        {
+          initialProps: { procedure: mockQueryProcedure, input: mockInput, options: { enabled: false } },
+          wrapper,
+        }
+      );
+
+      // Initial state should be success (idle)
+      expect(result.current.status).toBe('success');
+      expect(result.current.data).toBeUndefined();
+      expect(mockQueryProcedure.query).not.toHaveBeenCalled();
+
+      // Mock the fetch for when it becomes enabled
+      let resolveFetch: (value: unknown) => void;
+      const fetchPromise = new Promise((resolve) => { resolveFetch = resolve; });
+      mockQueryProcedure.query.mockReturnValueOnce(fetchPromise);
+
+      // Re-render with enabled: true
+      rerender({ procedure: mockQueryProcedure, input: mockInput, options: { enabled: true } });
+
+      // Wait for fetching to start
+      await waitFor(() => {
+        expect(result.current.isFetching).toBe(true);
+        expect(result.current.status).toBe('loading');
+      });
+      expect(mockQueryProcedure.query).toHaveBeenCalledTimes(1);
+
+      // Resolve the fetch
+      await act(async () => {
+          resolveFetch(mockOutput);
+          await fetchPromise;
+      });
+      await act(async () => { await Promise.resolve(); }); // Flush
+
+      // Wait for final success state
+      await waitFor(() => {
+        expect(result.current.status).toBe('success');
+        expect(result.current.data).toEqual(mockOutput);
+        expect(result.current.isFetching).toBe(false);
+      }, { timeout: 2000 });
+    });
+
 
     it('should reset state if disabled while fetching', async () => {
       let resolveFetch: any;
@@ -423,6 +542,7 @@ describe('useQuery', () => {
         // Resolve initial fetch
         await act(async () => {
             resolveFetch(initialData);
+
             await fetchPromise;
         });
         await act(async () => { await Promise.resolve(); }); // Flush
@@ -456,6 +576,52 @@ describe('useQuery', () => {
         );
         expect(result.current.error).toEqual(selectError);
         expect(result.current.status).toBe('error');
+    });
+
+    it('should handle TypeQLClientError in select function during store update', async () => {
+        const initialData = { id: 1, name: 'Initial Fetch Data' };
+        let resolveFetch: (value: unknown) => void;
+        const fetchPromise = new Promise((resolve) => { resolveFetch = resolve; });
+        mockQueryProcedure.query.mockReturnValueOnce(fetchPromise);
+
+        const selectError = new TypeQLClientError('Select Failed Specific');
+        const selectFn = vi.fn()
+            .mockImplementationOnce((state: any) => state?.items?.['1'] ?? initialData) // Initial select
+            .mockImplementation(() => { throw selectError; }); // Subsequent call throws
+
+        const wrapper = createWrapper();
+        const { result } = renderHook(
+          ({ procedure, input, options }) => useQuery(procedure, input, options),
+          {
+            initialProps: { procedure: mockQueryProcedure, input: mockInput, options: { select: selectFn } },
+            wrapper,
+          }
+        );
+
+        // Resolve initial fetch
+        await act(async () => {
+            resolveFetch(initialData);
+            await fetchPromise;
+        });
+        await act(async () => { await Promise.resolve(); }); // Flush
+
+        await waitFor(() => {
+            expect(result.current.status).toBe('success');
+        }, { timeout: 2000 });
+        expect(subscribeMock).toHaveBeenCalled();
+
+        // Simulate store update
+        const storeUpdateState = { items: { '1': { ...mockOutput, name: "Updated Store Data" } } };
+        act(() => {
+            if (capturedStoreListener) capturedStoreListener(storeUpdateState, {});
+        });
+
+        // Wait for the error state
+        await waitFor(() => {
+             expect(result.current.status).toBe('error');
+             expect(result.current.error).toBeInstanceOf(TypeQLClientError);
+             expect(result.current.error).toEqual(selectError);
+        }, { timeout: 2000 });
     });
 
     // Skipping potentially flaky tests from Preact version
