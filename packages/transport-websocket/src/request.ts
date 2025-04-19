@@ -56,11 +56,18 @@ export async function handleRequest(
 
         state.pendingRequests.set(message.id, reqEntry);
 
-        // Use the sendMessage function from the connection module
-        if (!sendMessage(state, message)) {
-            // If send fails immediately, reject the promise using the wrapped reject
-            reqEntry.reject(new Error(`Failed to send request message immediately (ID: ${message.id})`));
-            // No need to delete from map here, reqEntry.reject handles it
+        // Use the sendMessage method attached to the state object
+        try {
+            if (!state.sendMessage(message)) {
+                // If send fails immediately, throw to reject the promise immediately
+                throw new Error(`Failed to send request message immediately (ID: ${message.id})`);
+            }
+            // If sendMessage succeeded, the promise will be resolved/rejected by handleMessage or the timeout
+        } catch (error) {
+             // Ensure cleanup and reject if throwing the error
+             if (timer) clearTimeout(timer);
+             state.pendingRequests.delete(message.id);
+             reject(error); // Reject with the caught error
         }
         // If sendMessage succeeded, the promise will be resolved/rejected by handleMessage or the timeout
     });

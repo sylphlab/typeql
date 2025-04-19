@@ -201,9 +201,14 @@ export function requestMissingDeltas(
         fromSeq,
         toSeq,
     };
-    if (!sendMessage(state, message)) {
-        // Log error, but don't throw, as this is often a recovery mechanism
-        console.error(`[TypeQL WS Transport] Failed to send request_missing message for subscription ${subscriptionId}.`);
+    // Only send if connected
+    if (state.ws?.readyState === OPEN) {
+        if (!sendMessage(state, message)) {
+            // Log error, but don't throw, as this is often a recovery mechanism
+            console.error(`[TypeQL WS Transport] Failed to send request_missing message for subscription ${subscriptionId}.`);
+        }
+    } else {
+        console.warn(`[TypeQL WS Transport] Cannot send request_missing for ${subscriptionId}: WebSocket not open.`);
         // Optionally: Trigger an error handler or notification?
     }
     // This function doesn't wait for a response, it just fires the request.

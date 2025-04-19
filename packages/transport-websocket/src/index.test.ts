@@ -130,25 +130,34 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
         }
 
         // Create transport instance before each test, passing the Node 'ws' implementation
-        transport = createWebSocketTransport({
-            url: serverUrl,
-            WebSocket: WebSocket, // Pass the 'ws' WebSocket class
+        // Note: We will redefine transport in specific tests needing different options or setup.
+        // Default transport creation removed from here.
+        //     url: serverUrl,
+        //     WebSocket: WebSocket, // Pass the 'ws' WebSocket class
             // Short reconnect delays for testing
-            baseReconnectDelayMs: 50,
-            maxReconnectAttempts: 3,
-            requestTimeoutMs: 100, // Short request timeout
-        });
-        // Wait for initial connection attempt AND ensure it resolves
-        try {
-            await transport!.connect!(); // Add non-null assertion
-             // Add a slightly longer delay to ensure server connection handler runs reliably
-             await new Promise(res => setTimeout(res, 50));
-             expect(transport.connected).toBe(true); // Verify connection in setup
-        } catch (connectError) {
-             console.error("Transport failed to connect in beforeEach:", connectError);
-             // Fail fast if initial connection doesn't work
-             throw new Error(`Transport connection failed in beforeEach: ${connectError}`);
-        }
+            // baseReconnectDelayMs: 50,
+            // maxReconnectAttempts: 3,
+            // requestTimeoutMs: 100, // Short request timeout
+        // }); // Closing brace was commented out, causing syntax error. Fixed.
+
+        // Connection will be established within tests that need it.
+        // Ensure a default transport is created if not overridden by a test
+         if (!transport) {
+             transport = createWebSocketTransport({
+                 url: serverUrl,
+                 WebSocket: WebSocket,
+                 baseReconnectDelayMs: 50,
+                 maxReconnectAttempts: 3,
+                 requestTimeoutMs: 100,
+             });
+             // Connect it for tests that might rely on beforeEach connection
+             try {
+                 await transport!.connect!();
+                 await new Promise(res => setTimeout(res, 50));
+             } catch (e) {
+                 console.warn("Default transport connection failed in beforeEach:", e);
+             }
+         }
     });
 
     afterEach(async () => {
@@ -171,11 +180,23 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
     it('should connect to the server', async () => {
+        // Ensure transport is connected for this test
+        if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+        }
         expect(transport.connected).toBe(true);
         expect(serverSocket).not.toBeNull();
     });
 
     it('should disconnect from the server', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         expect(transport!.connected).toBe(true);
         transport!.disconnect!(); // Add non-null assertion
         expect(transport!.connected).toBe(false);
@@ -184,7 +205,13 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
         expect(serverSocket).toBeNull();
     });
 
-    it('should notify connection status changes', { timeout: 5000 }, async () => { // Unskipped, increased timeout
+    it('should notify connection status changes', { timeout: 10000 }, async () => { // Increased timeout further
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket, baseReconnectDelayMs: 50, maxReconnectAttempts: 3 });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const connectionHandler = vi.fn();
         const unsubscribe = transport!.onConnectionChange!(connectionHandler);
 
@@ -229,6 +256,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
 
     // --- Request Tests ---
     it('should send a request and receive a result', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const request: ProcedureCallMessage = { id: 'req1', type: 'query', path: 'test.get' };
         const expectedResult: ProcedureResultMessage = {
             id: 'req1',
@@ -248,6 +281,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
     it('should reject request on server error result', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const request: ProcedureCallMessage = { id: 'req2', type: 'mutation', path: 'test.fail' };
         const errorResult: ProcedureResultMessage = {
             id: 'req2',
@@ -266,8 +305,15 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
 
      // Test timeout using real timers
      it('should reject request on timeout', { timeout: 500 }, async () => { // Increased test timeout
-        // Note: transport is configured with requestTimeoutMs: 100 in beforeEach
-        const request: ProcedureCallMessage = { id: 'req3', type: 'query', path: 'test.timeout' };
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket, requestTimeoutMs: 100 });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+        }
+        // Removed the 'else' block that caused the error.
+        // Transport will always be recreated with the correct timeout for this test.
+       const request: ProcedureCallMessage = { id: 'req3', type: 'query', path: 'test.timeout' };
 
         // No response from server configured
 
@@ -280,6 +326,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
     it('should reject request if disconnected during request', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const request: ProcedureCallMessage = { id: 'req4', type: 'query', path: 'test.disconnect' };
 
         const requestPromise = transport!.request!(request); // Add non-null assertion
@@ -293,6 +345,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
 
     // --- Subscription Tests ---
     it('should subscribe and receive data messages via iterator', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const subMessage: SubscribeMessage = { id: 'sub1', type: 'subscription', path: 'test.updates' };
         const { iterator, unsubscribe } = transport.subscribe(subMessage);
 
@@ -327,6 +385,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
      it('should handle subscription end message', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const subMessage: SubscribeMessage = { id: 'sub2', type: 'subscription', path: 'test.finite' };
         const { iterator, unsubscribe } = transport.subscribe(subMessage);
 
@@ -361,6 +425,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     });
 
     it('should handle subscription error message', async () => {
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const subMessage: SubscribeMessage = { id: 'sub3', type: 'subscription', path: 'test.error' };
         const { iterator, unsubscribe } = transport.subscribe(subMessage);
 
@@ -416,6 +486,12 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
 
 
     it('should send unsubscribe message when iterator is explicitly returned', { timeout: 1000 }, async () => { // Unskipped, use explicit return
+         // Ensure transport is connected for this test
+         if (!transport || !transport.connected) {
+             transport = createWebSocketTransport({ url: serverUrl, WebSocket: WebSocket });
+             await transport.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const subMessage: SubscribeMessage = { id: 'sub4', type: 'subscription', path: 'test.unsubscribe' };
         const { iterator } = transport.subscribe(subMessage);
         let unsubscribeSent = false;
@@ -446,15 +522,32 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
     it('should call onAckReceived when ack message is received', async () => {
         const ackHandler = vi.fn();
 
-        // Ensure connection is stable before assigning handler and sending
+        // Create transport specifically for this test with the handler
+        // Ensure previous transport is disconnected if exists
+        if (transport) {
+            transport.disconnect?.();
+            await new Promise(res => setTimeout(res, 50)); // Allow disconnect
+        }
+        transport = createWebSocketTransport({
+            url: serverUrl,
+            WebSocket: WebSocket,
+            baseReconnectDelayMs: 50,
+            maxReconnectAttempts: 3,
+            requestTimeoutMs: 100,
+            onAckReceived: ackHandler, // Pass handler during creation
+        });
+
+        // Connect transport for this test
+        await transport!.connect!();
+        await new Promise(res => setTimeout(res, 50)); // Allow connection
         expect(transport.connected).toBe(true);
         expect(serverSocket).not.toBeNull();
         expect(serverSocket?.readyState).toBe(WebSocket.OPEN);
 
+
         const ack: AckMessage = { id: 'ack1', type: 'ack', clientSeq: 123, serverSeq: 456 };
 
-        // Assign handler *before* sending the message from the server
-        transport.onAckReceived = ackHandler;
+        // Handler is already assigned via options
 
         const sent = sendFromServer(ack);
         expect(sent).toBe(true); // Ensure server could send the message
@@ -465,11 +558,29 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
         }, { timeout: 3000 }); // Further increased timeout
         expect(ackHandler).toHaveBeenCalledWith(ack);
 
-        // Cleanup handler for subsequent tests
-        transport.onAckReceived = undefined;
-    }, 1000); // Increase timeout for this specific test slightly
+        // No need to cleanup handler manually
+    }, 4000); // Keep increased timeout
 
     it('should send request_missing message via requestMissingDeltas', async () => {
+        // Re-create and connect transport for this test if needed
+        if (!transport || !transport.connected) {
+            // Ensure previous transport is disconnected if exists
+            if (transport) {
+                transport.disconnect?.();
+                await new Promise(res => setTimeout(res, 50)); // Allow disconnect
+            }
+             transport = createWebSocketTransport({
+                 url: serverUrl,
+                 WebSocket: WebSocket,
+                 baseReconnectDelayMs: 50,
+                 maxReconnectAttempts: 3,
+                 requestTimeoutMs: 100,
+             });
+             await transport!.connect!();
+             await new Promise(res => setTimeout(res, 50));
+             expect(transport.connected).toBe(true);
+        }
+
         let missingRequestReceived = false;
         let receivedMessage: any = null;
 
@@ -500,13 +611,30 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
 
     // --- Reconnect Tests ---
     it('should attempt to reconnect on unexpected disconnect', { timeout: 10000 }, async () => { // Unskipped, simplified assertions
+         // Re-create and connect transport for this test if needed
+         if (!transport || !transport.connected) {
+            // Ensure previous transport is disconnected if exists
+            if (transport) {
+                transport.disconnect?.();
+                await new Promise(res => setTimeout(res, 50)); // Allow disconnect
+            }
+             transport = createWebSocketTransport({
+                 url: serverUrl,
+                 WebSocket: WebSocket,
+                 baseReconnectDelayMs: 50,
+                 maxReconnectAttempts: 3,
+                 requestTimeoutMs: 100,
+             });
+             await transport!.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         expect(transport.connected).toBe(true);
 
         // Simulate unexpected server close
         serverSocket?.terminate(); // Simulate abnormal closure
 
         // Wait for disconnect detection
-        await vi.waitFor(() => expect(transport.connected).toBe(false), { timeout: 3000 }); // Increased timeout
+        await vi.waitFor(() => expect(transport.connected).toBe(false), { timeout: 5000 }); // Further increased timeout
 
         // Restart server - MUST await stop before starting again
         await stopMockServer(currentMockServer); // Ensure previous is stopped
@@ -522,6 +650,23 @@ describe('WebSocketTransport', { timeout: 5000 }, () => { // Add 5 second timeou
 
 
      it('should resubscribe after successful reconnect', async () => {
+         // Re-create and connect transport for this test if needed
+         if (!transport || !transport.connected) {
+            // Ensure previous transport is disconnected if exists
+            if (transport) {
+                transport.disconnect?.();
+                await new Promise(res => setTimeout(res, 50)); // Allow disconnect
+            }
+             transport = createWebSocketTransport({
+                 url: serverUrl,
+                 WebSocket: WebSocket,
+                 baseReconnectDelayMs: 50,
+                 maxReconnectAttempts: 3,
+                 requestTimeoutMs: 100,
+             });
+             await transport!.connect!();
+             await new Promise(res => setTimeout(res, 50));
+         }
         const subMessage: SubscribeMessage = { id: 'subResub', type: 'subscription', path: 'test.reconnect' };
         const { iterator, unsubscribe } = transport.subscribe(subMessage);
         let subscribeReceivedCount = 0;

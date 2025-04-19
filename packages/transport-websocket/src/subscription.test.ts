@@ -325,12 +325,19 @@ describe('subscription', () => {
             vi.advanceTimersByTime(1);
             await Promise.resolve();
 
-            // Need to spy on the actual unsubscribe function returned
             const subResult = handleSubscribe(state, subMessage);
-            const unsubscribeSpy = vi.spyOn(subResult, 'unsubscribe');
+            // Allow setup microtasks
+            vi.advanceTimersByTime(1);
+            await Promise.resolve();
 
+            // Check state before return()
+            expect(state.activeSubscriptions.has('sub1')).toBe(true);
+
+            // Call return()
             const result = await subResult.iterator.return?.();
-            expect(unsubscribeSpy).toHaveBeenCalledTimes(1);
+
+            // Verify effects: subscription should be removed from state map by internal unsubscribe/onEnd call
+            expect(state.activeSubscriptions.has('sub1')).toBe(false);
             expect(result?.done).toBe(true);
             expect(result?.value).toBeUndefined();
         });
