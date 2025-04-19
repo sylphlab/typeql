@@ -251,13 +251,12 @@ export function useQuery<
                     dataChanged = selectedData !== dataRef.current;
                 }
 
-                // Set data if changed or initially undefined, mark that sync happened
                 if (dataChanged || dataRef.current === undefined) {
                     setData(selectedData);
                     didSync = true;
+                    // Don't update lastFetchTimeRef here
                 } else if (dataRef.current !== undefined) {
-                    // Even if data is the same, treat it as a successful sync for logic below
-                    didSync = true;
+                    didSync = true; // Still counts as sync
                 }
 
                 const listener = (optimisticState: TState) => {

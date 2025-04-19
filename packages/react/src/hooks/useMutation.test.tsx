@@ -263,18 +263,13 @@ describe('useMutation', () => {
         await new Promise(r => setTimeout(r, 0));
       });
 
-      // Now, check the hook's state after the unmount occurred during onSuccess
-      // The original promise might resolve, but the hook state should reflect the error/lack of update
-      try {
-        await mutationExecution; // Allow promise to settle (it might resolve)
-      } catch (e) {
-        // Ignore potential rejection if the hook throws before promise resolves fully
-      }
+      // Now, await the original mutation promise and catch the expected error
+      await expect(mutationExecution)
+        .rejects
+        .toThrow(new TypeQLClientError("Component unmounted after mutation success but before state update."));
 
-      // Since the component unmounted during onSuccess (before setStatus('success')),
-      // the status should not have become 'success'.
-      // We also expect an unhandled rejection logged by Vitest from the throw in the hook.
-      expect(result.current.status).not.toBe('success');
+      // Also check the final state of the hook if needed, though the promise rejection is the primary check
+      expect(result.current.status).toBe('error'); // It should end in error state
     });
 
     it('should call onError callback on failed mutation', async () => {

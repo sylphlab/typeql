@@ -345,29 +345,30 @@ describe('useSubscription', () => {
       });
       expect(mockUnsubscribeFn).not.toHaveBeenCalled();
 
-      // Disable the hook using rerender with the correct structure
-      const onStateChange = (state: UseSubscriptionResult<any>) => {
-          // Find the stateChanges array in the outer scope or pass it down
-          // For simplicity, assuming stateChanges is accessible or handled differently
-          // console.log("Rerender state change:", state.status);
-      };
+      // Need a state capture function for rerender
+      const stateChanges: UseSubscriptionResult<any>[] = [];
+      const onStateChange = (state: UseSubscriptionResult<any>) => stateChanges.push(state);
+      const getRerenderLatestState = () => stateChanges[stateChanges.length - 1];
+
       rerender(
         <TypeQLProvider client={{ ...mockClient, testSub: mockSubscriptionProcedure } as any} store={mockStore}>
           <SubscriptionViewer
             procedure={mockSubscriptionProcedure}
             input={mockInput}
             options={{ enabled: false }} // Disable here
-            onStateChange={onStateChange} // Need a valid onStateChange
+            onStateChange={onStateChange} // Use the new state capture
           />
         </TypeQLProvider>
       );
 
       await waitFor(() => {
-        expect(getLatestState()?.status).toBe('idle');
+        // Use the state capture from the rerender
+        expect(getRerenderLatestState()?.status).toBe('idle');
       });
       expect(mockUnsubscribeFn).toHaveBeenCalled();
-      expect(getLatestState()?.data).toBeNull();
-      expect(getLatestState()?.error).toBeNull();
+      // Check state from the rerender's capture
+      expect(getRerenderLatestState()?.data).toBeNull();
+      expect(getRerenderLatestState()?.error).toBeNull();
     });
 
     it('should call onData but not applyServerDelta when no store is provided', async () => {

@@ -273,12 +273,6 @@ export function useSubscription<
                 }
             } finally {
                  // Remove potentially problematic status updates in finally
-                 // if (isMountedRef.current && !isCancelled && status !== 'ended' && status !== 'error') {
-                 //     setStatus('ended');
-                 // }
-                 // if (isMountedRef.current && !isCancelled && (status === 'connecting' || status === 'active')) {
-                 //     setStatus('ended');
-                 // }
             }
         };
 
@@ -296,10 +290,9 @@ export function useSubscription<
                 iterator.return().catch(e => console.warn("[useSubscription] Error during iterator cleanup:", e));
             }
             setUnsubscribeFn(null);
-             // Reset status only if effect is cleaning up while potentially active/connecting
-             if (status === 'active' || status === 'connecting') {
-                  setStatus('idle');
-             }
+             // Cleanup should only handle unsubscribing.
+             // State reset is handled within the effect body when enabled becomes false.
+             // setStatus('idle'); // REMOVED
         };
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [procedure, inputKey, enabled, client, store]); // Add store to dependencies
