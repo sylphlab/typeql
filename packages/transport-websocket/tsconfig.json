@@ -8,9 +8,9 @@
     "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true,
     "sourceMap": true
-    // "composite": true // Removed again as per user feedback
+    // "composite": true
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"]
-  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
+  // // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
 }

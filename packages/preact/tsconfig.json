@@ -11,14 +11,14 @@
     "declaration": true, // Re-enable tsc DTS generation
     "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true, // Re-enable tsc DTS generation
-    "sourceMap": true,
-    "composite": true // Restore composite flag for project references
+    "sourceMap": true
+    // "composite": true // Removed again as per user instruction
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/__tests__"],
-  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
-  "references": [
-    { "path": "../shared" },
-    { "path": "../client" }
-  ],
+  // // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
+  // "references": [
+    // { "path": "../shared" },
+    // { "path": "../client" }
+//   ],
 }

@@ -8,13 +8,13 @@
     "declaration": true,
     "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true,
-    "sourceMap": true,
-    "composite": true // Restore composite flag for project references
+    "sourceMap": true
+    // // "composite": true // Removed again as per user instruction
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist"],
-  "references": [ // Restore references
-    { "path": "../shared" },
-    { "path": "../client" }
-  ]
+  // "references": [ // Restore references
+    // { "path": "../shared" },
+    // { "path": "../client" }
+//   ]
 }

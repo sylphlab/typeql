@@ -25,7 +25,7 @@
     "declarationDir": "./dist", // Explicitly set declaration output dir
     "lib": ["ES2016", "DOM"],
     "rootDir": "./src", // Explicitly set root directory
-    "composite": true, // Restore composite flag for project references
+    // // "composite": true, // Removed again as per user instruction
     "baseUrl": ".", // Add back baseUrl
     "paths": { // Add back paths
       // "@sylphlab/typeql-shared": ["../shared/src/index.ts"] // Rely on project references
@@ -33,8 +33,5 @@
   },
   "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "src/__tests__"],
-  // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
-  "references": [
-    { "path": "../shared" }
-  ],
+  // // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
 }

@@ -47,13 +47,13 @@
     "outDir": "./dist", // Output directory for compiled JS
     "rootDir": "./src", // Add rootDir back
     "lib": ["ES2016"], // Core doesn't need DOM
-    "composite": true, // Restore composite flag for project references
+    // // "composite": true, // Removed again as per user instruction
     "incremental": true,
     "tsBuildInfoFile": "./.tsbuildinfo"
 ,
     "types": ["vitest/globals"]
   },
-  "include": ["src"], // Use include instead of files
+  "include": ["src/**/*"], // Include all files within src
   "exclude": ["node_modules", "dist", "examples"]
   // No references needed for the base shared package
 }

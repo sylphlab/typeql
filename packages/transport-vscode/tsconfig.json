@@ -6,7 +6,7 @@
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     // Inherit target, module, lib, strictness etc. from base
     // Ensure settings required for project references are present:
-    // "composite": true,      // Removed again as per user feedback
+    // "composite": true,
     "declaration": true,    // Required for project references
     "declarationDir": "./dist", // Specify output directory for declarations
     "declarationMap": true, // Optional: Better DX for referenced projects
@@ -15,7 +15,7 @@
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "**/*.test.ts"], // Exclude tests
-  "references": [ // Add reference to core
-    { "path": "../shared" }
-  ]
+  // "references": [ // Add reference to core
+    // { "path": "../shared" }
+//   ]
 }
