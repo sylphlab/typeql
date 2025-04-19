@@ -25,3 +25,24 @@
 **Result:** This consolidated approach with refs and corrected dependency management resolved the test failures.
 
 **Lesson:** When multiple asynchronous operations or effects need to coordinate updates to the same state variables (especially status flags), consolidating the logic into a single effect and using refs (`useRef`) to access the latest state values within callbacks/async operations (to avoid stale closures and incorrect dependency arrays) is a more robust pattern than relying on multiple independent effects. Be careful about when status transitions occur, especially ensuring `'success'` is only set after all conditions (sync, fetch, staleness) are resolved. Test flakiness often points to race conditions in hook logic. Ensure dependency arrays for `useEffect` are correct and do not include state variables set within that same effect.
+
+---
+
+## 2025-04-19: `vi.mock` with `importOriginal` and State Management in Tests
+
+**Context:** Refactoring `@sylphlab/typeql-transport-websocket` unit tests (`connection.test.ts`, `request.test.ts`, `subscription.test.ts`) to use `vi.mock` with `importOriginal` and fake timers.
+
+**Observation:** Initial attempts to mock the `./connection` module while keeping `updateConnectionStatus` original failed. The `vi.mock` factory requires careful handling:
+1.  Using `async (importOriginal) => { ... }` is necessary when using `importOriginal`.
+2.  The factory must return an object containing *all* exports from the original module, either the original function (via `...actual`) or a mock (`vi.fn()`). Simply omitting an export in the return object leads to `[vitest] No "..." export is defined on the "..." mock` errors.
+3.  Attempts to test the *original* implementation of mocked functions (e.g., `connectWebSocket (original logic)`) within the same test file where the mock is active proved highly problematic. The mock intercepts calls, making it difficult to reliably call and test the original function's internal logic, especially when that logic involves state changes or calls other mocked functions. State management within tests became complex and led to many failures (e.g., `sendMessage` not being called because the mocked `connectWebSocket` didn't correctly update `state.isConnected` or `state.ws`).
+
+**Experiment:**
+1.  Corrected the `vi.mock` factory in `connection.test.ts` to use `async (importOriginal)` and spread the `actual` module content before overriding specific functions with mocks.
+2.  Removed the `(original logic)` describe blocks from `connection.test.ts` that attempted to test the original implementations of mocked functions. Focused tests on either the unmocked functions (`updateConnectionStatus`) or the *interactions* with the mocks (e.g., does calling the original `scheduleReconnect` eventually trigger the *mocked* `connectWebSocket`?).
+3.  Ensured that mock implementations within tests correctly simulate necessary state changes (e.g., `connectWebSocket` mock should set `state.isConnected = true` and `state.ws = new MockWebSocket(...)` if subsequent tests rely on `sendMessage`).
+4.  Repeatedly encountered state tracking errors where changes believed to be applied were not, leading to redundant `apply_diff` attempts.
+
+**Result:** Correcting the `vi.mock` factory resolved the transform errors. However, numerous tests still fail, indicating fundamental issues with how the mocks interact with the state and the functions under test. The simplification of `connection.test.ts` by removing original logic tests was necessary but didn't fix underlying issues in other files. Failures in `request.test.ts` (sendMessage not called, timer undefined) and `subscription.test.ts` (unsubscribe not called, sendMessage called when disconnected) persist.
+
+**Lesson:** When using `vi.mock` with `importOriginal`, ensure the factory is `async` and returns *all* exports, spreading the `actual` module first. Avoid testing the original implementation of a mocked function within the same file if possible, as it complicates state management and mock interactions significantly. Focus tests on the unmocked parts or the interactions *between* the code under test and the *mocks*. Mock implementations must accurately reflect the side effects (like state changes) that the original function would have caused if those side effects are necessary for subsequent steps in the test. Careful state tracking is crucial when performing iterative refactoring, double-check file contents if `apply_diff` reports identical content.

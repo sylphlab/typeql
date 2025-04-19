@@ -25,7 +25,7 @@
     "clean": "rimraf --glob dist \"*.tsbuildinfo\" .turbo node_modules",
     "lint": "eslint . --ext .ts,.tsx",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --coverage"
+    "test": "cross-env NODE_OPTIONS=--max-old-space-size=8192 vitest run --coverage"
   },
   "peerDependencies": {
     "@sylphlab/typeql-client": "workspace:*",

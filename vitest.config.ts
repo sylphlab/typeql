@@ -13,7 +13,7 @@ export default defineConfig({
     }
   },
   test: {
-    environment: 'jsdom', // Keep jsdom environment
+    environment: 'jsdom', // Default environment
     globals: true, // Optional: enable global APIs like describe, it, expect
     testTimeout: 30000, // Set a 30-second timeout for each test
     hookTimeout: 30000, // Set a 30-second timeout for hooks (beforeEach, etc.)
@@ -23,7 +23,7 @@ export default defineConfig({
     },
     poolOptions: {
       threads: {
-        // singleThread: true // Remove single-threaded constraint
+        singleThread: true // Enforce single thread to potentially reduce memory/timing issues
       }
     },
     // Add any other global configurations needed
@@ -39,6 +39,10 @@ export default defineConfig({
       //   statements: 80,
       // },
     },
+    environmentMatchGlobs: [
+      // Use happy-dom for preact tests due to memory issues with jsdom
+      ['./packages/preact/**/*.test.{ts,tsx}', 'happy-dom'],
+    ],
   },
   // threads: false, // Incorrect placement
 });

@@ -1,7 +1,7 @@
 // packages/react/src/__tests__/context.test.ts
 import { describe, it, expect } from 'vitest';
-// Import necessary components from ../context when tests are added
-// import { TypeQLProvider, useTypeQL } from '../context';
+// Import necessary components from ./context when tests are added
+// import { TypeQLProvider, useTypeQL } from './context';
 
 describe('TypeQL Context & Provider', () => {
   it('should have tests for context and provider functionality', () => {

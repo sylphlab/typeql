@@ -152,11 +152,11 @@ describe('createVSCodeTransport', () => { // Add 5 second timeout
 
   // Increase timeout for this specific test
   // Removed .skip - Added debug logs to source to investigate timeout
-  // TODO: Test consistently times out in bun test environment, likely due to async/mocking interaction. Skipping temporarily to address other tests.
-  it.skip('should handle incoming update messages via subscribe', async () => { // Re-skipping due to persistent timeout in Bun/Vitest env
+  // TODO: Test consistently times out in bun test environment, likely due to async/mocking interaction. Attempting fix by removing explicit waits.
+  it('should handle incoming update messages via subscribe', async () => { // Unskipped, removed explicit waits
     const subscribeMessage: SubscribeMessage = { type: 'subscription', id: 'sub1', path: 'updates' };
 
-    const subscription = transport.subscribe(subscribeMessage); // Don't await here if subscribe itself is synchronous
+    const subscription = transport.subscribe(subscribeMessage);
     expect(mockPostMessage).toHaveBeenCalledWith(subscribeMessage);
     expect(subscription).toBeDefined();
     expect(subscription.iterator).toBeDefined();
@@ -179,9 +179,7 @@ describe('createVSCodeTransport', () => { // Add 5 second timeout
         }
     });
 
-    // Simulate the message *after* starting to await the iterator
-    await new Promise(resolve => setTimeout(resolve, 10)); // Yield event loop
-    await new Promise(resolve => setTimeout(resolve, 10)); // Yield event loop again
+    // Simulate the message *after* starting to await the iterator promise
     simulateIncomingMessage(updateMessage);
 
     // Wait for the first message and assert
