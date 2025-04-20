@@ -1,0 +1,55 @@
+{
+  "name": "@sylphlab/typeql-react",
+  "version": "0.1.0",
+  "description": "React hooks for TypeQL",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint . --cache --max-warnings=0",
+    "lint:fix": "eslint . --fix --cache",
+    "format": "prettier --write . --cache --ignore-unknown",
+    "check-format": "prettier --check . --cache --ignore-unknown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:watch": "vitest --passWithNoTests",
+    "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "clean": "rm -rf dist .turbo node_modules"
+  },
+  "dependencies": {
+    "@sylphlab/typeql-client": "workspace:*",
+    "@sylphlab/typeql-shared": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0"
+  },
+  "devDependencies": {
+    "@sylphlab/eslint-config-sylph-react": "latest",
+    "@types/react": "^18.3.3",
+    "eslint": "^9.5.0",
+    "prettier": "^3.3.2",
+    "react": "^18.3.1",
+    "react-dom": "^18.0.0",
+    "tsup": "^8.1.0",
+    "typescript": "^5.4.5",
+    "vitest": "^1.6.0",
+    "@testing-library/react": "^15.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "prettier": "@sylphlab/prettier-config@latest",
+  "license": "MIT"
+}

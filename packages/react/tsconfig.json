@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json", // Extend the root base config
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "jsx": "react-jsx", // Use the modern JSX transform
+    "lib": ["DOM", "DOM.Iterable", "ESNext"], // Include DOM types for React
+    // No 'composite' or 'references' as tsup handles the build
+  },
+  "include": ["src/**/*"], // Include all files in the src directory
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx"] // Exclude build/test files
+}
