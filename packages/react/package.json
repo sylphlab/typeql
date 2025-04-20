@@ -45,7 +45,8 @@
     "tsup": "^8.1.0",
     "typescript": "^5.4.5",
     "vitest": "^1.6.0",
-    "@testing-library/react": "^15.0.0"
+    "@testing-library/react": "^15.0.0",
+    "@vitest/coverage-v8": "^1.6.0"
   },
   "publishConfig": {
     "access": "public"

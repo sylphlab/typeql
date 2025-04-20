@@ -79,7 +79,7 @@ export function useSubscription<TInput, TOutput>(
       }
       return JSON.stringify(input);
     } catch (e) {
-      console.error("Failed to stringify subscription input for memoization:", input, e);
+      // console.error("Failed to stringify subscription input for memoization:", input, e); // Removed log
       return String(Date.now());
     }
   }, [input]);
@@ -141,7 +141,7 @@ export function useSubscription<TInput, TOutput>(
         }
 
       } catch (err: unknown) {
-        console.error('useSubscription failed:', err);
+        // console.error('useSubscription failed:', err); // Removed log
         errorOccurred = true; // Set flag if initial connection/iteration fails
         if (!isEffectCancelled && mountedRef.current) {
           const error = (err instanceof Error ? err : new Error(String(err))) as TypeQLClientError; // Basic casting
@@ -163,7 +163,7 @@ export function useSubscription<TInput, TOutput>(
     return () => {
       isEffectCancelled = true;
       if (unsubscribeRef.current) {
-        console.log('Unsubscribing...');
+        // console.log('Unsubscribing...'); // Removed log
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }

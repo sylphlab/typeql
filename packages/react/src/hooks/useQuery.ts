@@ -66,7 +66,7 @@ export function useQuery<TInput, TOutput>(
       }
       return JSON.stringify(input);
     } catch (e) {
-      console.error("Failed to stringify query input for memoization:", input, e);
+      // console.error("Failed to stringify query input for memoization:", input, e); // Removed log
       // Fallback to a less stable key if stringify fails
       return String(Date.now()); // Or throw?
     }
@@ -95,7 +95,7 @@ export function useQuery<TInput, TOutput>(
           setError(null); // Clear error on success
         }
       } catch (err: unknown) {
-        console.error('useQuery failed:', err);
+        // console.error('useQuery failed:', err); // Removed log
         if (mountedRef.current) {
           // Assuming the error is or can be cast to TypeQLClientError
           setError(err as TypeQLClientError);

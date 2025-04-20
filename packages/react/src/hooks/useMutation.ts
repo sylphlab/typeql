@@ -110,7 +110,7 @@ export function useMutation<
         }
         return finalData; // Return result even if unmounted after success
       } catch (err: unknown) {
-        console.error('useMutation failed:', err);
+        // console.error('useMutation failed:', err); // Removed log
         finalError = err as TError; // Store error
 
         if (mountedRef.current) {
