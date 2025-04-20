@@ -29,7 +29,7 @@ export default defineConfig({
     // Add any other global configurations needed
     coverage: {
       provider: 'v8', // or 'istanbul'
-      reporter: ['text', 'json', 'html'], // Choose reporters
+      reporter: ['text', 'json-summary', 'lcovonly'], // Keep console, summary, and lcov for CI, remove html dir
       // include: ['src/**/*.{ts,tsx}'], // Specify files to include
       // exclude: ['src/__tests__/**'], // Specify files to exclude
       // thresholds: { // Optional: Set coverage thresholds
