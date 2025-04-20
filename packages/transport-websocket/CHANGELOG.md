@@ -1,10 +1,4 @@
-# @sylphlab/typeql-core
-
-## 0.0.4
-
-### Patch Changes
-
-- Forced release as per user directive, ignoring outstanding issues (linting, todos).
+# @sylphlab/transport-websocket
 
 ## 0.0.3
 
@@ -18,8 +12,8 @@
 
 - Forced release as per user directive, ignoring outstanding issues (linting, todos).
 
-## 0.0.2
+## 0.0.1
 
 ### Patch Changes
 
-- Initial release 0.0.1
+- Forced release as per user directive, ignoring outstanding issues (linting, todos).

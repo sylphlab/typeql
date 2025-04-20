@@ -77,3 +77,31 @@
     *   Overall test coverage needs review (Currently ~88% Lines, ~77% Branch across tested packages).
     *   Performance optimization review pending.
     *   VSCode example webview requires a build process (confirmed).
+
+## 2025-04-20: Release Readiness Check
+
+*   **Goal:** Assess if the project is ready for release.
+*   **Checks Performed:**
+    *   Linting (`pnpm run lint` via `turbo`): **FAILED** (Missing ESLint config in `typeql-vscode-example`).
+    *   Type Checking (`tsc --noEmit`): **PASSED**.
+    *   Testing (`pnpm run test` via `vitest`): **PASSED** (but 22 tests marked as 'todo').
+    *   TODO/FIXME Search: Found **23 instances**.
+    *   Changeset Status (`dir .changeset`): No pending changesets.
+*   **Conclusion:** Project is **NOT** ready for release due to linting failure, 'todo' tests, and TODO/FIXME markers.
+*   **Blockers:**
+    1.  Missing ESLint config in `examples/vscode-extension`.
+    2.  22 'todo' tests need implementation.
+    3.  23 TODO/FIXME comments need addressing.
+
+## 2025-04-20: Release Readiness Re-assessment (Ignoring Linting)
+
+*   **Goal:** Re-assess release readiness, ignoring previous linting failure as per user directive.
+*   **Checks Considered:**
+    *   Type Checking (`tsc --noEmit`): **PASSED**.
+    *   Testing (`pnpm run test` via `vitest`): **PASSED** (but 22 tests marked as 'todo').
+    *   TODO/FIXME Search: Found **23 instances**.
+    *   Changeset Status (`dir .changeset`): No pending changesets.
+*   **Conclusion:** Project is **STILL NOT** ready for release due to 'todo' tests and TODO/FIXME markers.
+*   **Remaining Blockers (Ignoring Lint):**
+    1.  22 'todo' tests need implementation.
+    2.  23 TODO/FIXME comments need addressing.

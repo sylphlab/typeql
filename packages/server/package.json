@@ -1,6 +1,6 @@
 {
   "name": "@sylphlab/typeql-server",
-  "version": "0.0.1",
+  "version": "0.0.4",
   "description": "Server library for TypeQL - TypeScript-first realtime API framework.",
   "type": "module",
   "main": "./dist/index.cjs",

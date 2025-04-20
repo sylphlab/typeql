@@ -1,6 +1,6 @@
 {
   "name": "@sylphlab/typeql-react",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "React hooks for TypeQL",
   "type": "module",
   "main": "./dist/index.js",
@@ -36,17 +36,18 @@
     "react": "^18.0.0"
   },
   "devDependencies": {
-    "@sylphlab/eslint-config-sylph-react": "latest",
+    "@sylphlab/eslint-config-sylph-react": "^7.0.0",
+    "@sylphlab/prettier-config": "^0.3.3",
+    "@testing-library/react": "^15.0.0",
     "@types/react": "^18.3.3",
+    "@vitest/coverage-v8": "^1.6.0",
     "eslint": "^9.5.0",
     "prettier": "^3.3.2",
     "react": "^18.3.1",
     "react-dom": "^18.0.0",
     "tsup": "^8.1.0",
     "typescript": "^5.4.5",
-    "vitest": "^1.6.0",
-    "@testing-library/react": "^15.0.0",
-    "@vitest/coverage-v8": "^1.6.0"
+    "vitest": "^1.6.0"
   },
   "publishConfig": {
     "access": "public"

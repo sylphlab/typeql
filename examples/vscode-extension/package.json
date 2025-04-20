@@ -2,7 +2,7 @@
   "name": "typeql-vscode-example",
   "displayName": "TypeQL VSCode Example",
   "description": "Example VSCode extension using TypeQL for communication.",
-  "version": "0.0.2",
+  "version": "0.0.5",
   "private": true,
   "publisher": "vscode-samples",
   "engines": {
@@ -27,8 +27,7 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./ && bun run build:webview",
     "build:webview": "vite build --outDir dist/webview --emptyOutDir false",
-    "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts"
+    "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",

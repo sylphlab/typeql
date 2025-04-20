@@ -1,6 +1,6 @@
 {
   "name": "@sylphlab/typeql-transport-http",
-  "version": "0.1.0",
+  "version": "0.1.3",
   "description": "TypeQL HTTP transport client",
   "type": "module",
   "main": "./dist/index.cjs",
