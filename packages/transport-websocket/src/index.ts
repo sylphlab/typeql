@@ -6,7 +6,6 @@ import type {
     UnsubscribeMessage,
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
-    SubscriptionEndMessage,
     AckMessage,
     RequestMissingMessage,
     UnsubscribeFn,
@@ -423,13 +422,10 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): Ty
         //     sendMessage(message);
         // },
 
-        onAckReceived: (callback: (ack: AckMessage) => void) => {
-            ackListeners.add(callback);
-            // Return unsubscribe function
-            return () => {
-                ackListeners.delete(callback);
-            };
-        },
+        // onAckReceived is an optional callback property provided by the consumer,
+        // not a method implemented by the transport itself.
+        // The internal onmessage handler (line ~214) calls listeners added via this property.
+        // Therefore, this method definition should be removed.
 
         requestMissingDeltas: (subscriptionId: number | string, fromSeq: number, toSeq: number) => {
             const message: RequestMissingMessage = {
