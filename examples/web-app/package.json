@@ -14,7 +14,7 @@
     "@sylphlab/typeql-client": "workspace:*",
     "@sylphlab/typeql-server": "workspace:*",
     "@sylphlab/typeql-react": "workspace:*",
-    "@sylphlab/typeql-transport-websocket": "workspace:*",
+    "@sylphlab/transport-websocket": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.1",

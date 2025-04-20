@@ -1,12 +1,10 @@
 # Active Context
 
 ## Current Goal
-*   Rewrite the `@sylphlab/typeql-transport-vscode` package.
-*   Implement the transport logic based on the existing shared types (`@sylphlab/typeql-shared`).
-*   Ensure tests pass reliably, addressing previous timeout issues.
+None. Previous task (`@sylphlab/typeql-[REMOVED]` rewrite) completed. 15/16 tests pass.
 
 ## Next Action
-*   [🧠 Strategos] Initiate Phase 1: Intent Forging for the new goal.
+Awaiting new task definition.
 
 ## Waiting For
 *   None

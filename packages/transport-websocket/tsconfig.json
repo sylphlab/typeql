@@ -1,16 +1,53 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "./dist",
-    // "rootDir": "./src", // Remove rootDir
-    "lib": ["ESNext"], // Suitable for Node.js/browser WebSocket usage
-    "declaration": true,
-    "declarationDir": "./dist", // Specify output directory for declarations
-    "declarationMap": true,
-    "sourceMap": true
-    // "composite": true
+    // Type Checking
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "strictFunctionTypes": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "useUnknownInCatchVariables": true,
+    "alwaysStrict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedIndexedAccess": true,
+    // "noImplicitOverride": true, // Enable if using TS 4.3+ and desired
+    // "noPropertyAccessFromIndexSignature": true, // Enable if desired
+
+    // Modules
+    "module": "ESNext", // Keep ESNext for modern features, tsup handles output formats
+    "moduleResolution": "Bundler", // Recommended for modern tooling like Vite/tsup
+    "baseUrl": ".", // Optional: Set base directory for non-relative paths
+    // "paths": {}, // Optional: Define path aliases if needed
+    "resolveJsonModule": true,
+
+    // Emit
+    "declaration": true, // Required for d.ts generation (tsup handles actual emit)
+    "declarationMap": true, // Generate sourcemaps for .d.ts files
+    "sourceMap": true, // Generate .map files (tsup handles actual emit)
+    "outDir": "./dist", // Specify output directory (tsup uses this)
+    "removeComments": false, // Keep comments in output (tsup might override)
+
+    // JavaScript Support
+    "allowJs": false, // Disallow JavaScript files
+    "checkJs": false, // Do not type-check JavaScript files
+
+    // Interop Constraints
+    "esModuleInterop": true, // Enables compatibility with CommonJS modules
+    "forceConsistentCasingInFileNames": true,
+    "isolatedModules": true, // Ensure files can be safely transpiled individually
+
+    // Language and Environment
+    "target": "ES2020", // Target modern ECMAScript features
+    "lib": ["ESNext", "DOM", "DOM.Iterable"], // Include necessary library typings
+    "useDefineForClassFields": true, // Use standard class fields definition behavior
+    "skipLibCheck": true // Skip type checking of all declaration files (*.d.ts) - helps with dependency issues
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
-  // // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
+  "include": ["src"], // Files to include in compilation
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "**/*.bench.ts"] // Exclude build/test files
 }

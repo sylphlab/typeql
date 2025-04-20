@@ -9,6 +9,7 @@ export default defineConfig({
       '@sylphlab/typeql-shared': path.resolve(__dirname, './packages/shared/src/index.ts'),
       '@sylphlab/typeql-client': path.resolve(__dirname, './packages/client/src/index.ts'),
       '@sylphlab/typeql-server': path.resolve(__dirname, './packages/server/src/index.ts'),
+      '@sylphlab/transport-websocket': path.resolve(__dirname, './packages/transport-websocket/src/index.ts'), // Revert: Point back to index.ts
       // Add other aliases if needed
     }
   },

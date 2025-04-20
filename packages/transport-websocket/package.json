@@ -1,52 +1,63 @@
 {
-  "name": "@sylphlab/typeql-transport-websocket",
-  "version": "0.0.1",
-  "description": "WebSocket transport adapter for TypeQL",
+  "name": "@sylphlab/transport-websocket",
+  "version": "0.0.0",
+  "description": "WebSocket transport implementation for SylphLab",
+  "keywords": [
+    "sylphlab",
+    "transport",
+    "websocket"
+  ],
+  "author": "SylphLab",
+  "license": "MIT",
+  "homepage": "https://github.com/sylphlab/req-delta/tree/main/packages/transport-websocket#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sylphlab/req-delta.git",
+    "directory": "packages/transport-websocket"
+  },
+  "bugs": {
+    "url": "https://github.com/sylphlab/req-delta/issues"
+  },
   "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": {
-    ".": {
-      "import": {
-        "types": "./dist/index.d.ts",
-        "default": "./dist/index.js"
-      },
-      "require": {
-        "types": "./dist/index.d.cts",
-        "default": "./dist/index.cjs"
-      }
-    },
-    "./src/*": "./src/*",
-    "./package.json": "./package.json"
-  },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "pnpm exec tsup",
-    "dev": "tsup src/index.ts --format esm,cjs --external ws @sylphlab/typeql-shared --watch",
-    "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint . --cache --max-warnings=0",
+    "lint:fix": "eslint . --fix --cache",
+    "format": "prettier --write . --cache --ignore-unknown",
+    "check-format": "prettier --check . --cache --ignore-unknown",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:watch": "vitest",
+    "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "clean": "rimraf dist .turbo node_modules"
   },
-  "keywords": [
-    "typeql",
-    "websocket",
-    "transport",
-    "api",
-    "rpc",
-    "typescript"
-  ],
-  "author": "",
-  "license": "ISC",
   "dependencies": {
-    "@sylphlab/typeql-shared": "workspace:*"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.0",
-    "typescript": "^5.0.0",
-    "ws": "^8.10.0"
+    "@types/node": "^20.14.11",
+    "@types/ws": "^8.5.11",
+    "eslint": "^9.7.0",
+    "prettier": "^3.3.3",
+    "rimraf": "^5.0.9",
+    "tsup": "^8.2.2",
+    "typescript": "^5.5.3",
+    "vitest": "^2.0.4",
+    "ws": "^8.18.0"
   },
   "publishConfig": {
     "access": "public"

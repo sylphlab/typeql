@@ -1,6 +1,16 @@
-{
-  "packages": [
-    "packages/*",
-    "examples/*"
-  ],
-}
+packages:
+  # Core packages
+  - 'packages/client'
+  - 'packages/preact'
+  - 'packages/react'
+  - 'packages/server'
+  - 'packages/shared'
+  - 'packages/transport-http'
+  - 'packages/transport-vscode'
+  - 'packages/transport-websocket' # Added new package
+
+  # Examples
+  - 'examples/*'
+
+  # Internal tooling (if any)
+  # - 'tools/*'
