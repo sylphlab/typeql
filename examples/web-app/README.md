@@ -1,54 +1,48 @@
-# React + TypeScript + Vite
+# TypeQL Web App Example
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This example demonstrates using TypeQL in a React application built with Vite, communicating with a backend server via WebSockets.
 
-Currently, two official plugins are available:
+## Features Demonstrated
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react/README.md) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+*   **TypeQL Server:** Basic router setup with queries, mutations, and subscriptions (`server/index.ts`).
+*   **TypeQL Client:** Connecting to the server using `@sylphlab/typeql-transport-websocket`.
+*   **React Integration:** Using `@sylphlab/typeql-react` hooks (`useQuery`, `useMutation`, `useSubscription`) to interact with the TypeQL API.
+*   **Realtime Updates:** Subscribing to backend changes and applying delta updates to the UI.
+*   **Optimistic Updates:** Basic example of optimistic UI updates for mutations.
 
-## Expanding the ESLint configuration
+## Setup
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+1.  **Install Root Dependencies:** Ensure you have run `pnpm install` in the root directory of the monorepo.
+2.  **Install Example Dependencies:** Navigate to this directory (`examples/web-app`) and run:
+    ```bash
+    pnpm install
+    ```
+    *(This might not be strictly necessary if root `pnpm install` handled workspace dependencies correctly, but it ensures all dependencies are present.)*
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
+## Running the Example
+
+You need to run the backend server and the frontend development server simultaneously in separate terminals.
+
+1.  **Run the Backend Server:**
+    In your terminal, from the `examples/web-app` directory, run:
+    ```bash
+    pnpm exec tsx server/index.ts
+    ```
+    *(This uses `tsx` to execute the TypeScript server file directly. If you don't have `tsx` installed globally or in the workspace, you might need to install it: `pnpm add -D tsx`)*
+    The server will start, typically listening on `ws://localhost:3000`.
+
+2.  **Run the Frontend Dev Server:**
+    In a **separate** terminal, from the `examples/web-app` directory, run:
+    ```bash
+    pnpm run dev
+    ```
+    This will start the Vite development server, usually accessible at `http://localhost:5173` (check terminal output for the exact URL).
+
+3.  **Open the App:** Open the URL provided by Vite in your web browser. You should see the example application, allowing you to fetch, add, and see realtime updates for a simple list (e.g., Todos).
+
+## Building for Production
+
+```bash
+pnpm run build
 ```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+This command first compiles the server code (`tsconfig.node.json`) and then builds the frontend application using Vite. The output will be in the `dist/` directory. You can preview the production build using `pnpm run preview`. Note that the production deployment requires running the compiled server code (e.g., `node dist/server/index.js`) separately.
