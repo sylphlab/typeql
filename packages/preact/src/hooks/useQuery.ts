@@ -1,205 +1,129 @@
-// packages/preact/src/hooks/useQuery.ts
-import { useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks';
-import {
-    AnyRouter,
-    TypeQLClientError,
-} from '@sylphlab/typeql-shared';
-import { useTypeQL } from '../context'; // Import from context file
+import { useEffect, useMemo } from 'preact/hooks';
+import { signal, Signal, computed } from '@preact/signals-core';
+import { useTypeQL } from '../context';
+import type { TypeQLClientError } from '@sylphlab/typeql-client'; // Assuming error type export
 
-// --- Query Hook ---
-
-// Helper types assuming procedure is client.path.to.procedure
-type inferQueryInput<TProcedure> = TProcedure extends { query: (input: infer TInput) => any }
-    ? TInput
-    : never;
-
-// Inferring output from the promise returned by the query function
-type inferQueryOutput<TProcedure> = TProcedure extends { query: (...args: any[]) => Promise<infer TOutput> }
-    ? TOutput
-    : never;
-
-// Type for query options
-export interface UseQueryOptions<TState = any, TOutput = any> {
-    enabled?: boolean;
-    select?: (state: TState) => TOutput;
-    staleTime?: number;
-    cacheTime?: number; // Placeholder
-    refetchOnWindowFocus?: boolean; // Placeholder
+// Define options for the useQuery hook
+export interface UseQueryOptions {
+  /** If false, the query will not execute automatically. Defaults to true. */
+  enabled?: boolean;
+  // TODO: Add other options like staleTime, cacheTime, refetchOnWindowFocus etc. later
 }
 
-// Type for query result state
-export interface UseQueryResult<TOutput> {
-    data: TOutput | undefined;
-    isLoading: boolean;
-    isFetching: boolean;
-    isSuccess: boolean;
-    isError: boolean;
-    error: TypeQLClientError | Error | null;
-    status: 'loading' | 'error' | 'success';
-    refetch: () => Promise<void>;
+// Define the return type of the useQuery hook
+export interface UseQueryResult<TData = unknown, TError = TypeQLClientError> {
+  data: Signal<TData | undefined>;
+  error: Signal<TError | null>;
+  isFetching: Signal<boolean>;
+  // isSuccess: Signal<boolean>; // Can be computed
+  // isError: Signal<boolean>; // Can be computed
+  // refetch: () => Promise<void>; // TODO: Add manual refetch capability
 }
 
-export function useQuery<
-    TProcedure extends { query: (...args: any[]) => Promise<any> },
-    TInput = inferQueryInput<TProcedure>,
-    TOutput = inferQueryOutput<TProcedure>,
-    TState = any
->(
-    procedure: TProcedure,
-    input: TInput,
-    options?: UseQueryOptions<TState, TOutput>
+/**
+ * Hook for fetching data using a TypeQL query.
+ *
+ * @param queryProcedure The client query procedure (e.g., client.post.get)
+ * @param input Input parameters for the query procedure.
+ * @param options Configuration options for the query.
+ */
+export function useQuery<TInput, TOutput>(
+  // Procedure type needs careful handling. Using a function type for now.
+  // Ideally, this would infer types from the procedure itself.
+  queryProcedure: (input: TInput) => Promise<TOutput>,
+  input: TInput,
+  options: UseQueryOptions = {},
 ): UseQueryResult<TOutput> {
-    const { enabled = true, select, staleTime = 0 } = options ?? {};
-    const { client, store } = useTypeQL<AnyRouter, TState>();
+  const { client } = useTypeQL(); // Get client from context
+  const { enabled = true } = options;
 
-    const getInitialData = useCallback((): TOutput | undefined => {
-        if (store && enabled) {
-            try {
-                const currentState = store.getOptimisticState();
-                return select ? select(currentState) : (currentState as unknown as TOutput);
-            } catch (e) {
-                console.error("[useQuery] Error getting/selecting initial optimistic state for useState:", e);
-            }
+  // --- State Signals ---
+  const dataSignal = signal<TOutput | undefined>(undefined);
+  const errorSignal = signal<TypeQLClientError | null>(null);
+  const isFetchingSignal = signal<boolean>(false);
+
+  // --- Input Memoization ---
+  // Stringify input to use as a stable dependency key in useEffect
+  // Note: This assumes input is serializable and order doesn't matter if it's an object.
+  // More robust serialization/hashing might be needed for complex inputs.
+  const stableInputKey = useMemo(() => {
+    try {
+      // Sort object keys for stability if it's a plain object
+      if (input && typeof input === 'object' && !Array.isArray(input)) {
+        const sortedInput = Object.keys(input as object)
+          .sort()
+          .reduce((acc, key) => {
+            acc[key as keyof TInput] = (input as any)[key];
+            return acc;
+          }, {} as TInput);
+        return JSON.stringify(sortedInput);
+      }
+      return JSON.stringify(input);
+    } catch (e) {
+      console.error("Failed to stringify query input for memoization:", input, e);
+      // Fallback to a less stable key if stringify fails
+      return String(Date.now()); // Or throw?
+    }
+  }, [input]);
+
+
+  // --- Effect for Fetching ---
+  useEffect(() => {
+    if (!enabled) {
+      // If disabled, ensure fetching state is false (might be true from a previous enabled state)
+      isFetchingSignal.value = false;
+      return; // Don't fetch if not enabled
+    }
+
+    let isCancelled = false; // Flag to prevent state updates on unmounted component
+
+    const fetchData = async () => {
+      // Reset error and set fetching state
+      errorSignal.value = null;
+      isFetchingSignal.value = true;
+
+      try {
+        // Use the actual client procedure passed to the hook
+        // This relies on the caller passing e.g., client.post.get.query
+        // Need to ensure the type of queryProcedure matches client methods
+        const result = await queryProcedure(input);
+
+        if (!isCancelled) {
+          dataSignal.value = result;
+          errorSignal.value = null; // Clear error on success
         }
-        return undefined;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [store, enabled, select]);
-
-    const [data, setData] = useState<TOutput | undefined>(getInitialData);
-    const [error, setError] = useState<TypeQLClientError | Error | null>(null);
-    const initialStatus = data !== undefined ? 'success' : (enabled ? 'loading' : 'success');
-    const [status, setStatus] = useState<'loading' | 'error' | 'success'>(initialStatus);
-    // isFetching state needs careful initialization and updates
-    const [isFetching, setIsFetching] = useState(enabled && data === undefined);
-    const lastFetchTimeRef = useRef<number>(data !== undefined ? Date.now() : 0);
-
-    const isLoading = status === 'loading';
-
-    const isMountedRef = useRef(true);
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => { isMountedRef.current = false; };
-    }, []);
-
-    const inputKey = useMemo(() => {
-        try {
-            return JSON.stringify(input);
-        } catch {
-            console.warn("useQuery: Failed to stringify input for dependency key. Updates may be missed for complex objects.");
-            return String(input);
+      } catch (err: unknown) {
+        console.error('useQuery failed:', err);
+        if (!isCancelled) {
+          // Assuming the error is or can be cast to TypeQLClientError
+          // TODO: Improve error type handling/casting
+          errorSignal.value = err as TypeQLClientError;
+          dataSignal.value = undefined; // Clear data on error
         }
-    }, [input]);
-
-    const executeQuery = useCallback(async (forceRefetch = false): Promise<void> => {
-        if (!isMountedRef.current || !procedure) return;
-
-        const now = Date.now();
-        const isDataStale = data === undefined || staleTime <= 0 || (now - lastFetchTimeRef.current >= staleTime);
-
-        if (!forceRefetch && !isDataStale) {
-            console.log(`[useQuery] Data is fresh (staleTime: ${staleTime}ms). Skipping fetch.`);
-            if (status !== 'success') setStatus('success'); // Ensure status is success if data is fresh
-            return;
+      } finally {
+        if (!isCancelled) {
+          isFetchingSignal.value = false;
         }
-        if (!enabled) {
-            console.log(`[useQuery] Query is disabled. Skipping fetch.`);
-            return;
-        }
-
-        console.log(`[useQuery] ${forceRefetch ? 'Forcing refetch' : isDataStale ? 'Fetching stale data' : 'Fetching data'}...`);
-        if (data === undefined && status !== 'loading') { // Only set loading if not already loading
-            setStatus('loading');
-        }
-
-        let hadError = false; // Flag to prevent finally block from setting isFetching false on error
-        try {
-             if (isFetching && !forceRefetch) { // Check moved inside try
-                 console.log("[useQuery] Already fetching. Skipping.");
-                 return;
-             }
-            setIsFetching(true); // Moved inside try
-            const queryResult = await procedure.query(input) as TOutput;
-
-            if (isMountedRef.current) {
-                setData(queryResult);
-                setStatus('success');
-                setError(null);
-                lastFetchTimeRef.current = Date.now();
-            }
-        } catch (err: any) {
-            hadError = true; // Mark error occurred
-            console.error("[TypeQL Preact] useQuery Error:", err);
-            if (isMountedRef.current) {
-                setError(err instanceof TypeQLClientError ? err :
-                       err instanceof Error ? err :
-                       new TypeQLClientError(String(err?.message || err)));
-                setStatus('error');
-                setData(undefined); // Reset data on error
-                setIsFetching(false); // Set fetching false on error
-            }
-        } finally {
-            // Only set isFetching false if mounted and no error occurred during this fetch attempt
-            if (isMountedRef.current && !hadError) {
-                setIsFetching(false);
-            }
-        }
-    }, [procedure, inputKey, staleTime, enabled, data, status, isFetching]); // Added data, status, isFetching dependencies
-
-    useEffect(() => {
-        if (enabled) {
-            void executeQuery();
-        } else {
-             // Reset state if disabled
-             setData(undefined);
-             // setIsFetching(false); // Moved to cleanup effect
-             setStatus('success');
-             setError(null);
-             lastFetchTimeRef.current = 0;
-        }
-    }, [enabled, inputKey, procedure, executeQuery]);
-
-     useEffect(() => {
-         return () => {
-              if (isMountedRef.current) {
-                  setIsFetching(false); // Ensure reset on cleanup
-              }
-         };
-     // eslint-disable-next-line react-hooks/exhaustive-deps
-     }, [enabled, inputKey, procedure]);
-
-    const storeListener = useCallback((optimisticState: TState, confirmedState: TState) => {
-        if (isMountedRef.current && !isFetching) { // Check isFetching
-            try {
-                if (select) {
-                    setData(select(optimisticState));
-                } else {
-                    setData(optimisticState as unknown as TOutput);
-                }
-                if (status !== 'success') setStatus('success');
-            } catch (e) {
-                console.error("[useQuery] Error selecting state from optimistic update:", e);
-            }
-       }
-   }, [select, status, isFetching]); // Added isFetching dependency
-
-    useEffect(() => {
-        if (!store || !enabled) return;
-        const unsubscribe = store.subscribe(storeListener);
-        console.log("[useQuery] Subscribed to OptimisticStore updates.");
-        return () => {
-            unsubscribe();
-            console.log("[useQuery] Unsubscribed from OptimisticStore updates.");
-        };
-    }, [store, enabled, storeListener]);
-
-    return {
-        data,
-        isLoading,
-        isFetching,
-        isSuccess: status === 'success',
-        isError: status === 'error',
-        error,
-        status,
-        refetch: () => executeQuery(true),
+      }
     };
+
+    fetchData();
+
+    // Cleanup function to set the cancelled flag
+    return () => {
+      isCancelled = true;
+    };
+  }, [stableInputKey, enabled, queryProcedure]); // Re-run effect if input, enabled status, or procedure changes
+
+  // --- Computed Signals (Optional) ---
+  // const isSuccess = computed(() => dataSignal.value !== undefined && !isFetchingSignal.value && !errorSignal.value);
+  // const isError = computed(() => errorSignal.value !== null);
+
+  return {
+    data: dataSignal,
+    error: errorSignal,
+    isFetching: isFetchingSignal,
+    // isSuccess,
+    // isError,
+  };
 }

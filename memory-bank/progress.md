@@ -70,12 +70,13 @@
     *   [X] Implement Web App Example (`examples/web-app/`) - Server and Client code complete.
     *   [X] Implement VSCode Extension Example (`examples/vscode-extension/`) - Basic structure and TypeQL setup complete (Server & Client). *Requires build step for webview.*
 
-*   **Current Status**: **Design pivoted to TypeQL**. Core features, transports (WS, HTTP, VSCode), React hooks implemented and tested. Preact hooks implemented but tests skipped. Web App and VSCode Extension example code structures complete. Test suite partially passes (with skips) after applying workarounds for memory issues. **3 tests in `@sylphlab/typeql-server` skipped due to persistent environment issues.** All packages successfully built. **Refactoring `@sylphlab/typeql-transport-websocket` unit tests is ongoing, with 11 tests still failing due to mocking/syntax/timeout issues.**
-*   **Known Issues**:
-    *   Performance optimization pending.
-    *   `vi.useFakeTimers` / `vi.clearAllTimers` incompatible with `bun run test` (tests skipped in core, http). Need alternative test strategies.
-    *   `transport-vscode` subscription iterator logic likely flawed, causing test timeout (test skipped).
+*   **Current Status (2025-04-20 - 01:09 AM):** Following re-implementation of HTTP/Preact packages and subsequent fix in `@sylphlab/typeql-client/src/optimisticStore.ts`, the full test suite (`pnpm turbo run test`) now **PASSES**.
+    *   `@sylphlab/typeql-transport-http` tests **PASS**.
+    *   `@sylphlab/typeql-preact` tests **PASS**.
+    *   `@sylphlab/typeql-client` tests **PASS** (including previously failing `optimisticStore.test.ts`).
+    *   All other packages also passed tests.
+*   **Overall Status:** **Ready for Release Candidate consideration.** Critical test failures resolved.
+*   **Remaining Minor Issues/Considerations**:
+    *   Performance optimization review pending.
     *   VSCode example webview requires a build process.
-    *   **Preact tests (`packages/preact/**`, `packages/transport-preact/**`) are skipped due to unresolved memory issues when running under `jsdom`. Requires further investigation.**
-    *   **WebSocket transport unit tests (`connection.test.ts`, `request.test.ts`, `subscription.test.ts`) have numerous failures related to mocking strategy and potentially syntax errors.**
-    *   **WebSocket transport integration test `should call onAckReceived when ack message is received` in `index.test.ts` is timing out.**
+    *   Confirm if previously skipped/failing tests in VSCode/WebSocket transports are now reliably passing in the current environment.

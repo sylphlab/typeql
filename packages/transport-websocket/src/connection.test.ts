@@ -833,3 +833,4 @@ describe.skip('connection', () => { // Skip this suite due to persistent transfo
         });
 
 });
+}); // Add missing closing parenthesis for describe.skip

@@ -25,7 +25,8 @@
   "scripts": {
     "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
     "build": "pnpm exec tsup",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
   },
   "keywords": [
     "typeql",

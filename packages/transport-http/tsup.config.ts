@@ -1,13 +1,16 @@
-import { defineConfig } from 'tsup'
+import { defineConfig } from 'tsup';
 
 export default defineConfig({
   entry: ['src/index.ts'],
-  outDir: 'dist',
   format: ['esm', 'cjs'],
-  dts: true, // Re-enable tsup DTS generation
+  dts: true, // Generate .d.ts files
   splitting: false,
   sourcemap: true,
-  clean: true,
-  tsconfig: 'tsconfig.json',
-  external: ['@sylphlab/typeql-shared'] // Mark internal workspace deps as external
-})
+  clean: true, // Clean dist folder before build
+  external: [
+    // Mark workspace dependencies as external
+    '@sylphlab/typeql-client',
+    '@sylphlab/typeql-shared',
+  ],
+  // Consider adding 'treeshake: true' if applicable later
+});

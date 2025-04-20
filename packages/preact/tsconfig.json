@@ -2,23 +2,11 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "./dist",
-    // "rootDir": "./src", // Remove rootDir
-    "jsx": "react-jsx", // Use react-jsx for Preact 10+
-    "jsxImportSource": "preact",
-    "lib": ["ESNext", "DOM", "DOM.Iterable"], // Include DOM libs for hooks
-    "module": "ESNext", // Ensure ESNext module system
-    "moduleResolution": "bundler", // Use bundler resolution
-    "declaration": true, // Re-enable tsc DTS generation
-    "declarationDir": "./dist", // Specify output directory for declarations
-    "declarationMap": true, // Re-enable tsc DTS generation
-    "sourceMap": true
-    // "composite": true // Removed again as per user instruction
+    "rootDir": "./src",
+    "baseUrl": ".",
+    "jsx": "react-jsx", // Use react-jsx for modern JSX transform
+    "jsxImportSource": "preact" // Specify Preact as the source
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/__tests__"],
-  // // "references": [] // Removed as per user feedback (pnpm workspace handles linking)
-  // "references": [
-    // { "path": "../shared" },
-    // { "path": "../client" }
-//   ],
+  "exclude": ["node_modules", "dist", "test", "**/*.test.ts", "**/*.spec.ts", "**/*.bench.ts"]
 }

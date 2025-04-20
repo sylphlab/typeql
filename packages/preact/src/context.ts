@@ -1,68 +1,60 @@
-// packages/preact/src/context.ts
-import { createContext, h, FunctionalComponent, ComponentChildren } from 'preact';
-import { useContext, useMemo } from 'preact/hooks';
-import {
-    AnyRouter,
-    TypeQLClientError, // Keep potentially needed error type? Or remove if unused here.
-} from '@sylphlab/typeql-shared';
-import { createClient, OptimisticStore } from '@sylphlab/typeql-client';
-
-// --- Context ---
+import { createContext, h, ComponentChildren } from 'preact';
+import { useContext } from 'preact/hooks';
+import type { createClient, OptimisticStore } from '@sylphlab/typeql-client';
+// Use ReturnType to get the type of the client instance
+type TypeQLClientInstance = ReturnType<typeof createClient>;
 
 // Define the shape of the context value
-export interface TypeQLContextValue<TRouter extends AnyRouter = AnyRouter, TState = any> {
-    client: ReturnType<typeof createClient<TRouter>>; // The client proxy
-    store?: OptimisticStore<TState>; // Optional optimistic store
+export interface TypeQLContextValue<TState = any> {
+  client: TypeQLClientInstance;
+  store?: OptimisticStore<TState>;
 }
 
-// Create the context with a more specific type, using unknown for generics initially
-// Exporting for potential direct use, though useTypeQL is preferred
-export const TypeQLContext = createContext<TypeQLContextValue<AnyRouter, unknown> | null>(null);
+// Create the context with a default value (null or undefined)
+// Using undefined and checking in the hook is common practice
+const TypeQLContext = createContext<TypeQLContextValue | undefined>(undefined);
 
-
-// --- Provider ---
-
-export interface TypeQLProviderProps<TRouter extends AnyRouter, TState = any> {
-  client: ReturnType<typeof createClient<TRouter>>; // Expect the client proxy
-  store?: OptimisticStore<TState>; // Optional store
-  children: ComponentChildren; // Use Preact's ComponentChildren
+// Define props for the provider component
+export interface TypeQLProviderProps<TState = any> {
+  client: TypeQLClientInstance; // Client is mandatory
+  store?: OptimisticStore<TState>; // Store is optional
+  children: ComponentChildren;
 }
 
 /**
- * Provider component to make the TypeQL client and optional store available via context.
+ * Provides the TypeQL client and optional optimistic store to the component tree.
  */
-export const TypeQLProvider: FunctionalComponent<TypeQLProviderProps<any, any>> = ({
-    client,
-    store,
-    children,
-}) => {
-    // Memoize the context value object itself
-    const contextValue = useMemo(() => ({
-        client,
-        store,
-    }), [client, store]);
+export function TypeQLProvider<TState = any>({
+  client,
+  store,
+  children,
+}: TypeQLProviderProps<TState>) {
+  // Memoize the context value if client/store could change, though typically they are stable
+  // const contextValue = useMemo(() => ({ client, store }), [client, store]);
+  // For simplicity now, assume client/store are stable for the provider's lifetime
+  const contextValue: TypeQLContextValue<TState> = { client, store };
 
-    // Cast the value to match the context type signature
-    return h(TypeQLContext.Provider, { value: contextValue as TypeQLContextValue<AnyRouter, unknown> }, children);
-};
-
-
-// --- Hook ---
+  // Correct usage: h(Component, props, children)
+  return h(TypeQLContext.Provider, { value: contextValue }, children);
+  // Or using JSX:
+  // return (
+  //   <TypeQLContext.Provider value={contextValue}>
+  //     {children}
+  //   </TypeQLContext.Provider>
+  // );
+}
 
 /**
- * Hook to access the TypeQL client instance and optional optimistic store from the context.
+ * Hook to access the TypeQL client and optional optimistic store from the context.
  * Throws an error if used outside of a TypeQLProvider.
- *
- * @template TRouter The application's root router type.
- * @template TState The type of the state managed by the optimistic store.
- * @returns An object containing the `client` proxy and the optional `store` instance.
  */
-export function useTypeQL<TRouter extends AnyRouter = AnyRouter, TState = any>(): TypeQLContextValue<TRouter, TState> {
-    const context = useContext<TypeQLContextValue<AnyRouter, any> | null>(TypeQLContext);
-    if (!context) {
-        // Throwing the specific error here
-        throw new Error('`useTypeQL` must be used within a `TypeQLProvider`.');
-    }
-    // Cast needed as the context is created with `AnyRouter` and `unknown` state
-    return context as TypeQLContextValue<TRouter, TState>;
+export function useTypeQL<TState = any>(): TypeQLContextValue<TState> {
+  const context = useContext(TypeQLContext);
+
+  if (context === undefined) {
+    throw new Error('useTypeQL must be used within a TypeQLProvider');
+  }
+
+  // Cast needed as useContext's default type might include undefined
+  return context as TypeQLContextValue<TState>;
 }

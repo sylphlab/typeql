@@ -467,11 +467,14 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
         // Type for outcome when resolution *occurs*. Can be 'error' if resolver fails.
         let resolutionOutcome: ConflictResolutionOutcome | 'error' | undefined = undefined;
         let mutationsToRemove = new Set<number>(); // Track clientSeqs to remove
+        let conflictOccurred = conflictingMutations.length > 0; // Flag if conflict was detected
+        let specificConflictErrorOccurred = false; // Flag if resolver or applyDelta failed
+
         // console.log(`[DEBUG] applyServerDelta: Identified ${conflictingMutations.length} conflicting mutations.`);
 
         // 3. Resolve Conflicts if necessary
-        if (conflictingMutations.length > 0) {
-            reportWarning('ConflictResolutionError', `Conflict detected with ${conflictingMutations.length} pending mutation(s).`, { serverSeq, conflictingClientSeqs: conflictingMutations.map(m => m.clientSeq) });
+        if (conflictOccurred) {
+            // DO NOT report warning here yet. Report only if no specific error occurs later.
 
             let clientDeltaForConflict: Delta | undefined = undefined;
             try {
@@ -502,6 +505,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
                 });
                 resolvedDelta = delta; // Default to server delta on resolver error
                 resolutionOutcome = 'error';
+                specificConflictErrorOccurred = true; // Mark that a specific error happened
             }
 
             // Mark conflicting mutations for removal based on outcome
@@ -536,10 +540,11 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
                 originalError: error,
                 context: { serverSeq, resolutionOutcome: resolutionOutcome ?? 'no-conflict' } // Provide context
             });
+            specificConflictErrorOccurred = true; // Mark that a specific error happened
             return; // Don't proceed if delta application failed
         }
 
-        // 5. Update confirmed state and sequence number
+        // 5. Update confirmed state and sequence number (Do this BEFORE filtering/recomputing)
         // const oldConfirmedServerSeq = confirmedServerSeq; // Store the sequence before update - Unused
         confirmedState = nextConfirmedState;
         confirmedServerSeq = serverSeq;
@@ -558,7 +563,8 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
         if (removedCount > 0) {
             // Identify all mutations that were actually removed (conflicting or obsolete)
             const removedMutations = pendingMutations.filter(p =>
-                mutationsToRemove.has(p.clientSeq) || p.confirmedServerSeqAtPrediction < confirmedServerSeq
+                mutationsToRemove.has(p.clientSeq) // Check if marked for removal
+                // || p.confirmedServerSeqAtPrediction < confirmedServerSeq // This condition might be too aggressive, rely on conflict resolution outcome
             );
             removedMutations.forEach(m => { if (m.timeoutTimer) clearTimeout(m.timeoutTimer); });
             // console.log(`[DEBUG] applyServerDelta: Discarded ${removedCount} pending mutations (conflicting or obsolete).`);
@@ -569,7 +575,21 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
 
 
         // 7. Recompute optimistic state based on the NEW confirmed state and the FINAL pending mutations list
-        recomputeOptimisticState(); // This also notifies listeners
+        let recomputationErrorOccurred = false;
+        try {
+            recomputeOptimisticState(); // This also notifies listeners
+        } catch (recomputeError) {
+            // Although recomputeOptimisticState has its own internal error reporting,
+            // we catch here to prevent the generic conflict warning below.
+            recomputationErrorOccurred = true;
+            // The specific 'RecomputationError' is already reported inside recomputeOptimisticState.
+            // console.error("[Optimistic Store] Caught error during recomputeOptimisticState in applyServerDelta:", recomputeError);
+        }
+
+        // 8. Report generic conflict warning ONLY if conflict occurred and NO specific error happened during resolution, apply, OR recomputation.
+        if (conflictOccurred && !specificConflictErrorOccurred && !recomputationErrorOccurred) {
+             reportWarning('ConflictResolutionError', `Conflict detected with ${conflictingMutations.length} pending mutation(s). Strategy: ${conflictResolverConfig.strategy}`, { serverSeq, conflictingClientSeqs: conflictingMutations.map(m => m.clientSeq), outcome: resolutionOutcome });
+        }
      };
 
      const subscribe = (listener: StoreListener<TState>): UnsubscribeStoreListener => {

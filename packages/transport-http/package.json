@@ -1,48 +1,54 @@
 {
   "name": "@sylphlab/typeql-transport-http",
-  "version": "0.0.2",
-  "description": "TypeQL transport adapter for HTTP communication (fetch)",
-  "private": false,
+  "version": "0.1.0",
+  "description": "TypeQL HTTP transport client",
   "type": "module",
-  "main": "./dist/index.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
-      "require": "./dist/index.cjs"
-    },
-    "./src/*": "./src/*",
-    "./package.json": "./package.json"
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
   },
   "files": [
-    "dist/**"
+    "dist"
   ],
   "scripts": {
     "build": "tsup",
-    "dev": "tsup src/index.ts --format esm,cjs --dts --external @sylphlab/typeql-shared --watch",
-    "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
-    "test": "vitest run"
+    "dev": "tsup --watch",
+    "lint": "eslint . --cache --max-warnings=0",
+    "lint:fix": "eslint . --fix --cache",
+    "format": "prettier --write . --cache --ignore-unknown",
+    "check-format": "prettier --check . --cache --ignore-unknown",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test"
   },
-  "keywords": [
-    "typeql",
-    "typescript",
-    "rpc",
-    "http",
-    "fetch",
-    "transport"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
   "dependencies": {
+    "@sylphlab/typeql-client": "workspace:*",
     "@sylphlab/typeql-shared": "workspace:*"
   },
   "devDependencies": {
-    "tsup": "^8.0.2",
-    "typescript": "^5.3.3"
+    "@types/node": "^20.14.2",
+    "eslint": "^9.4.0",
+    "prettier": "^3.3.1",
+    "tsup": "^8.1.0",
+    "typescript": "^5.4.5",
+    "vitest": "^3.1.1"
   },
   "publishConfig": {
     "access": "public"
-  }
+  },
+  "prettier": "@sylphlab/prettier-config",
+  "license": "MIT"
 }

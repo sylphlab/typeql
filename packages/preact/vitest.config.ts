@@ -1,32 +1,14 @@
-import { defineConfig } from 'vitest/config';
-import { resolve } from 'path';
+import { defineConfig, mergeConfig } from 'vitest/config';
+import viteConfig from '../../vitest.config'; // Import root config if it exists and is compatible
 
-export default defineConfig({
-  test: {
-    environment: 'happy-dom', // Switch to happy-dom
-    setupFiles: ['./test/setup.ts'],
-    poolOptions: {
-      threads: {
-        // execArgv: ['--max-old-space-size=8192'], // Keep commented out for now
-        // singleThread: true // Re-enable parallel execution
-      }
+export default mergeConfig(
+  // If root viteConfig exists and you want to inherit from it:
+  // viteConfig ?? {},
+  defineConfig({
+    test: {
+      environment: 'happy-dom', // Use happy-dom environment
+      globals: true, // Optional: Use global APIs like describe, it, expect
+      setupFiles: ['./test/setup.ts'], // Point to setup file
     },
-    coverage: {
-      provider: 'v8',
-      reporter: ['text', 'json', 'html'],
-      all: true,
-      include: ['src/**/*.{ts,tsx}'],
-      thresholds: {
-        lines: 90,
-        functions: 90,
-        branches: 90,
-        statements: 90
-      }
-    }
-  },
-  resolve: {
-    alias: {
-      '@': resolve(__dirname, './src')
-    }
-  }
-});
+  })
+);

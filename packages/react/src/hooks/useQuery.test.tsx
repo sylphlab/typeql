@@ -387,6 +387,7 @@ describe('useQuery', () => {
 
     it('should get initial data from store if available and select is provided', async () => {
         const initialStoreState = { items: { '1': mockOutput } };
+        // Ensure mock returns state BEFORE rendering
         getOptimisticStateMock.mockReturnValue(initialStoreState);
         const selectFn = vi.fn((state: typeof initialStoreState) => state.items['1']);
 
@@ -394,21 +395,23 @@ describe('useQuery', () => {
         const { result } = renderHook(
           ({ procedure, input, options }) => useQuery(procedure, input, options),
           {
-            initialProps: { procedure: mockQueryProcedure, input: mockInput, options: { select: selectFn } },
+            // Add staleTime to prevent immediate background refetch
+            initialProps: { procedure: mockQueryProcedure, input: mockInput, options: { select: selectFn, staleTime: 60 * 1000 } },
             wrapper,
           }
         );
 
-        // Wait for the initial state derived from the store/select to stabilize
+        // Wait for the status to become success
         await waitFor(() => {
-            expect(result.current.data).toEqual(mockOutput);
             expect(result.current.status).toBe('success');
         }, { timeout: 2000 });
 
-        // Assert state after sync/fetch settles
+        // Assert state after sync
+        expect(result.current.data).toEqual(mockOutput); // Assert data after waiting
         expect(selectFn).toHaveBeenCalledWith(initialStoreState);
         expect(result.current.isLoading).toBe(false);
-        // Note: With staleTime 0 (default), a background fetch might still be triggered
+        // isFetching should be false because staleTime is high
+        expect(result.current.isFetching).toBe(false);
         // We check isFetching might be true initially after sync
         // await waitFor(() => expect(result.current.isFetching).toBe(false)); // Optional: wait if fetch happens
     });
@@ -468,15 +471,15 @@ describe('useQuery', () => {
            }
          );
 
-         // Wait for initial state from store
-         await waitFor(() => {
-             expect(result.current.data).toEqual(mockOutput);
-             expect(result.current.status).toBe('success');
-             expect(selectFn).toHaveBeenCalledWith(initialStoreState);
-         }, { timeout: 2000 });
+        // Wait for the status to become success
+        await waitFor(() => {
+            expect(result.current.status).toBe('success');
+        }, { timeout: 2000 });
 
-         // Assert initial state after waiting
-         expect(result.current.isLoading).toBe(false);
+        // Assert final state after waiting
+        expect(result.current.data).toEqual(mockOutput); // Check data after waiting
+        expect(selectFn).toHaveBeenCalledWith(initialStoreState);
+        expect(result.current.isLoading).toBe(false);
          expect(result.current.isFetching).toBe(false); // Should be false as data is fresh
 
          // Wait a short time to ensure no fetch is triggered

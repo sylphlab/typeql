@@ -1,145 +1,132 @@
-// packages/preact/src/hooks/useMutation.ts
-import { useState, useEffect, useCallback, useRef } from 'preact/hooks';
-import {
-    AnyRouter,
-    TypeQLClientError,
-} from '@sylphlab/typeql-shared';
-import {
-    MutationCallOptions,
-    PredictedChange,
-} from '@sylphlab/typeql-client';
+import { useMemo, useCallback } from 'preact/hooks';
+import { signal, Signal } from '@preact/signals-core';
 import { useTypeQL } from '../context';
+import type { TypeQLClientError, MutationCallOptions } from '@sylphlab/typeql-client'; // Assuming exports
 
-// Helper types
-type inferMutationInput<TProcedure> = TProcedure extends { mutate: (opts: { input: infer TIn }) => any }
-    ? TIn
-    : never;
-
-type inferMutationOutput<TProcedure> = TProcedure extends { mutate: (...args: any[]) => Promise<infer TOutput> }
-    ? TOutput
-    : never;
-
-// Options interface
-export interface UseMutationOptions<TOutput, TInput, TState = any> {
-     optimistic?: {
-        predictedChange: PredictedChange<TState>;
-     };
-    onSuccess?: (data: TOutput, variables: TInput) => Promise<void> | void;
-    onError?: (error: TypeQLClientError | Error, variables: TInput) => Promise<void> | void;
-    onMutate?: (variables: TInput) => Promise<any> | void;
-    // onSettled?: (data: TOutput | undefined, error: TypeQLClientError | Error | null, variables: TInput, context?: any) => Promise<void> | void; // Placeholder
-    // retry?: number; // Placeholder
+// Define options for the useMutation hook
+export interface UseMutationOptions<
+  TData = unknown,
+  TError = TypeQLClientError,
+  TVariables = unknown, // Input variables type
+  TContext = unknown, // Context for optimistic updates/callbacks
+> {
+  onMutate?: (variables: TVariables) => Promise<TContext | void> | TContext | void;
+  onSuccess?: (data: TData, variables: TVariables, context?: TContext) => Promise<void> | void;
+  onError?: (error: TError, variables: TVariables, context?: TContext) => Promise<void> | void;
+  onSettled?: (data: TData | undefined, error: TError | null, variables: TVariables, context?: TContext) => Promise<void> | void;
 }
 
-// Result interface
-export interface UseMutationResult<TOutput, TInput, TState = any> {
-    mutate: (input: TInput) => Promise<TOutput>;
-    mutateAsync: (input: TInput) => Promise<TOutput>;
-    isLoading: boolean;
-    isSuccess: boolean;
-    isError: boolean;
-    error: TypeQLClientError | Error | null;
-    data: TOutput | undefined;
-    status: 'idle' | 'loading' | 'error' | 'success';
-    reset: () => void;
+// Define the return type of the useMutation hook
+export interface UseMutationResult<
+  TData = unknown,
+  TError = TypeQLClientError,
+  TVariables = unknown, // Input variables type including optimistic options
+  TContext = unknown,
+> {
+  data: Signal<TData | undefined>;
+  error: Signal<TError | null>;
+  isLoading: Signal<boolean>; // Using isLoading for now.
+  mutate: (variables: TVariables, options?: UseMutationOptions<TData, TError, TVariables, TContext>) => Promise<TData>;
+  mutateAsync: (variables: TVariables, options?: UseMutationOptions<TData, TError, TVariables, TContext>) => Promise<TData>;
+  reset: () => void;
 }
 
-// Hook implementation
+/**
+ * Hook for executing TypeQL mutations.
+ *
+ * @param mutationProcedure The client mutation procedure (e.g., client.post.create.mutate)
+ * @param options Configuration options like callbacks (onSuccess, onError).
+ */
 export function useMutation<
-    TProcedure extends { mutate: (opts: MutationCallOptions<any, any>) => Promise<any> },
-    TInputArgs = Parameters<TProcedure['mutate']>[0],
-    TInput = TInputArgs extends MutationCallOptions<infer In, any> ? In : never,
-    TOutput = Awaited<ReturnType<TProcedure['mutate']>>,
-    TState = any
+  TInput, // Input type for the procedure itself
+  TOutput, // Output type of the procedure
+  TError = TypeQLClientError,
+  TState = any, // State type for optimistic updates
+  TContext = unknown, // Context type for callbacks
 >(
-    procedure: TProcedure,
-    options?: UseMutationOptions<TOutput, TInput, TState>
-): UseMutationResult<TOutput, TInput, TState> {
-    const { client, store } = useTypeQL<AnyRouter, TState>();
-    const [status, setStatus] = useState<'idle' | 'loading' | 'error' | 'success'>('idle');
-    const [error, setError] = useState<TypeQLClientError | Error | null>(null);
-    const [data, setData] = useState<TOutput | undefined>(undefined);
+  // Procedure type needs careful handling. Using a function type for now.
+  mutationProcedure: (opts: MutationCallOptions<TInput, TState>) => Promise<TOutput>,
+  options: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext> = {},
+): UseMutationResult<TOutput, TError, MutationCallOptions<TInput, TState>, TContext> {
+  const { client, store } = useTypeQL<TState>(); // Get client and store from context
 
-    const optionsRef = useRef(options);
-    useEffect(() => {
-        optionsRef.current = options;
-    }, [options]);
+  // --- State Signals ---
+  const dataSignal = signal<TOutput | undefined>(undefined);
+  const errorSignal = signal<TError | null>(null);
+  const isLoadingSignal = signal<boolean>(false);
+  const contextSignal = signal<TContext | void>(undefined); // Store context from onMutate
 
-    const isMountedRef = useRef(true);
-    useEffect(() => {
-        isMountedRef.current = true;
-        return () => { isMountedRef.current = false; };
-    }, []);
+  // --- Reset Function ---
+  const reset = useCallback(() => {
+    dataSignal.value = undefined;
+    errorSignal.value = null;
+    isLoadingSignal.value = false;
+    contextSignal.value = undefined;
+  }, []); // No dependencies needed for reset
 
-    const reset = useCallback(() => {
-        if (isMountedRef.current) {
-            setStatus('idle');
-            setError(null);
-            setData(undefined);
-        }
-    }, []);
+  // --- Mutate Function ---
+  const mutateAsync = useCallback(
+    async (
+      variables: MutationCallOptions<TInput, TState>, // Variables now include input + optimistic opts
+      runtimeOptions?: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext>,
+    ): Promise<TOutput> => {
+      const combinedOptions = { ...options, ...runtimeOptions };
+      isLoadingSignal.value = true;
+      errorSignal.value = null; // Clear previous error
+      contextSignal.value = undefined; // Clear previous context
 
-    const executeMutationInternal = useCallback(async (input: TInput): Promise<TOutput> => {
-         if (!isMountedRef.current) {
-             throw new TypeQLClientError("Component unmounted before mutation could complete.");
-        }
+      try {
+        // Call onMutate callback if provided
+        contextSignal.value = await combinedOptions.onMutate?.(variables);
 
-        setStatus('loading');
-        setError(null);
-        setData(undefined);
+        // Call the actual client mutation procedure
+        const result = await mutationProcedure(variables);
 
-        try {
-            let optimisticArg: MutationCallOptions<TInput, TState>['optimistic'] | undefined;
-            if (store && optionsRef.current?.optimistic && optionsRef.current.optimistic.predictedChange) {
-                optimisticArg = {
-                     predictedChange: optionsRef.current.optimistic.predictedChange,
-                 };
-                 console.log("[useMutation] Preparing optimistic update arguments.");
-            }
+        // Call onSuccess callback
+        await combinedOptions.onSuccess?.(result, variables, contextSignal.value);
 
-            await optionsRef.current?.onMutate?.(input);
+        dataSignal.value = result;
+        return result;
+      } catch (err: unknown) {
+        console.error('useMutation failed:', err);
+        const error = err as TError; // Assume error is of type TError
 
-            const mutationArgs: MutationCallOptions<TInput, TState> = {
-                input,
-                ...(optimisticArg && { optimistic: optimisticArg })
-            };
+        // Call onError callback
+        await combinedOptions.onError?.(error, variables, contextSignal.value);
 
-            const result = await procedure.mutate(mutationArgs);
+        errorSignal.value = error;
+        dataSignal.value = undefined; // Clear data on error
+        throw error; // Re-throw error after handling callbacks
+      } finally {
+        // Call onSettled callback
+        await combinedOptions.onSettled?.(dataSignal.value, errorSignal.value, variables, contextSignal.value);
+        isLoadingSignal.value = false;
+      }
+    },
+    [mutationProcedure, options, reset], // Include options and reset in dependencies
+  );
 
-            if (isMountedRef.current) {
-                setData(result as TOutput);
-                setStatus('success');
-                optionsRef.current?.onSuccess?.(result as TOutput, input);
-                return result as TOutput;
-            } else {
-                 throw new TypeQLClientError("Component unmounted after mutation success but before state update.");
-            }
-        } catch (err: any) {
-             console.error("[TypeQL Preact] useMutation Error:", err);
-             const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
-             if (isMountedRef.current) {
-                 setError(errorObj);
-                 setStatus('error');
-                 optionsRef.current?.onError?.(errorObj, input);
-             }
-             throw errorObj;
-        }
-    }, [procedure, store]);
-
-    const triggerMutation = useCallback((input: TInput) => {
-        return executeMutationInternal(input);
-    }, [executeMutationInternal]);
+  // --- Fire-and-forget mutate ---
+  const mutate = useCallback(
+    (
+      variables: MutationCallOptions<TInput, TState>,
+      runtimeOptions?: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext>,
+    ): Promise<TOutput> => { // Still return promise, but don't wait for caller necessarily
+      return mutateAsync(variables, runtimeOptions).catch(() => {
+        // Prevent unhandled promise rejection if caller doesn't catch
+        // The error is already stored in the errorSignal and onError called.
+      });
+    },
+    [mutateAsync],
+  );
 
 
-    return {
-        mutate: triggerMutation,
-        mutateAsync: triggerMutation,
-        isLoading: status === 'loading',
-        isSuccess: status === 'success',
-        isError: status === 'error',
-        error,
-        data,
-        status,
-        reset,
-    };
+  return {
+    data: dataSignal,
+    error: errorSignal,
+    isLoading: isLoadingSignal,
+    mutate,
+    mutateAsync,
+    reset,
+  };
 }

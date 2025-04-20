@@ -1,243 +1,215 @@
-import { describe, it, expect, vi, beforeEach, afterEach, MockedFunction } from 'vitest';
-import { createHttpTransport } from './index';
-import type { HttpTransportOptions } from './types';
-import type { ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, AckMessage } from '@sylphlab/typeql-shared'; // Added AckMessage
-import { TypeQLClientError } from '@sylphlab/typeql-shared';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { createHttpTransport, HttpError } from './index'; // Adjust path if needed
+import type {
+  ProcedureCallMessage,
+  ProcedureResultMessage,
+  SubscribeMessage,
+} from '@sylphlab/typeql-shared';
 
-// Mock dependencies using vi.mock
-vi.mock('./headers');
-vi.mock('./singleRequest');
-vi.mock('./batchRequest');
-
-// Import the mocked functions/classes AFTER vi.mock
-import { createHeaderGetter } from './headers';
-import { sendSingleRequest } from './singleRequest';
-import { createBatchProcessor } from './batchRequest';
-
-// Typecast the mocked imports
-const mockCreateHeaderGetter = createHeaderGetter as MockedFunction<typeof createHeaderGetter>;
-const mockSendSingleRequest = sendSingleRequest as MockedFunction<typeof sendSingleRequest>;
-const mockCreateBatchProcessor = createBatchProcessor as MockedFunction<typeof createBatchProcessor>;
-
-// Mock fetch globally for simplicity in options default
+// Mock the global fetch API
 const mockFetch = vi.fn();
-vi.stubGlobal('fetch', mockFetch);
-
-// Mock implementations returned by the factory mocks
-const mockGetHeadersFn = vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' });
-const mockQueueRequestFn = vi.fn();
-const mockFlushQueueFn = vi.fn();
-const mockHasPendingFn = vi.fn().mockReturnValue(false);
-const mockBatchProcessorInstance = {
-    queueRequest: mockQueueRequestFn,
-    flushQueue: mockFlushQueueFn,
-    hasPending: mockHasPendingFn,
-};
-
-beforeEach(() => {
-    // Reset mocks before each test
-    vi.clearAllMocks();
-    vi.resetAllMocks(); // Ensure mocks are reset
-
-    // Set up default mock implementations for the factories
-    mockCreateHeaderGetter.mockReturnValue(mockGetHeadersFn);
-    mockSendSingleRequest.mockResolvedValue({ id: 'default-single', result: { type: 'data', data: 'ok' } }); // Default success for single
-    mockCreateBatchProcessor.mockReturnValue(mockBatchProcessorInstance);
-    mockQueueRequestFn.mockResolvedValue({ id: 'default-batch', result: { type: 'data', data: 'batch ok' } }); // Default success for batch queue
-    mockHasPendingFn.mockReturnValue(false); // Default no pending
-});
-
-afterEach(() => {
-    vi.unstubAllGlobals();
-});
+const originalFetch = global.fetch;
 
 describe('createHttpTransport', () => {
-    const testUrl = 'http://localhost:4000/api';
-    const testMessage: ProcedureCallMessage = { id: 'msg-1', type: 'query', path: 'test', input: null };
+  const testUrl = 'http://localhost:3000/typeql';
 
-    it('should create a transport object', () => {
-        const options: HttpTransportOptions = { url: testUrl };
-        const transport = createHttpTransport(options);
-        expect(transport).toBeDefined();
-        expect(transport.request).toBeInstanceOf(Function);
-        expect(transport.subscribe).toBeInstanceOf(Function);
-        expect(transport.onAckReceived).toBeInstanceOf(Function);
-        expect(transport.requestMissingDeltas).toBeInstanceOf(Function);
+  beforeEach(() => {
+    // Assign the mock before each test
+    global.fetch = mockFetch;
+    // Reset mock state before each test
+    mockFetch.mockClear();
+  });
+
+  afterEach(() => {
+    // Restore the original fetch after each test
+    global.fetch = originalFetch;
+  });
+
+  it('should create a transport object with request and subscribe methods', () => {
+    const transport = createHttpTransport({ url: testUrl });
+    expect(transport).toBeDefined();
+    expect(typeof transport.request).toBe('function');
+    expect(typeof transport.subscribe).toBe('function');
+  });
+
+  describe('request method', () => {
+    it('should make a POST request to the specified URL with correct headers and body for a single request', async () => {
+      const transport = createHttpTransport({ url: testUrl });
+      const requestPayload: ProcedureCallMessage = {
+        id: 1,
+        type: 'query',
+        path: 'test.get',
+        input: { id: 'abc' },
+      };
+      const mockResponseData: ProcedureResultMessage = {
+        id: 1,
+        result: { type: 'data', data: { success: true, id: 'abc' } },
+      };
+
+      // Mock successful fetch response
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: async () => mockResponseData,
+        text: async () => JSON.stringify(mockResponseData), // Add text() for error cases
+      });
+
+      await transport.request(requestPayload);
+
+      expect(mockFetch).toHaveBeenCalledOnce();
+      expect(mockFetch).toHaveBeenCalledWith(testUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify(requestPayload),
+      });
     });
 
-    it('should use default fetch if none provided', () => {
-        const options: HttpTransportOptions = { url: testUrl };
-        createHttpTransport(options);
-        // Check if createHeaderGetter was called (indirectly checks options processing)
-        expect(mockCreateHeaderGetter).toHaveBeenCalledWith(expect.objectContaining({ headers: undefined }));
-        // Further checks might involve calling request and seeing if the default fetch mock was used internally by sendSingleRequest/createBatchProcessor
+    it('should return the parsed JSON response on success for a single request', async () => {
+       const transport = createHttpTransport({ url: testUrl });
+       const requestPayload: ProcedureCallMessage = { id: 2, type: 'query', path: 'test.get' };
+       const mockResponseData: ProcedureResultMessage = {
+         id: 2,
+         result: { type: 'data', data: { message: 'hello' } },
+       };
+
+       mockFetch.mockResolvedValueOnce({
+         ok: true,
+         status: 200,
+         json: async () => mockResponseData,
+         text: async () => JSON.stringify(mockResponseData),
+       });
+
+       const result = await transport.request(requestPayload);
+       expect(result).toEqual(mockResponseData);
     });
 
-    it('should pass custom fetch to dependencies', () => {
-        const customFetch = vi.fn();
-        const options: HttpTransportOptions = { url: testUrl, fetch: customFetch };
-        createHttpTransport(options);
+    // TODO: Add test for batch request (requires server expectation knowledge or flexible mock)
+    // it('should handle batch requests correctly', async () => { ... });
 
-        // Expect factories to be called with the custom fetch
-        expect(mockCreateHeaderGetter).toHaveBeenCalled(); // Called regardless of fetch
-        // If batching is off by default, singleRequest would be used
-        // If batching is on, batchProcessor would be created
-        // We need to test both scenarios or check how dependencies receive fetch
+    it('should throw HttpError on non-ok response (e.g., 404, 500)', async () => {
+      const transport = createHttpTransport({ url: testUrl });
+      const requestPayload: ProcedureCallMessage = { id: 3, type: 'mutation', path: 'test.update' };
+      const errorBody = { error: 'Not Found' };
 
-        // Test without batching:
-        const transport = createHttpTransport({ ...options, batching: false });
-        transport.request(testMessage);
-        expect(mockSendSingleRequest).toHaveBeenCalledWith(
-            expect.anything(), // message
-            testUrl,
-            customFetch, // Check if custom fetch is passed
-            expect.any(Function) // getHeaders function
-        );
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+        statusText: 'Not Found',
+        json: async () => errorBody,
+        text: async () => JSON.stringify(errorBody),
+      });
 
-         // Test with batching:
-         const transportBatch = createHttpTransport({ ...options, batching: true });
-         expect(mockCreateBatchProcessor).toHaveBeenCalledWith(
-             testUrl,
-             customFetch, // Check if custom fetch is passed
-             expect.any(Function), // getHeaders function
-             expect.any(Number) // delayMs
-         );
+      try {
+        await transport.request(requestPayload);
+        // If it doesn't throw, fail the test
+        expect.fail('Expected request to throw HttpError, but it did not.');
+      } catch (error) {
+        expect(error).toBeInstanceOf(HttpError);
+        // Type assertion for detailed checks
+        const httpError = error as HttpError;
+        expect(httpError.name).toBe('HttpError');
+        expect(httpError.status).toBe(404);
+        expect(httpError.statusText).toBe('Not Found');
+        expect(httpError.body).toEqual(errorBody);
+        expect(httpError.message).toBe('HTTP Error 404 (Not Found)');
+      }
     });
 
-    describe('request handling (no batching)', () => {
-        it('should call sendSingleRequest when batching is false', async () => {
-            const options: HttpTransportOptions = { url: testUrl, batching: false };
-            const transport = createHttpTransport(options);
-            const expectedResult: ProcedureResultMessage = { id: testMessage.id, result: { type: 'data', data: 'single result' } };
-            mockSendSingleRequest.mockResolvedValueOnce(expectedResult);
+     it('should throw HttpError on non-ok response when body is not JSON', async () => {
+       const transport = createHttpTransport({ url: testUrl });
+       const requestPayload: ProcedureCallMessage = { id: 4, type: 'query', path: 'test.fail' };
+       const errorText = 'Internal Server Error';
 
-            const result = await transport.request(testMessage);
+       mockFetch.mockResolvedValueOnce({
+         ok: false,
+         status: 500,
+         statusText: 'Internal Server Error',
+         json: async () => { throw new Error('Not JSON'); },
+         text: async () => errorText,
+       });
 
-            expect(mockCreateBatchProcessor).not.toHaveBeenCalled();
-            expect(mockSendSingleRequest).toHaveBeenCalledTimes(1);
-            expect(mockSendSingleRequest).toHaveBeenCalledWith(testMessage, testUrl, mockFetch, mockGetHeadersFn);
-            expect(result).toEqual(expectedResult);
-        });
+       try {
+         await transport.request(requestPayload);
+         expect.fail('Expected request to throw HttpError, but it did not.');
+       } catch (error) {
+         expect(error).toBeInstanceOf(HttpError);
+         const httpError = error as HttpError;
+         expect(httpError.name).toBe('HttpError');
+         expect(httpError.status).toBe(500);
+         expect(httpError.statusText).toBe('Internal Server Error');
+         expect(httpError.body).toBe(errorText);
+         expect(httpError.message).toBe('HTTP Error 500 (Internal Server Error)');
+       }
+     });
 
-         it('should call sendSingleRequest when batching delay is 0 or less', async () => {
-            const options: HttpTransportOptions = { url: testUrl, batching: { delayMs: 0 } };
-            const transport = createHttpTransport(options);
-            await transport.request(testMessage);
-            expect(mockSendSingleRequest).toHaveBeenCalledTimes(1);
+    it('should wrap network errors (fetch throws)', async () => {
+      const transport = createHttpTransport({ url: testUrl });
+      const requestPayload: ProcedureCallMessage = { id: 5, type: 'query', path: 'test.network' };
+      const networkError = new Error('Network connection failed');
 
-            vi.clearAllMocks(); // Reset for next check
+      mockFetch.mockRejectedValueOnce(networkError);
 
-            const optionsNegative: HttpTransportOptions = { url: testUrl, batching: { delayMs: -10 } };
-            const transportNegative = createHttpTransport(optionsNegative);
-            await transportNegative.request(testMessage);
-            expect(mockSendSingleRequest).toHaveBeenCalledTimes(1);
-            expect(mockCreateBatchProcessor).not.toHaveBeenCalled();
-        });
-
-        it('should flush pending batch queue if switching from batching to non-batching (edge case)', async () => {
-             // Simulate batch processor was created and has pending items
-             mockHasPendingFn.mockReturnValueOnce(true);
-             mockCreateBatchProcessor.mockReturnValueOnce(mockBatchProcessorInstance);
-
-             // Create transport initially *as if* batching was enabled
-             const transportInitialBatch = createHttpTransport({ url: testUrl, batching: true });
-
-             // Now, create transport *without* batching
-             const transportNoBatch = createHttpTransport({ url: testUrl, batching: false });
-             await transportNoBatch.request(testMessage); // Make a request
-
-             // Expect the flush function to have been called before sendSingleRequest
-             expect(mockFlushQueueFn).toHaveBeenCalledTimes(1);
-             expect(mockSendSingleRequest).toHaveBeenCalledTimes(1); // Called for the current request
-        });
+      await expect(transport.request(requestPayload)).rejects.toThrow(
+        `TypeQL HTTP Request Failed: ${networkError.message}`
+      );
+       // Check it's not an HttpError instance
+       try {
+         await transport.request(requestPayload);
+       } catch (e) {
+         expect(e).toBeInstanceOf(Error);
+         expect(e).not.toBeInstanceOf(HttpError);
+       }
     });
 
-    describe('request handling (with batching)', () => {
-        const batchOptions: HttpTransportOptions = { url: testUrl, batching: true }; // Default delay
-        const batchOptionsSpecific: HttpTransportOptions = { url: testUrl, batching: { delayMs: 100 } };
+    it('should pass through fetchOptions', async () => {
+        const customHeaders = { Authorization: 'Bearer token' };
+        const transport = createHttpTransport({
+            url: testUrl,
+            fetchOptions: { headers: customHeaders, cache: 'no-cache' }
+        });
+        const requestPayload: ProcedureCallMessage = { id: 6, type: 'query', path: 'test.auth' };
+        const mockResponseData: ProcedureResultMessage = { id: 6, result: { type: 'data', data: {} } };
 
-        it('should create batch processor when batching is enabled', () => {
-            createHttpTransport(batchOptions);
-            expect(mockCreateBatchProcessor).toHaveBeenCalledTimes(1);
-            expect(mockCreateBatchProcessor).toHaveBeenCalledWith(testUrl, mockFetch, mockGetHeadersFn, 10); // Default delay
-
-            vi.clearAllMocks();
-            mockCreateHeaderGetter.mockReturnValue(mockGetHeadersFn); // Reset mock return value if needed
-
-            createHttpTransport(batchOptionsSpecific);
-            expect(mockCreateBatchProcessor).toHaveBeenCalledTimes(1);
-            expect(mockCreateBatchProcessor).toHaveBeenCalledWith(testUrl, mockFetch, mockGetHeadersFn, 100); // Specific delay
+        mockFetch.mockResolvedValueOnce({
+            ok: true,
+            status: 200,
+            json: async () => mockResponseData,
+            text: async () => JSON.stringify(mockResponseData),
         });
 
-        it('should call batchProcessor.queueRequest when batching is enabled', async () => {
-            const transport = createHttpTransport(batchOptions);
-            const expectedResult: ProcedureResultMessage = { id: testMessage.id, result: { type: 'data', data: 'batch result' } };
-            mockQueueRequestFn.mockResolvedValueOnce(expectedResult);
+        await transport.request(requestPayload);
 
-            const result = await transport.request(testMessage);
-
-            expect(mockSendSingleRequest).not.toHaveBeenCalled();
-            expect(mockQueueRequestFn).toHaveBeenCalledTimes(1);
-            expect(mockQueueRequestFn).toHaveBeenCalledWith(testMessage);
-            expect(result).toEqual(expectedResult);
-        });
-    });
-
-    describe('unsupported operations', () => {
-        it('subscribe should throw TypeQLClientError', () => {
-            const options: HttpTransportOptions = { url: testUrl };
-            const transport = createHttpTransport(options);
-            const subMessage: SubscribeMessage = { id: 'sub-1', type: 'subscription', path: 'updates', input: null }; // Removed batch property
-
-            expect(() => transport.subscribe(subMessage)).toThrow(TypeQLClientError);
-            expect(() => transport.subscribe(subMessage)).toThrow(/Subscriptions require a persistent connection/);
-        });
-
-        it('requestMissingDeltas should log error', () => {
-            const options: HttpTransportOptions = { url: testUrl };
-            const transport = createHttpTransport(options);
-            const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-
-            transport.requestMissingDeltas!('sub-1', 10, 20); // Added non-null assertion
-            expect(errorSpy).toHaveBeenCalledWith("[HTTP Transport] Cannot request missing deltas over HTTP transport.");
-
-            errorSpy.mockRestore();
-        });
-
-         it('onAckReceived should log warning', () => {
-            const options: HttpTransportOptions = { url: testUrl };
-            const transport = createHttpTransport(options);
-            const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
-            // Added missing properties clientSeq and serverSeq
-            const ackMessage: AckMessage = { type: 'ack', id: 'req-5', clientSeq: 1, serverSeq: 1 };
-
-            transport.onAckReceived!(ackMessage); // Added non-null assertion
-            expect(warnSpy).toHaveBeenCalledWith(
-                "[HTTP Transport] Received Ack message, but HTTP transport doesn't typically handle these:",
-                ackMessage
-            );
-
-            warnSpy.mockRestore();
+        expect(mockFetch).toHaveBeenCalledOnce();
+        expect(mockFetch).toHaveBeenCalledWith(testUrl, {
+            method: 'POST',
+            headers: {
+                ...customHeaders, // User headers should be present
+                'Content-Type': 'application/json', // Standard headers should still be there
+                Accept: 'application/json',
+            },
+            body: JSON.stringify(requestPayload),
+            cache: 'no-cache', // Other options should be passed
         });
     });
 
-    // Add tests for header handling if createHeaderGetter mock needs verification
-    it('should use headers provided by createHeaderGetter', async () => {
-         const options: HttpTransportOptions = { url: testUrl, headers: { 'X-Static': 'static' } };
-         mockGetHeadersFn.mockResolvedValueOnce({ 'X-Test-Header': 'test-value' });
-         mockCreateHeaderGetter.mockReturnValueOnce(mockGetHeadersFn); // Ensure this specific mock is returned
+  });
 
-         const transport = createHttpTransport(options);
-         await transport.request(testMessage); // Assuming no batching for simplicity
+  describe('subscribe method', () => {
+    it('should throw an error when called', () => {
+      const transport = createHttpTransport({ url: testUrl });
+      const subscribePayload: SubscribeMessage = {
+        id: 100,
+        type: 'subscription',
+        path: 'test.onUpdate',
+      };
 
-         expect(mockCreateHeaderGetter).toHaveBeenCalledWith(expect.objectContaining({ headers: { 'X-Static': 'static' } }));
-         expect(mockGetHeadersFn).toHaveBeenCalledTimes(1);
-         // Check if sendSingleRequest was called with the function returned by createHeaderGetter
-         expect(mockSendSingleRequest).toHaveBeenCalledWith(
-             expect.anything(),
-             expect.anything(),
-             expect.anything(),
-             mockGetHeadersFn // Check if the correct function was passed
-         );
+      expect(() => transport.subscribe(subscribePayload)).toThrow(
+        'Subscriptions are not supported over standard HTTP transport.'
+      );
     });
+  });
 });

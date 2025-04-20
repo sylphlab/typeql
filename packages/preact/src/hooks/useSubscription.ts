@@ -1,243 +1,165 @@
-// packages/preact/src/hooks/useSubscription.ts
-import { useState, useEffect, useMemo, useCallback, useRef } from 'preact/hooks';
-import {
-    AnyRouter,
-    TypeQLClientError,
-    UnsubscribeFn,
-    SubscriptionDataMessage,
-    SubscriptionErrorMessage,
-} from '@sylphlab/typeql-shared';
+import { useEffect, useMemo } from 'preact/hooks';
+import { signal, Signal } from '@preact/signals-core';
 import { useTypeQL } from '../context';
+import type {
+  TypeQLClientError,
+  SubscribeMessage, // Type for input to client.subscribe
+  SubscriptionDataMessage,
+  SubscriptionErrorMessage,
+  UnsubscribeFn,
+} from '@sylphlab/typeql-shared'; // Assuming shared types export
 
-// Helper types
-type inferSubscriptionDataType<TProcedure> =
-    TProcedure extends { subscribe: (...args: any[]) => { iterator: AsyncIterableIterator<infer TMessage> } }
-        ? TMessage extends { type: 'subscriptionData'; data: infer TData }
-            ? TData
-            : unknown
-        : unknown;
+// Define subscription status types
+export type SubscriptionStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
 
-type inferSubscriptionInput<TProcedure> = TProcedure extends { subscribe: (input: infer TInput) => any }
-    ? TInput
-    : never;
-
-// Options interface
-export interface UseSubscriptionOptions<TOutput> {
-    enabled?: boolean;
-    onData?: (data: TOutput) => void;
-    onError?: (error: SubscriptionErrorMessage['error']) => void;
-    onEnd?: () => void;
-    onStart?: () => void;
-    // retry?: boolean; // Placeholder
+// Define options for the useSubscription hook
+export interface UseSubscriptionOptions<TData = unknown, TError = TypeQLClientError> {
+  /** If false, the subscription will not execute automatically. Defaults to true. */
+  enabled?: boolean;
+  /** Callback function invoked when new data is received. */
+  onData?: (data: TData) => void;
+  /** Callback function invoked when an error occurs. */
+  onError?: (error: TError) => void;
+  /** Callback function invoked when the subscription ends normally. */
+  onEnded?: () => void;
 }
 
-// Result interface
-export interface UseSubscriptionResult<TOutput> {
-    data: TOutput | null;
-    status: 'idle' | 'connecting' | 'active' | 'error' | 'ended';
-    error: TypeQLClientError | Error | null;
-    unsubscribe: UnsubscribeFn | null;
+// Define the return type of the useSubscription hook
+export interface UseSubscriptionResult<TData = unknown, TError = TypeQLClientError> {
+  data: Signal<TData | undefined>;
+  error: Signal<TError | null>;
+  status: Signal<SubscriptionStatus>;
+  // unsubscribe?: UnsubscribeFn; // Maybe expose unsubscribe? For now, handled by effect cleanup.
 }
 
-// Hook implementation
-export function useSubscription<
-    TProcedure extends { subscribe: (input: any) => { iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>, unsubscribe: UnsubscribeFn } },
-    TInput = inferSubscriptionInput<TProcedure>,
-    TOutput = inferSubscriptionDataType<TProcedure>
->(
-    procedure: TProcedure,
-    input: TInput,
-    options?: UseSubscriptionOptions<TOutput>
+/**
+ * Hook for managing TypeQL subscriptions.
+ *
+ * @param subscriptionProcedure The client subscription procedure (e.g., client.post.onUpdate.subscribe)
+ * @param input Input parameters for the subscription procedure.
+ * @param options Configuration options for the subscription.
+ */
+export function useSubscription<TInput, TOutput>(
+  // Procedure type needs careful handling. Using a function type for now.
+  subscriptionProcedure: (input: TInput) => { iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>; unsubscribe: UnsubscribeFn },
+  input: TInput,
+  options: UseSubscriptionOptions<TOutput> = {},
 ): UseSubscriptionResult<TOutput> {
-    const { enabled = true } = options ?? {};
-    const { client, store } = useTypeQL();
+  const { client } = useTypeQL(); // Get client from context
+  const { enabled = true, onData, onError, onEnded } = options;
 
-    const [status, setStatus] = useState<'idle' | 'connecting' | 'active' | 'error' | 'ended'>(
-        enabled ? 'connecting' : 'idle'
-    );
-    const [error, setError] = useState<TypeQLClientError | Error | null>(null);
-    const [data, setData] = useState<TOutput | null>(null);
-    const [unsubscribeFn, setUnsubscribeFn] = useState<UnsubscribeFn | null>(null);
+  // --- State Signals ---
+  const dataSignal = signal<TOutput | undefined>(undefined);
+  const errorSignal = signal<TypeQLClientError | null>(null);
+  const statusSignal = signal<SubscriptionStatus>('idle');
 
-    const onDataRef = useRef(options?.onData);
-    const onErrorRef = useRef(options?.onError);
-    const onEndRef = useRef(options?.onEnd);
-    const onStartRef = useRef(options?.onStart);
+  // --- Input Memoization ---
+  // Reusing the same memoization strategy as useQuery
+  const stableInputKey = useMemo(() => {
+    try {
+      if (input && typeof input === 'object' && !Array.isArray(input)) {
+        const sortedInput = Object.keys(input as object)
+          .sort()
+          .reduce((acc, key) => {
+            acc[key as keyof TInput] = (input as any)[key];
+            return acc;
+          }, {} as TInput);
+        return JSON.stringify(sortedInput);
+      }
+      return JSON.stringify(input);
+    } catch (e) {
+      console.error("Failed to stringify subscription input for memoization:", input, e);
+      return String(Date.now());
+    }
+  }, [input]);
 
-    useEffect(() => {
-        onDataRef.current = options?.onData;
-        onErrorRef.current = options?.onError;
-        onEndRef.current = options?.onEnd;
-        onStartRef.current = options?.onStart;
-    }, [options?.onData, options?.onError, options?.onEnd, options?.onStart]);
+  // --- Effect for Subscription Lifecycle ---
+  useEffect(() => {
+    if (!enabled) {
+      statusSignal.value = 'idle';
+      return; // Don't subscribe if not enabled
+    }
 
-    const inputKey = useMemo(() => {
-        try {
-            return JSON.stringify(input);
-        } catch {
-            console.warn("useSubscription: Failed to stringify input for dependency key. Updates may be missed for complex objects.");
-            return String(input);
-        }
-    }, [input]);
+    let unsubscribeFn: UnsubscribeFn | null = null;
+    let isCancelled = false; // Prevent updates after cleanup
 
-    const isMountedRef = useRef(true);
-    const isUnsubscribedRef = useRef(false);
-    useEffect(() => {
-        isMountedRef.current = true;
-        isUnsubscribedRef.current = false;
-        return () => { isMountedRef.current = false; };
-    }, []);
+    const runSubscription = async () => {
+      statusSignal.value = 'connecting';
+      errorSignal.value = null; // Clear previous error
 
+      try {
+        const { iterator, unsubscribe } = subscriptionProcedure(input);
+        unsubscribeFn = unsubscribe; // Store unsubscribe function for cleanup
 
-    useEffect(() => {
-        if (!enabled || !procedure) {
-            if (unsubscribeFn) {
-                if (!isUnsubscribedRef.current) {
-                    console.log("[useSubscription] Cleaning up subscription (disabled/procedure changed).");
-                    try { unsubscribeFn(); } catch (e) { console.warn("Error unsubscribing:", e); }
-                    isUnsubscribedRef.current = true;
-                }
-                setUnsubscribeFn(null);
-            }
-            if (status !== 'idle') {
-                setStatus('idle'); setError(null); setData(null);
-            }
-            return;
+        if (isCancelled) {
+          unsubscribeFn?.(); // Unsubscribe immediately if cancelled before connection
+          return;
         }
 
-        let unsub: UnsubscribeFn | null = null;
-        let iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage> | null = null;
-        let isEffectCancelled = false;
+        statusSignal.value = 'connected';
 
-        isUnsubscribedRef.current = false;
+        // Consume the async iterator
+        for await (const message of iterator) {
+          if (isCancelled) break; // Exit loop if cancelled
 
-        const processNext = async () => {
-            if (!isMountedRef.current || isEffectCancelled || isUnsubscribedRef.current || !iterator) {
-                console.log("[useSubscription] Stopping iterator processing.");
-                return;
-            }
+          if (message.type === 'subscriptionData') {
+            // Assuming message.data is of type TOutput
+            const newData = message.data as TOutput;
+            dataSignal.value = newData;
+            onData?.(newData);
+          } else if (message.type === 'subscriptionError') {
+            // Assuming message.error structure matches TypeQLClientError or can be cast
+            const error = message.error as TypeQLClientError;
+            errorSignal.value = error;
+            statusSignal.value = 'error';
+            onError?.(error);
+            // Should the loop break on error? Depends on desired behavior. Breaking for now.
+            break;
+          }
+          // Note: SubscriptionEndMessage is implicitly handled by iterator completion
+        }
 
-            try {
-                const { value, done } = await iterator.next();
+        // If loop finishes without break/cancellation, it ended normally
+        if (!isCancelled && statusSignal.peek() !== 'error') {
+           statusSignal.value = 'ended';
+           onEnded?.();
+        }
 
-                if (!isMountedRef.current || isEffectCancelled || isUnsubscribedRef.current) {
-                    console.log("[useSubscription] Stopping iterator processing after await.");
-                    return;
-                }
+      } catch (err: unknown) {
+        console.error('useSubscription failed:', err);
+        if (!isCancelled) {
+          const error = (err instanceof Error ? err : new Error(String(err))) as TypeQLClientError; // Basic casting
+          errorSignal.value = error;
+          statusSignal.value = 'error';
+          onError?.(error);
+        }
+      } finally {
+         // Ensure status isn't left as 'connecting' if an initial error occurred
+         if (!isCancelled && statusSignal.peek() === 'connecting') {
+             statusSignal.value = 'error'; // Or 'idle'? 'error' seems more informative
+         }
+      }
+    };
 
-                if (done) {
-                    console.log("[useSubscription] Subscription ended normally (iterator done).");
-                    if (status !== 'error') {
-                        setStatus('ended');
-                        onEndRef.current?.();
-                    }
-                    return;
-                }
+    runSubscription();
 
-                const result = value;
-                if (result.type === 'subscriptionData') {
-                    if (status !== 'active') setStatus('active');
-                    setError(null);
-                    const dataPayload = result.data as TOutput;
+    // Cleanup function
+    return () => {
+      isCancelled = true;
+      if (unsubscribeFn) {
+        console.log('Unsubscribing...');
+        unsubscribeFn();
+      }
+      // Reset state on cleanup? Optional, depends on desired behavior on re-mount/disable.
+      // statusSignal.value = 'idle';
+      // dataSignal.value = undefined;
+      // errorSignal.value = null;
+    };
+  }, [stableInputKey, enabled, subscriptionProcedure, onData, onError, onEnded]); // Include callbacks in dependencies
 
-                    if (store) {
-                        try {
-                            store.applyServerDelta(result);
-                            console.debug("[useSubscription] Applied server delta to store:", result.serverSeq);
-                            onDataRef.current?.(dataPayload);
-                            setData(dataPayload);
-                        } catch (storeError: any) {
-                            console.error("[useSubscription] Error applying server delta to store:", storeError);
-                            const err = storeError instanceof Error ? storeError : new Error(String(storeError));
-                            setError(err); setStatus('error');
-                            onErrorRef.current?.({ message: `Store error: ${err.message || err}` });
-                            return;
-                        }
-                    } else {
-                        setData(dataPayload);
-                        onDataRef.current?.(dataPayload);
-                    }
-                } else if (result.type === 'subscriptionError') {
-                    console.error("[useSubscription] Subscription error received:", result.error);
-                    const clientError = new TypeQLClientError(result.error.message, result.error.code);
-                    setError(clientError); setStatus('error');
-                    onErrorRef.current?.(result.error);
-                    return;
-                }
-
-                Promise.resolve().then(processNext);
-
-            } catch (err: any) {
-                if (isMountedRef.current && !isEffectCancelled && !isUnsubscribedRef.current) {
-                    console.error("[TypeQL Preact] useSubscription Error (iterator.next):", err);
-                    const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
-                    setError(errorObj); setStatus('error');
-                    onErrorRef.current?.({ message: `Subscription failed: ${errorObj.message || errorObj}` });
-                }
-            }
-        };
-
-        const startSubscription = async () => {
-            if (!isMountedRef.current || isEffectCancelled) return;
-
-            setStatus('connecting');
-            setError(null);
-            setData(null);
-
-            try {
-                const subResult = procedure.subscribe(input);
-                unsub = subResult.unsubscribe;
-                iterator = subResult.iterator;
-
-                const manualUnsubscribe = () => {
-                    if (unsub && !isUnsubscribedRef.current) {
-                        console.log("[useSubscription] Manually unsubscribing.");
-                        try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }
-                        isUnsubscribedRef.current = true;
-                        if (isMountedRef.current) setStatus('idle');
-                    }
-                };
-
-                if (isMountedRef.current && !isEffectCancelled) {
-                    setUnsubscribeFn(() => manualUnsubscribe);
-                } else {
-                    if (unsub && !isUnsubscribedRef.current) {
-                        try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }
-                        isUnsubscribedRef.current = true;
-                    }
-                    return;
-                }
-
-                onStartRef.current?.();
-
-                processNext();
-
-            } catch (err: any) {
-                if (isMountedRef.current && !isEffectCancelled) {
-                    console.error("[TypeQL Preact] useSubscription Error (subscribe call):", err);
-                    const errorObj = err instanceof TypeQLClientError ? err : err instanceof Error ? err : new TypeQLClientError(String(err?.message || err));
-                    setError(errorObj); setStatus('error');
-                    onErrorRef.current?.({ message: `Subscription failed: ${errorObj.message || errorObj}` });
-                }
-            }
-        };
-
-        startSubscription();
-
-        return () => {
-            isEffectCancelled = true;
-            if (unsub && !isUnsubscribedRef.current) {
-                console.log("[useSubscription] Cleaning up subscription (effect cleanup).");
-                try { unsub(); } catch (e) { console.warn("Error unsubscribing:", e); }
-                isUnsubscribedRef.current = true;
-            }
-            setUnsubscribeFn(null);
-            if ((status === 'active' || status === 'connecting') && !isUnsubscribedRef.current) {
-                 setStatus('idle');
-            }
-        };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [procedure, inputKey, enabled, client, store]); // Added client back? No, store was correct.
-
-    return { status, error, data, unsubscribe: unsubscribeFn };
+  return {
+    data: dataSignal,
+    error: errorSignal,
+    status: statusSignal,
+  };
 }

@@ -8,8 +8,8 @@
     // { "path": "./packages/preact" }, // Incorrect path, preact hooks are in transport-preact
     { "path": "./packages/react" },
     { "path": "./packages/transport-http" },
-    { "path": "./packages/transport-preact" },
     { "path": "./packages/transport-vscode" },
+    { "path": "./packages/preact" },
     { "path": "./packages/transport-websocket" },
     { "path": "./examples/vscode-extension" },
     { "path": "./examples/web-app" }

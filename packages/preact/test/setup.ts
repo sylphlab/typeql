@@ -1,10 +1,11 @@
-// packages/preact/test/setup.ts
 import { afterEach } from 'vitest';
-import { cleanup } from '@testing-library/preact'; // Assuming @testing-library/preact is used or will be added
+import { cleanup } from '@testing-library/preact';
 
-// Automatically cleanup the DOM after each test
+// Optional: Run cleanup after each test case (e.g., clearing jsdom)
+// This might be handled by Vitest's environment setup too.
 afterEach(() => {
   cleanup();
 });
 
-console.log('Vitest setup file loaded for @typeql/preact.');
+// Add any other global test setup here
+console.log('Vitest setup for @sylphlab/typeql-preact running...');

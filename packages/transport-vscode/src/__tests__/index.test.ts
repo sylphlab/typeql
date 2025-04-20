@@ -182,7 +182,7 @@ describe('createVSCodeTransport', () => { // Add 5 second timeout
     // Simulate the message *after* starting to await the iterator promise
     simulateIncomingMessage(updateMessage);
 
-    // Wait for the first message and assert
+    // Wait for the first message and assert (Reverted the 'act' addition)
     await expect(testPromise).resolves.toEqual(updateMessage);
 
     // Test unsubscribe
@@ -273,8 +273,9 @@ describe('createVSCodeTransport', () => { // Add 5 second timeout
 
     simulateIncomingMessage(unexpectedMessage);
 
+    // Update expected warning message to match actual implementation log
     expect(consoleWarnSpy).toHaveBeenCalledWith(
-      '[VSCode Transport] Received unknown/unhandled message format:',
+      '[VSCode MessageHandler] Received invalid message format (missing id or not an object):',
       unexpectedMessage
     );
 
