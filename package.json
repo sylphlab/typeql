@@ -7,7 +7,7 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:filter": "turbo run test --filter",
-    "build": "npx turbo run build",
+    "build": "turbo run build",
     "lint": "turbo run lint",
     "dev": "turbo run dev",
     "release": "pnpm turbo run test:coverage && pnpm turbo run build && pnpm changeset publish"
