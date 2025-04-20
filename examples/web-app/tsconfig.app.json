@@ -32,12 +32,5 @@
     "noFallthroughCasesInSwitch": true,
     // "noUncheckedSideEffectImports": true // Inherited? Check base.
   },
-  "include": ["src"], // Only include app source code
-  "references": [ // Restored references
-    { "path": "../../packages/shared/tsconfig.json" },
-    { "path": "../../packages/client/tsconfig.json" },
-    { "path": "../../packages/react/tsconfig.json" },
-    { "path": "../../packages/transport-websocket/tsconfig.json" },
-    { "path": "./tsconfig.node.json" }
-  ]
+  "include": ["src"] // Only include app source code
 }
