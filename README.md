@@ -106,64 +106,70 @@ export type AppRouter = typeof appRouter;
 ```
 
 ```typescript
- // packages/client/src/nanostoresUsage.ts (Example Usage with Nanostores)
- import { atom, useStore } from '@nanostores/react'; // Or @nanostores/preact etc.
+ // Example Usage with Nanostores (@nanostores/react)
+ 
+ // --- store.ts ---
+ import { atom } from 'nanostores';
  import { createClient } from '@sylphlab/zenquery-client';
  import { query, mutation, effect } from '@sylphlab/zenquery-client/nanostores';
- import { createWebSocketTransport } from '@sylphlab/zenquery-transport-websocket';
- import type { AppRouter } from './server'; // <-- Import only the TYPE
+ import { createHttpTransport } from '@sylphlab/zenquery-transport-http';
+ import type { AppRouter } from '../server/router'; // Your server router type
  
  // Assume Todo type is defined
  interface Todo { id: string; text: string; completed: boolean; status?: string }
  
- // 1. Create Client Atom
- const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+ // 1. Client Atom
+ export const $client = atom(() => // Type is inferred
    createClient<AppRouter>({
-     transport: createWebSocketTransport({ url: 'ws://localhost:3000' })
+     transport: createHttpTransport({ url: '/api/zenquery', batching: true })
    })
  );
  
- // 2. Create Query Atom using the 'query' helper
- // 2. Create Query Atom using the 'query' helper
- // Define selector function
- const todosSelector = (get: any) => { // Use 'any' for get type in example
-   const client = get($client); // Get client from atom
-   return { client, procedure: client.todos.list, path: 'todos.list' }; // Return client, procedure object, path
- };
- const $todos = query(todosSelector, { // Pass selector, then options
-   // input: undefined, // No input for list query
-   initialData: [] as Todo[], // Optional initial data
- });
+ // 2. Query Atom
+ export const $todos = query<AppRouter['todos']['list']['_def']['_output'], Error, { limit: number }>( // Explicit types for clarity, often inferred
+   (get) => { // Procedure Selector receives nanostores 'get'
+     const client = get($client); // Get client instance
+     // Return client, procedure reference, and unique path string
+     return { client, procedure: client.todos.list, path: 'todos.list' };
+   },
+   { input: { limit: 10 }, initialData: [] } // Options: input, initialData etc.
+ );
  
- // 3. Create Mutation Atom using the 'mutation' helper
- // 3. Create Mutation Atom using the 'mutation' helper
- // Define selector function
- const addTodoSelector = (get: any) => {
-   const client = get($client);
-   return { client, procedure: client.todos.add, path: 'todos.add' };
- };
- const $addTodo = mutation(addTodoSelector, { // Pass selector, then options
-   effects: [ // Define optimistic updates in options
-     effect($todos, (currentTodos, input: { text: string }) => { // Target atom, recipe
-       const tempId = `temp-${Date.now()}`;
-       // Ensure currentTodos is treated as array, even if initially undefined
-       const current = currentTodos ?? [];
-       return [...current, { ...input, id: tempId, completed: false, status: 'pending' }];
-     })
-   ]
- });
+ // 3. Mutation Atom
+ export const $addTodo = mutation<AppRouter['todos']['add']['_def']['_input']>( // Input type for mutate fn
+   (get) => { // Procedure Selector
+     const client = get($client);
+     return { client, procedure: client.todos.add, path: 'todos.add' };
+   },
+   { // Options
+     effects: [ // Define optimistic updates
+       effect($todos, (currentTodos, input) => { // Target atom, apply patch recipe
+         const tempId = `temp-${Date.now()}`;
+         // Return the new state for the target atom
+         return [...(currentTodos ?? []), { ...input, id: tempId, completed: false, status: 'pending' }];
+       })
+     ]
+     // onSuccess: (result, input) => { ... },
+     // onError: (error, input) => { ... },
+   }
+ );
  
- // 4. Use in Component
- function TodoList() {
-   const { data: todos, loading, error } = useStore($todos);
+ // --- Component.tsx ---
+ import React from 'react';
+ import { useStore } from '@nanostores/react';
+ import { $todos, $addTodo } from './store';
+ 
+ function TodoManager() {
+   // 4. Use atoms in component
+   const { data: todos, loading, error, status } = useStore($todos);
    const { mutate: addTodo, loading: isAdding } = useStore($addTodo);
  
    const handleAdd = () => {
-     addTodo({ text: 'New todo from zenQuery!' });
+     addTodo({ text: 'New todo via zenQuery!' });
    };
  
-   if (loading && !todos?.length) return <div>Loading...</div>;
-   if (error) return <div>Error: {error.message}</div>;
+   if (status === 'loading' && !todos?.length) return <div>Loading...</div>;
+   if (status === 'error') return <div>Error: {error?.message}</div>;
  
    return (
      <div>
@@ -177,7 +183,7 @@ export type AppRouter = typeof appRouter;
            </li>
          ))}
        </ul>
-       {/* Subscription updates to $todos will automatically reflect here */}
+       {/* Subscription updates would likely involve another atom created with 'subscription' helper */}
      </div>
    );
  }
