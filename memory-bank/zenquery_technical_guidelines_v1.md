@@ -1,13 +1,17 @@
-# zenQuery - 綜合技術指引 (v1.1)
+# zenQuery - 綜合技術指引 (v1.9)
 
 ## A. 總體原則與命名
 
-### A.1. 項目名稱
-*   項目已正式定名為 **zenQuery**。所有相關組件、代碼庫、文檔應統一使用此名稱。
+### A.1. 項目與 Package 命名
+*   項目已正式定名為 **zen-query**。
+*   核心 Package 命名建議:
+    *   Client: `@sylphlab/zen-query-client`
+    *   Server: `@sylphlab/zen-query-server`
+*   所有相關組件、代碼庫、文檔應統一使用 `zen-query` 相關名稱。
 
 ### A.2. 核心目標與定位
 *   **目標:** 提供一個基於 RPC 模式嘅 Client/Server 通信方案，核心優勢在於利用 TypeScript 實現端到端類型安全 (Type-Safety)，並提供極佳嘅開發體驗 (DX)，特別係喺全 TypeScript 生態內無需額外代碼生成 (Code Generation)。
-*   **整合:** 深度整合 Nanostores (現階段實現目標) 及未來 Zen Store，成為其生態 ("全家桶") 嘅一部分，提供無縫嘅狀態管理體驗。
+*   **整合:** 深度整合 Nanostores (現階段實現目標) 及未來 Zen Store (`zen()`)，成為其生態 ("全家桶") 嘅一部分，提供無縫嘅狀態管理體驗。
 *   **功能:** 支持健壯嘅 Optimistic Updates 同高效嘅實時數據同步 (Delta Updates)。
 *   **架構原則:** 保持核心通訊邏輯同具體狀態管理庫 (Nanostores/Zen Store) 嘅解耦，實現關注點分離。
 
@@ -104,34 +108,42 @@
     *   需要一個 `deltaApplicator` (由 Nanostore 綁定層提供或用戶配置)，其 `applyDelta(currentState, delta)` 方法知道如何將 Server 發送嘅 Delta (JSON Patch) 應用到 Nanostore Atom 上。
     *   `OptimisticSyncCoordinator` 的 `processServerDelta` 方法會接收並使用這個 `deltaApplicator` (或者觸發 `onApplyDelta` 事件由外部處理)。
 
-### C.4. Binding Helpers (`createQueryAtom`, `createMutationAtom`)
-*   **定位:** 作為 zenQuery Client/Coordinator 同 Nanostore Atoms 之間嘅橋樑。
-*   **初始化:** 提供 `initZenQueryHelpers(clientAtom)` 或類似方式，接收 Client Atom (例如 `$client = atom(() => createClient(...))`)。返回 `createQueryAtom`, `createMutationAtom` 等 helpers。
-*   **`createMutationAtom` (或 `useMutation` Hook 模式):**
-    *   接收 Mutation Procedure 引用 (或 Path) 和 Optimistic Update 配置 (包含 target Atoms 列表及對應嘅 update recipe `(draft, input) => void`)。
-    *   返回 `mutate` 函數和狀態 (loading, error)。
-    *   `mutate(input)` 內部邏輯：
-        1.  生成 `clientSeq`。
-        2.  遍歷配置嘅 Atoms，讀取當前值。
-        3.  使用 Zen Store `produceWithPatches` 執行 recipe，獲取 `optimisticState` 和 `patches` (及 `inversePatches`)。
-        4.  更新 Atom 到 `optimisticState`。
-        5.  調用 `coordinator.registerPendingMutation` 登記 `clientSeq` 和 `patches` (按 Atom 標識符分組)。
-        6.  調用 `client.mutate` 發送請求。
-        7.  (需要實現) 監聽 Coordinator 的 `onRollback` 事件，應用 `inversePatches` 到對應 Atom。
-*   **`createQueryAtom` (或 `useQuery` Hook 模式):**
-    *   接收 Query Procedure 引用 (或 Path) 和 Input (可以是靜態值或 Atom)。
-    *   返回一個 Atom，其值包含 `data`, `loading`, `error` 等狀態。
-    *   內部邏輯：
-        1.  調用 `client.query` 獲取初始 confirmed state，存入內部狀態或直接更新 Atom。
-        2.  監聽 Coordinator 的 `onStateChange` 事件。
-        3.  監聽 Coordinator 的 `onApplyDelta` 事件：獲取 `resolvedDelta`，找到對應 Atom，調用 `deltaApplicator` 更新 Atom 的 confirmed state。
-        4.  計算 Optimistic State (當 Atom confirmed state 變化或收到 `onStateChange` 時)：
-            *   讀取 Atom 當前 confirmed state。
-            *   調用 `coordinator.getPendingPatches()`。
-            *   過濾出相關 Patches。
-            *   用 Zen Store `applyPatches` 計算 optimistic state。
-            *   更新 Atom 的 `data` 為 optimistic state。
-        5.  管理 `loading`, `error` 狀態。
+### C.4. Binding Helpers (`query`, `subscription`, `mutation`, `effect`, `hybrid`)
+*   **定位:** 作為 zen-query Client/Coordinator 同 Nanostore Atoms 之間嘅橋樑，提供符合 Atomic Store 理念嘅 API。
+*   **實現位置:** Nanostores 相關嘅 Binding Helpers 將**直接喺 `@sylphlab/zen-query-client` 內部實現** (例如 `src/nanostores/` 子目錄)。
+*   **核心 API:**
+    *   **`query(clientSelector, options)`:**
+        *   接收 Query Procedure Selector (`get => get($client).query.somePath`) 和 Options (包含 Input, initialData, enabled 等)。
+        *   返回一個 Nanostore Atom，其值包含 `{ data, loading, error, reload }` 等。
+        *   內部邏輯：處理初始數據獲取 (`client.query`)，監聽 Coordinator 事件 (`onStateChange`, `onApplyDelta`)，按需計算 Optimistic State (讀取 Atom confirmed state, 獲取 pending patches, 用 Zen Store `applyPatches`)，應用 Server Delta 更新 Atom confirmed state，管理 loading/error。
+        *   **需要實現:** 將創建的 Atom 同其 Query Key/Path **註冊到 Client 內部的 Registry**。
+    *   **`subscription(clientSelector, options)`:**
+        *   接收 Subscription Procedure Selector (`get => get($client).subscription.somePath`) 和 Options (包含 Input, enabled 等)。
+        *   返回一個 Nanostore Atom，其值包含 `{ data, status, error }` 等 (status 可以係 connecting, open, closed)。
+        *   內部邏輯：建立 Subscription 連接 (`client.subscribe`)，處理 Server 推送嘅 Snapshot 或 Delta (通過 Coordinator `onApplyDelta` 事件更新 Atom confirmed state)，監聽 Coordinator `onStateChange` 計算 Optimistic State，管理連接狀態/錯誤。
+        *   **需要實現:** 將創建的 Atom 同其 Subscription Key/Path **註冊到 Client 內部的 Registry**。
+    *   **`hybrid(queryAtom, subscriptionAtom)`:** (可選實現)
+        *   接收由 `query()` 和 `subscription()` 創建的 Atom。
+        *   返回一個組合 Atom，結合兩者嘅數據同狀態。
+    *   **`mutation(clientSelector, effectsArray, options)`:**
+        *   接收 Mutation Procedure Selector (`get => get($client).mutation.somePath`)，一個 `effectsArray`，以及 Options (如 `onSuccess`, `onError`)。
+        *   返回一個 Nanostore Atom，其值包含 `{ mutate, loading, error }`。
+        *   **`effectsArray`:** 使用 `effect(targetAtom, applyPatchRecipe)` 語法定義 Optimistic Updates。
+            *   `targetAtom`: 需要更新嘅 Nanostore Atom (由 `query`, `subscription`, `hybrid` 創建)。
+            *   `applyPatchRecipe`: `(currentState, input) => newState`。
+        *   **`mutate(input)` 內部邏輯:**
+            1.  生成 `clientSeq`。
+            2.  遍歷 `effectsArray`，讀取每個 `targetAtom` 嘅當前值。
+            3.  使用 Zen Store `produceWithPatches` 執行每個 `applyPatchRecipe`，獲取 `optimisticState` 和 `patches` (及 `inversePatches`)。
+            4.  更新所有 `targetAtom` 到 `optimisticState`。
+            5.  調用 `coordinator.registerPendingMutation` 登記 `clientSeq` 和所有 `patches` (按 Atom 標識符分組，包含 inverse patches)。
+            6.  調用 `client.mutate` 發送請求。
+            7.  (需要實現) 監聽 Coordinator 的 `onRollback` 事件，獲取 `inversePatches` 並應用到對應 Atom。
+        *   **Rollback:** **主要依賴** Zen Store (或現階段用 Immer 模擬) 自動生成的 `inversePatches`。用戶**不需要**在 `effect` 中提供 `optimisticRollback` function。
+    *   **`effect(targetAtom, applyPatchRecipe)`:** 一個簡單嘅 Helper Function，用於喺 `mutation` 的 `effectsArray` 中創建 effect 配置對象。
+*   **Client Atom (`$client`):**
+    *   用戶需要創建一個 Nanostore Atom 嚟持有 `createClient()` 返回嘅實例。
+    *   Binding Helpers (`query`, `subscription`, `mutation`) 接收一個 getter function (`get => get($client)`) 嚟獲取 Client 實例。
 
 ### C.5. Client Transport
 *   **Batching:** 應考慮在 Transport 層提供 `batching: true` 選項。
@@ -140,11 +152,11 @@
 
 *   為 Server 端提供內建 Diff Helper (`diff(old, new) => JsonPatch[]`)。
 *   實現 Builder Wrapper (`.relay()` on `QueryBuilder`)。
-*   實現 Nanostores Binding Helpers (`createQueryAtom`, `createMutationAtom`)。
+*   實現 Nanostores Binding Helpers (`query`, `subscription`, `mutation`, `effect`, `hybrid`) (包括 Client 內部 Atom Registry 和 Delta->Atom 映射機制)。
 *   實現 Transport 層 Batching。
-*   實現 Client Hooks 層 SWR (Stale-While-Revalidate) 和 Debounce。
+*   實現 Client Binding Helper 層 SWR (Stale-While-Revalidate) 和 Debounce (如果適用於 Atom 模式)。
 *   考慮為 Subscription 提供更高級抽象 (例如 `.streamDiff`)。
-*   執行項目改名 (`zenQuery`) 相關工作 (代碼庫、文檔、包名等)。
+*   執行項目改名 (`zen-query`) 相關工作 (代碼庫、文檔、包名等)。
 *   (長遠) 整合 Zen Store 的內建 Patch 功能。
 *   (長遠) 探索 Resolver 內部 FP 改進 (Result Type, Effect Management)。
 
