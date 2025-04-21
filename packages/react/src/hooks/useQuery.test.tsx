@@ -1,22 +1,35 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react'; // Use React Testing Library
 import React, { ReactNode } from 'react'; // Import React
-import { TypeQLProvider } from '../context'; // Import React context
+import { zenQueryProvider } from '../context'; // Import React context
 import { useQuery } from '../hooks/useQuery'; // Import React hook
-import type { createClient, TypeQLClientError } from '@sylphlab/typeql-client'; // Import createClient for ReturnType
+import type { createClient } from '@sylphlab/zen-query-client'; // Import createClient for ReturnType
+import type { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Import error type from shared
 
 // Use ReturnType to get the actual client type
-type TypeQLClientInstance = ReturnType<typeof createClient>;
+type zenQueryClientInstance = ReturnType<typeof createClient>;
 
 // Mock client
 const mockQuery = vi.fn();
-const mockClient = {
+const mockMutation = vi.fn();
+const mockSubscription = vi.fn();
+const mockGetCoordinator = vi.fn(() => ({ on: vi.fn(), getPendingPatches: vi.fn(() => new Map()) })); // Basic coordinator mock
+
+const mockClient: zenQueryClientInstance = {
   query: mockQuery,
-} as unknown as TypeQLClientInstance; // Use the inferred type
+  mutation: { // Mock mutation structure based on client.ts proxy
+      // Add specific procedures if needed by tests, e.g., posts: { create: { mutate: mockMutation } }
+  } as any, // Use 'as any' for simplicity if specific procedures aren't needed here
+  subscription: { // Mock subscription structure
+      // Add specific procedures if needed
+  } as any,
+  getCoordinator: mockGetCoordinator,
+  close: vi.fn(),
+};
 
 // Wrapper component providing the context (using React JSX)
 const wrapper = ({ children }: { children: ReactNode }) => ( // Use ReactNode
-  <TypeQLProvider client={mockClient}>{children}</TypeQLProvider>
+  <zenQueryProvider client={mockClient}>{children}</zenQueryProvider>
 );
 
 describe('useQuery (React)', () => {
@@ -72,7 +85,7 @@ describe('useQuery (React)', () => {
   });
 
   it('should update error on failed fetch', async () => {
-    const errorResponse: TypeQLClientError = new Error('Query Failed');
+    const errorResponse: zenQueryClientError = new Error('Query Failed');
     mockQuery.mockRejectedValue(errorResponse);
 
     // Pass the mock function directly

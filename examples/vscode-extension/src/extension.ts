@@ -1,16 +1,16 @@
 import * as vscode from 'vscode';
 import {
     ProcedureContext,
-    TypeQLTransport, // Import TypeQLTransport
+    zenQueryTransport, // Import zenQueryTransport
     ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, UnsubscribeMessage // Import message types (Removed ProcedureCall)
-} from '@sylphlab/typeql-shared'; // Use shared package
+} from '@sylphlab/zen-query-shared'; // Use shared package
 import {
     createRouter,
-    initTypeQL,
+    initzenQuery,
     createRequestHandler,
     SubscriptionManager,
-} from '@sylphlab/typeql-server'; // Use server package
-import { createVSCodeTransport } from '@sylphlab/typeql-transport-vscode'; // Correct import name
+} from '@sylphlab/zen-query-server'; // Use server package
+import { createVSCodeTransport } from '@sylphlab/zen-query-transport-vscode'; // Correct import name
 import { z } from 'zod'; // Import zod if needed for API definition
 
 // Define a simple context for the extension procedures
@@ -18,8 +18,8 @@ interface ExtensionContext extends ProcedureContext {
     // Add any extension-specific context here, e.g., workspace state
 }
 
-// Initialize TypeQL procedure builder
-const t = initTypeQL<ExtensionContext>();
+// Initialize zenQuery procedure builder
+const t = initzenQuery<ExtensionContext>();
 
 // Define a simple router for the extension
 const extensionRouter = createRouter<ExtensionContext>()({
@@ -73,7 +73,7 @@ export type ExtensionRouter = typeof extensionRouter;
 const globalSubscriptionManager = new SubscriptionManager();
 
 // Function to create context for each request/connection
-const createContext = async (opts: { transport: TypeQLTransport }): Promise<ExtensionContext> => {
+const createContext = async (opts: { transport: zenQueryTransport }): Promise<ExtensionContext> => {
     // Access transport if needed, e.g., for client identification
     return {
         // Add context properties here
@@ -102,7 +102,7 @@ export function activate(context: vscode.ExtensionContext) {
         // Otherwise, create a new panel.
         currentPanel = vscode.window.createWebviewPanel(
             'typeqlExample', // Identifies the type of the webview. Used internally
-            'TypeQL Example', // Title of the panel displayed to the user
+            'zenQuery Example', // Title of the panel displayed to the user
             column || vscode.ViewColumn.One, // Editor column to show the new webview panel in.
             { // Webview options
                 enableScripts: true, // Allow scripts to run in the webview
@@ -113,7 +113,7 @@ export function activate(context: vscode.ExtensionContext) {
             }
         );
 
-        // --- TypeQL Setup for this Panel ---
+        // --- zenQuery Setup for this Panel ---
 
         // 1. Create the VSCode Transport linked to this specific panel's webview
         // Pass the webview's postMessage and onDidReceiveMessage functions
@@ -126,7 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
             {
                 router: extensionRouter,
                 subscriptionManager: globalSubscriptionManager,
-                createContext: (opts: { transport: TypeQLTransport }) => createContext(opts), // Add opts type
+                createContext: (opts: { transport: zenQueryTransport }) => createContext(opts), // Add opts type
                 clientId: `webview_${Date.now()}` // Example client ID
             },
             transport // Pass the transport for this panel
@@ -146,7 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
         // 4. Set the webview's initial HTML content
         currentPanel.webview.html = getWebviewContent(currentPanel, context.extensionUri); // Pass panel and extensionUri
 
-        // --- End TypeQL Setup ---
+        // --- End zenQuery Setup ---
 
     });
 
@@ -181,7 +181,7 @@ function getWebviewContent(panel: vscode.WebviewPanel, extensionUri: vscode.Uri)
     -->
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${panel.webview.cspSource}; script-src 'nonce-${nonce}';">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TypeQL Example</title>
+    <title>zenQuery Example</title>
 </head>
 <body>
     <div id="root"></div> <!-- Root element for React app -->

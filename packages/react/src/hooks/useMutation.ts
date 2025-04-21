@@ -1,11 +1,12 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { useTypeQL } from '../context';
-import type { TypeQLClientError, MutationCallOptions } from '@sylphlab/typeql-client'; // Assuming exports
+import { usezenQuery } from '../context';
+import type { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Import error from shared
+// Removed MutationCallOptions import
 
 // Define options for the useMutation hook
 export interface UseMutationOptions<
   TData = unknown,
-  TError = TypeQLClientError,
+  TError = zenQueryClientError,
   TVariables = unknown, // Input variables type
   TContext = unknown, // Context for optimistic updates/callbacks
 > {
@@ -18,20 +19,20 @@ export interface UseMutationOptions<
 // Define the return type of the useMutation hook
 export interface UseMutationResult<
   TData = unknown,
-  TError = TypeQLClientError,
-  TVariables = unknown, // Input variables type including optimistic options
+  TError = zenQueryClientError,
+  TVariables = unknown, // Input variables type
   TContext = unknown,
 > {
   data: TData | undefined;
   error: TError | null;
   isLoading: boolean; // Using isLoading for mutation status
-  mutate: (variables: TVariables, options?: UseMutationOptions<TData, TError, TVariables, TContext>) => void; // Changed return type to void
+  mutate: (variables: TVariables, options?: UseMutationOptions<TData, TError, TVariables, TContext>) => void;
   mutateAsync: (variables: TVariables, options?: UseMutationOptions<TData, TError, TVariables, TContext>) => Promise<TData>;
   reset: () => void;
 }
 
 /**
- * Hook for executing TypeQL mutations.
+ * Hook for executing zenQuery mutations.
  *
  * @param mutationProcedure The client mutation procedure (e.g., client.post.create.mutate)
  * @param options Configuration options like callbacks (onSuccess, onError).
@@ -39,15 +40,15 @@ export interface UseMutationResult<
 export function useMutation<
   TInput, // Input type for the procedure itself
   TOutput, // Output type of the procedure
-  TError = TypeQLClientError,
+  TError = zenQueryClientError,
   TState = any, // State type for optimistic updates
   TContext = unknown, // Context type for callbacks
 >(
-  // Procedure type needs careful handling. Using a function type for now.
-  mutationProcedure: (opts: MutationCallOptions<TInput, TState>) => Promise<TOutput>,
-  options: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext> = {},
-): UseMutationResult<TOutput, TError, MutationCallOptions<TInput, TState>, TContext> {
-  const { client, store } = useTypeQL<TState>(); // Get client and store from context
+  // Procedure type expects the raw input
+  mutationProcedure: (input: TInput) => Promise<TOutput>,
+  options: UseMutationOptions<TOutput, TError, TInput, TContext> = {},
+): UseMutationResult<TOutput, TError, TInput, TContext> {
+  const { client, store } = usezenQuery<TState>(); // Get client and store from context
 
   // --- State using useState ---
   const [data, setData] = useState<TOutput | undefined>(undefined);
@@ -79,8 +80,8 @@ export function useMutation<
   // --- Mutate Function ---
   const mutateAsync = useCallback(
     async (
-      variables: MutationCallOptions<TInput, TState>, // Variables now include input + optimistic opts
-      runtimeOptions?: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext>,
+      variables: TInput, // Use raw input type
+      runtimeOptions?: UseMutationOptions<TOutput, TError, TInput, TContext>,
     ): Promise<TOutput> => {
       const combinedOptions = { ...options, ...runtimeOptions };
       if (mountedRef.current) {
@@ -140,9 +141,9 @@ export function useMutation<
   // --- Fire-and-forget mutate ---
   const mutate = useCallback(
     (
-      variables: MutationCallOptions<TInput, TState>,
-      runtimeOptions?: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext>,
-    ): void => { // Changed return type to void
+      variables: TInput, // Use raw input type
+      runtimeOptions?: UseMutationOptions<TOutput, TError, TInput, TContext>,
+    ): void => {
       mutateAsync(variables, runtimeOptions).catch(() => {
         // Prevent unhandled promise rejection. Error is handled internally.
       });

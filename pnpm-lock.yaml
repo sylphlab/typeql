@@ -63,16 +63,16 @@ importers:
 
   examples/vscode-extension:
     dependencies:
-      '@sylphlab/typeql-client':
+      '@sylphlab/zen-query-client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@sylphlab/typeql-server':
+      '@sylphlab/zen-query-server':
         specifier: workspace:*
         version: link:../../packages/server
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../../packages/shared
-      '@sylphlab/typeql-transport-vscode':
+      '@sylphlab/zen-query-transport-vscode':
         specifier: workspace:*
         version: link:../../packages/transport-vscode
       zod:
@@ -118,21 +118,21 @@ importers:
 
   examples/web-app:
     dependencies:
-      '@sylphlab/transport-websocket':
-        specifier: workspace:*
-        version: link:../../packages/transport-websocket
-      '@sylphlab/typeql-client':
+      '@sylphlab/zen-query-client':
         specifier: workspace:*
         version: link:../../packages/client
-      '@sylphlab/typeql-react':
+      '@sylphlab/zen-query-react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@sylphlab/typeql-server':
+      '@sylphlab/zen-query-server':
         specifier: workspace:*
         version: link:../../packages/server
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@sylphlab/zen-query-transport-websocket':
+        specifier: workspace:*
+        version: link:../../packages/transport-websocket
       react:
         specifier: ^19.0.0
         version: 19.1.0
@@ -185,7 +185,7 @@ importers:
 
   packages/client:
     dependencies:
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
       fast-json-patch:
@@ -219,10 +219,10 @@ importers:
 
   packages/preact:
     dependencies:
-      '@sylphlab/typeql-client':
+      '@sylphlab/zen-query-client':
         specifier: workspace:*
         version: link:../client
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -265,10 +265,10 @@ importers:
 
   packages/react:
     dependencies:
-      '@sylphlab/typeql-client':
+      '@sylphlab/zen-query-client':
         specifier: workspace:*
         version: link:../client
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -311,7 +311,7 @@ importers:
 
   packages/server:
     dependencies:
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
       zod:
@@ -342,10 +342,10 @@ importers:
 
   packages/transport-http:
     dependencies:
-      '@sylphlab/typeql-client':
+      '@sylphlab/zen-query-client':
         specifier: workspace:*
         version: link:../client
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -370,7 +370,7 @@ importers:
 
   packages/transport-vscode:
     dependencies:
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:
@@ -413,7 +413,7 @@ importers:
 
   packages/transport-websocket:
     dependencies:
-      '@sylphlab/typeql-shared':
+      '@sylphlab/zen-query-shared':
         specifier: workspace:*
         version: link:../shared
     devDependencies:

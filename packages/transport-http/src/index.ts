@@ -1,15 +1,15 @@
 import type {
-  TypeQLTransport,
+  zenQueryTransport,
   ProcedureCallMessage,
   ProcedureResultMessage,
   SubscribeMessage,
   // AckMessage, // Import if needed for onAckReceived
   // SubscriptionDataMessage, // Import if needed
   // SubscriptionErrorMessage, // Import if needed
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 
 export interface HttpTransportOptions {
-  /** The URL of the TypeQL HTTP endpoint. */
+  /** The URL of the zenQuery HTTP endpoint. */
   url: string;
   /** Optional fetch options to pass to the fetch call (e.g., headers, credentials). */
   fetchOptions?: RequestInit;
@@ -60,13 +60,13 @@ export class HttpError extends Error {
 
 
 /**
- * Creates a TypeQL transport that communicates over HTTP.
+ * Creates a zenQuery transport that communicates over HTTP.
  * Supports single requests. Batching to be implemented.
  * Does not support subscriptions.
  */
 export function createHttpTransport(
   options: HttpTransportOptions,
-): TypeQLTransport {
+): zenQueryTransport {
   const { url, fetchOptions = {}, batching = false } = options;
 
   // --- Batching State ---
@@ -164,7 +164,7 @@ export function createHttpTransport(
 
     } catch (error: unknown) {
       // 8. Handle fetch/parsing errors, thrown HttpError, or response processing errors
-      console.error('TypeQL HTTP Transport batch request failed:', error);
+      console.error('zenQuery HTTP Transport batch request failed:', error);
 
       // Reject all promises in the processed batch with the batch error
       const rejectionError = error instanceof Error ? error : new Error('Batch request failed');
@@ -181,7 +181,7 @@ export function createHttpTransport(
       return (async () => {
         try {
           const response = await fetch(url, {
-            method: 'POST', // TypeQL typically uses POST for queries/mutations
+            method: 'POST', // zenQuery typically uses POST for queries/mutations
             ...fetchOptions, // Spread user options first
             headers: { // Override/add specific headers
               ...fetchOptions.headers,
@@ -214,14 +214,14 @@ export function createHttpTransport(
           return result;
 
         } catch (error: unknown) {
-          console.error('TypeQL HTTP Transport request failed (non-batched):', error);
+          console.error('zenQuery HTTP Transport request failed (non-batched):', error);
           if (error instanceof HttpError) {
             throw error;
           }
           if (error instanceof Error) {
-            throw new Error(`TypeQL HTTP Request Failed: ${error.message}`);
+            throw new Error(`zenQuery HTTP Request Failed: ${error.message}`);
           }
-          throw new Error(`TypeQL HTTP Request Failed: Unknown error occurred.`);
+          throw new Error(`zenQuery HTTP Request Failed: Unknown error occurred.`);
         }
       })();
     }
@@ -247,7 +247,7 @@ export function createHttpTransport(
     /* PREVIOUS SINGLE REQUEST LOGIC (MOVED INSIDE !batchingEnabled block)
     try {
       const response = await fetch(url, {
-        method: 'POST', // TypeQL typically uses POST for queries/mutations
+        method: 'POST', // zenQuery typically uses POST for queries/mutations
         ...fetchOptions, // Spread user options first
         headers: { // Override/add specific headers
           ...fetchOptions.headers,
@@ -260,7 +260,7 @@ export function createHttpTransport(
       if (!response.ok) {
         let errorBody: any;
         try {
-          // Try parsing as JSON first, as TypeQL errors might be structured
+          // Try parsing as JSON first, as zenQuery errors might be structured
           errorBody = await response.json();
         } catch (e) {
           try {
@@ -286,7 +286,7 @@ export function createHttpTransport(
 
     } catch (error: unknown) {
       // Log the error for debugging purposes
-      console.error('TypeQL HTTP Transport request failed:', error);
+      console.error('zenQuery HTTP Transport request failed:', error);
 
       // Re-throw HttpError instances directly
       if (error instanceof HttpError) {
@@ -295,10 +295,10 @@ export function createHttpTransport(
 
       // Wrap other errors (e.g., network errors)
       if (error instanceof Error) {
-        throw new Error(`TypeQL HTTP Request Failed: ${error.message}`); // Or potentially wrap in a different custom error
+        throw new Error(`zenQuery HTTP Request Failed: ${error.message}`); // Or potentially wrap in a different custom error
       }
       // Fallback for non-Error objects thrown
-      throw new Error(`TypeQL HTTP Request Failed: Unknown error occurred.`);
+      throw new Error(`zenQuery HTTP Request Failed: Unknown error occurred.`);
     }
     */
   };

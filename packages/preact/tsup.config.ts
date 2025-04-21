@@ -10,8 +10,8 @@ const baseOptions: Options = {
   sourcemap: true,
   clean: true,
   external: [
-    '@sylphlab/typeql-client',
-    '@sylphlab/typeql-shared',
+    '@sylphlab/zen-query-client',
+    '@sylphlab/zen-query-shared',
     'preact',
     '@preact/signals-core', // Mark signals as external if used directly
   ],

@@ -1,5 +1,5 @@
 {
-  "name": "web-app",
+  "name": "zen-query-example-web-app",
   "private": true,
   "version": "0.0.4",
   "type": "module",
@@ -10,11 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@sylphlab/typeql-shared": "workspace:*",
-    "@sylphlab/typeql-client": "workspace:*",
-    "@sylphlab/typeql-server": "workspace:*",
-    "@sylphlab/typeql-react": "workspace:*",
-    "@sylphlab/transport-websocket": "workspace:*",
+    "@sylphlab/zen-query-shared": "workspace:*",
+    "@sylphlab/zen-query-client": "workspace:*",
+    "@sylphlab/zen-query-server": "workspace:*",
+    "@sylphlab/zen-query-react": "workspace:*",
+    "@sylphlab/zen-query-transport-websocket": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "ws": "^8.18.1",

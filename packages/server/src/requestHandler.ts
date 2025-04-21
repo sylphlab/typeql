@@ -1,20 +1,20 @@
 // packages/core/src/server/requestHandler.ts
 
-import { createServerSequenceManager, ServerSequenceManager } from '@sylphlab/typeql-shared';
-// Consolidate imports from @sylphlab/typeql-shared
-import { TypeQLClientError } from '@sylphlab/typeql-shared'; // Import as value
+import { createServerSequenceManager, ServerSequenceManager } from '@sylphlab/zen-query-shared';
+// Consolidate imports from @sylphlab/zen-query-shared
+import { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Import as value
 import type {
     AnyRouter,
     ProcedureRouterRecord,
     ProcedureContext,
     AnyProcedure,
-    TypeQLTransport,
+    zenQueryTransport,
     SubscriptionDataMessage,
     ProcedureResultMessage,
     SubscriptionErrorMessage,
     UnsubscribeMessage
-} from '@sylphlab/typeql-shared'; // Keep others as types
-// Removed original line 4 which was: import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared'; // Keep others as types
+// Removed original line 4 which was: import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylphlab/zen-query-shared';
 import type { ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure'; // Keep specific procedure types here
 import { ZodError } from 'zod';
 import { SubscriptionManager } from './subscriptionManager'; // Import manager CLASS
@@ -43,10 +43,10 @@ function formatError(error: unknown, isInputValidationError: boolean = false): F
         'TOO_MANY_REQUESTS': true, 'CLIENT_CLOSED_REQUEST': true, 'INTERNAL_SERVER_ERROR': true
     };
 
-    // 1. TypeQLClientError (Highest Priority)
-    if (error instanceof TypeQLClientError && error.code && validCodes[error.code as ErrorCode]) {
+    // 1. zenQueryClientError (Highest Priority)
+    if (error instanceof zenQueryClientError && error.code && validCodes[error.code as ErrorCode]) {
         const formatted: FormattedError = { message: error.message, code: error.code as ErrorCode };
-        console.debug(`[formatError] Returning TypeQLClientError:`, formatted);
+        console.debug(`[formatError] Returning zenQueryClientError:`, formatted);
         return formatted;
     }
 
@@ -55,7 +55,7 @@ function formatError(error: unknown, isInputValidationError: boolean = false): F
         if (isInputValidationError === false) {
              // Output validation failure -> INTERNAL_SERVER_ERROR
              console.debug(`[formatError] Handling ZodError (Output Validation)`);
-             console.error("[TypeQL Handler] Zod Output Validation Error:", error.flatten()); // Keep original error log
+             console.error("[zenQuery Handler] Zod Output Validation Error:", error.flatten()); // Keep original error log
              const formatted: FormattedError = { message: 'Internal server error: Invalid procedure output', code: 'INTERNAL_SERVER_ERROR' };
              console.debug(`[formatError] Returning Zod Output Error:`, formatted);
              return formatted;
@@ -149,7 +149,7 @@ export interface RequestHandlerOptions<TContext extends ProcedureContext> {
     /** Global subscription manager instance (shared across handlers/connections). */
     subscriptionManager: SubscriptionManager;
     /** Function to create context for each request */
-    createContext: (opts: { transport: TypeQLTransport; /* other context sources */ }) => Promise<TContext> | TContext;
+    createContext: (opts: { transport: zenQueryTransport; /* other context sources */ }) => Promise<TContext> | TContext;
     // onError?: (error: any) => void;
     /** Optional: Unique identifier for this specific client connection (e.g., from WebSocket server). */
     clientId?: string;
@@ -175,7 +175,7 @@ export interface RequestHandler {
 
 export function createRequestHandler<TContext extends ProcedureContext>(
     opts: RequestHandlerOptions<TContext>,
-    transport: TypeQLTransport // Transport is now mandatory and passed during creation
+    transport: zenQueryTransport // Transport is now mandatory and passed during creation
 ): RequestHandler {
     const { router, createContext, subscriptionManager, clientId = `client_${Date.now()}_${Math.random().toString(36).substring(2)}` } = opts;
 
@@ -186,11 +186,11 @@ export function createRequestHandler<TContext extends ProcedureContext>(
     // Store subscriptions active for THIS handler/client connection
     const activeClientSubscriptions = new Map<string | number, { path: string }>(); // Store path for potential logging/debug
 
-    console.log(`[TypeQL Handler] Created handler for Client ID: ${clientId}`);
+    console.log(`[zenQuery Handler] Created handler for Client ID: ${clientId}`);
 
     // Cleanup function for when the handler/connection is terminated
     // const cleanupHandler = () => { // Comment out unused variable
-    //     console.log(`[TypeQL Handler] Cleaning up subscriptions for Client ID: ${clientId}`);
+    //     console.log(`[zenQuery Handler] Cleaning up subscriptions for Client ID: ${clientId}`);
     //     activeClientSubscriptions.forEach((_subInfo, subId) => {
     //         // Remove from global manager (which triggers cleanup)
     //         subscriptionManager.removeSubscription(subId);
@@ -213,16 +213,16 @@ export function createRequestHandler<TContext extends ProcedureContext>(
         // --- Handle Batch Request ---
         if (Array.isArray(message)) {
             const calls = message as ProcedureCall[];
-            console.log(`[TypeQL Handler ${clientId}] Handling batch request with ${calls.length} calls.`);
+            console.log(`[zenQuery Handler ${clientId}] Handling batch request with ${calls.length} calls.`);
 
             // Create context once for the batch
             let batchCtx: TContext;
             try {
                 batchCtx = await createContext({ transport });
-                console.log(`[TypeQL Handler ${clientId}] Context created for batch request.`);
+                console.log(`[zenQuery Handler ${clientId}] Context created for batch request.`);
             } catch (ctxError) {
                 const error = formatError(ctxError); // Remove defaultCode argument
-                console.error(`[TypeQL Handler ${clientId}] ${error.code} creating context for batch: ${error.message}`);
+                console.error(`[zenQuery Handler ${clientId}] ${error.code} creating context for batch: ${error.message}`);
                 // Return an error result for every call in the batch
                 return calls.map(call => ({ id: call.id, result: { type: 'error', error } }));
             }
@@ -230,12 +230,12 @@ export function createRequestHandler<TContext extends ProcedureContext>(
             // Process calls concurrently
             const results = await Promise.all(calls.map(async (call): Promise<ProcedureResultMessage> => {
                 const callStartTime = Date.now();
-                console.log(`[TypeQL Handler ${clientId}] Processing batch call (ID: ${call.id}, Path: ${call.path})`);
+                console.log(`[zenQuery Handler ${clientId}] Processing batch call (ID: ${call.id}, Path: ${call.path})`);
 
                 // Reject subscriptions in batch
                 if (call.type === 'subscription') {
                     const error = formatError('Subscriptions are not supported in batch requests'); // Remove defaultCode argument, let formatError handle it
-                    console.warn(`[TypeQL Handler ${clientId}] ${error.code} for batched subscription call (ID: ${call.id}, Path: ${call.path})`);
+                    console.warn(`[zenQuery Handler ${clientId}] ${error.code} for batched subscription call (ID: ${call.id}, Path: ${call.path})`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
 
@@ -244,7 +244,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
                 if (!procedure) {
                     const error = formatError(`Procedure not found: ${call.path}`); // Remove defaultCode argument
-                    console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path}: ${error.message}`);
+                    console.error(`[zenQuery Handler ${clientId}] ${error.code} for batched call path ${call.path}: ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
 
@@ -252,7 +252,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
                 if (procDef.type !== call.type) {
                     const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`); // Remove defaultCode argument
-                    console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path}: ${error.message}`);
+                    console.error(`[zenQuery Handler ${clientId}] ${error.code} for batched call path ${call.path}: ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
 
@@ -265,7 +265,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                         } catch (validationError: any) {
                             // Pass true for isInputValidationError
                             const error = formatError(validationError, true);
-                            console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path} (Input): ${error.message}`);
+                            console.error(`[zenQuery Handler ${clientId}] ${error.code} for batched call path ${call.path} (Input): ${error.message}`);
                             return { id: call.id, result: { type: 'error', error } };
                         }
                     }
@@ -277,7 +277,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                         result = await procDef.resolver!(options);
                     } catch (resolverError) {
                         const error = formatError(resolverError); // Remove defaultCode argument
-                        console.error(`[TypeQL Handler ${clientId}] ${error.code} during resolver execution for batched call path ${call.path}: ${error.message}`);
+                        console.error(`[zenQuery Handler ${clientId}] ${error.code} during resolver execution for batched call path ${call.path}: ${error.message}`);
                         return { id: call.id, result: { type: 'error', error } };
                     }
 
@@ -289,41 +289,41 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                         } catch (validationError: any) {
                             // Pass false (or omit) for isInputValidationError for output validation
                             const error = formatError(validationError, false);
-                            console.error(`[TypeQL Handler ${clientId}] ${error.code} for batched call path ${call.path} (Output): ${error.message}`);
+                            console.error(`[zenQuery Handler ${clientId}] ${error.code} for batched call path ${call.path} (Output): ${error.message}`);
                             // formatError now sets the correct message and code
                             return { id: call.id, result: { type: 'error', error } };
                         }
                     }
 
                     const duration = Date.now() - callStartTime;
-                    console.log(`[TypeQL Handler ${clientId}] Batched ${call.type} call successful for path: ${call.path} (ID: ${call.id}, Duration: ${duration}ms)`);
+                    console.log(`[zenQuery Handler ${clientId}] Batched ${call.type} call successful for path: ${call.path} (ID: ${call.id}, Duration: ${duration}ms)`);
                     return { id: call.id, result: { type: 'data', data: finalOutput } };
 
                 } catch (callError: any) {
                     const error = formatError(callError); // Remove defaultCode argument
-                    console.error(`[TypeQL Handler ${clientId}] ${error.code} processing batched call for path ${call.path}: ${error.message}`);
+                    console.error(`[zenQuery Handler ${clientId}] ${error.code} processing batched call for path ${call.path}: ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
             }));
 
             const batchDuration = Date.now() - startTime;
-            console.log(`[TypeQL Handler ${clientId}] Batch request processed. Duration: ${batchDuration}ms`);
+            console.log(`[zenQuery Handler ${clientId}] Batch request processed. Duration: ${batchDuration}ms`);
             return results;
         }
 
         // --- Handle Single Message (Existing Logic) ---
-        console.log(`[TypeQL Handler ${clientId}] Handling single ${message.type} message (ID: ${message.id})`);
+        console.log(`[zenQuery Handler ${clientId}] Handling single ${message.type} message (ID: ${message.id})`);
 
         // --- Handle Subscription Stop ---
         if (message.type === 'subscriptionStop') {
             const subId = message.id;
             if (activeClientSubscriptions.has(subId)) {
-                console.log(`[TypeQL Handler ${clientId}] Stopping subscription (ID: ${subId})`);
+                console.log(`[zenQuery Handler ${clientId}] Stopping subscription (ID: ${subId})`);
                 activeClientSubscriptions.delete(subId);
                 subscriptionManager.removeSubscription(subId); // Trigger cleanup via global manager
                 lastServerSeqMap.delete(subId); // Clean up sequence tracking
             } else {
-                console.warn(`[TypeQL Handler ${clientId}] Received stop for unknown/inactive subscription (ID: ${subId})`);
+                console.warn(`[zenQuery Handler ${clientId}] Received stop for unknown/inactive subscription (ID: ${subId})`);
             }
             return; // No response needed for stop message
         }
@@ -335,7 +335,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
         if (!procedure) {
             const error = formatError(`Procedure not found: ${call.path}`); // Remove defaultCode argument
-            console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
+            console.error(`[zenQuery Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
             return { id: call.id, result: { type: 'error', error } };
         }
 
@@ -344,25 +344,25 @@ export function createRequestHandler<TContext extends ProcedureContext>(
         // Check if the procedure type matches the call type
         if (procDef.type !== call.type) {
              const error = formatError(`Cannot call ${procDef.type} procedure using ${call.type}`); // Remove defaultCode argument
-             console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
+             console.error(`[zenQuery Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
              return { id: call.id, result: { type: 'error', error } };
         }
 
         try {
             // 1. Create Context (Transport is now guaranteed)
             const ctx: TContext = await createContext({ transport });
-            console.log(`[TypeQL Handler ${clientId}] Context created for request ${call.id}`);
+            console.log(`[zenQuery Handler ${clientId}] Context created for request ${call.id}`);
 
             // 2. Parse Input
             let parsedInput: unknown = call.input;
             if (procDef.inputSchema) {
                 try {
                     parsedInput = procDef.inputSchema.parse(call.input);
-                    console.log(`[TypeQL Handler ${clientId}] Input parsed successfully for path: ${call.path}`);
+                    console.log(`[zenQuery Handler ${clientId}] Input parsed successfully for path: ${call.path}`);
                 } catch (validationError: any) {
                     // Pass true for isInputValidationError
                     const error = formatError(validationError, true);
-                    console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Input): ${error.message}`);
+                    console.error(`[zenQuery Handler ${clientId}] ${error.code} for path ${call.path} (Input): ${error.message}`);
                     return { id: call.id, result: { type: 'error', error } };
                 }
             }
@@ -376,11 +376,11 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                     result = await procDef.resolver!(options);
                 } catch (resolverError) {
                     // Log the raw error *before* formatting for diagnosis
-                    console.error(`[TypeQL Handler ${clientId}] Raw resolver error for path ${call.path}:`, resolverError);
+                    console.error(`[zenQuery Handler ${clientId}] Raw resolver error for path ${call.path}:`, resolverError);
                     const error = formatError(resolverError); // Format the error
-                    console.error(`[TypeQL Handler ${clientId}] ${error.code} during resolver execution for path ${call.path}: ${error.message}`);
+                    console.error(`[zenQuery Handler ${clientId}] ${error.code} during resolver execution for path ${call.path}: ${error.message}`);
                     // Log the final *formatted* error object being returned
-                    console.log(`[TypeQL Handler ${clientId}] Returning error object:`, JSON.stringify({ id: call.id, result: { type: 'error', error } }));
+                    console.log(`[zenQuery Handler ${clientId}] Returning error object:`, JSON.stringify({ id: call.id, result: { type: 'error', error } }));
                     return { id: call.id, result: { type: 'error', error } };
                 }
 
@@ -389,25 +389,25 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                 if (procDef.outputSchema) {
                     try {
                         finalOutput = procDef.outputSchema.parse(result);
-                        console.log(`[TypeQL Handler ${clientId}] Output parsed successfully for path: ${call.path}`);
+                        console.log(`[zenQuery Handler ${clientId}] Output parsed successfully for path: ${call.path}`);
                     } catch (validationError: any) {
                         // Output validation errors should result in INTERNAL_SERVER_ERROR
                         const error = formatError(validationError, false); // Pass false for output validation
-                        console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path} (Output Validation): ${error.message}`);
+                        console.error(`[zenQuery Handler ${clientId}] ${error.code} for path ${call.path} (Output Validation): ${error.message}`);
                         // Use the formatted error directly
                         return { id: call.id, result: { type: 'error', error } };
                     }
                 }
 
                 const duration = Date.now() - startTime; // Use overall start time for single calls too
-                console.log(`[TypeQL Handler ${clientId}] ${call.type} call successful for path: ${call.path} (ID: ${call.id}, Duration: ${duration}ms)`);
+                console.log(`[zenQuery Handler ${clientId}] ${call.type} call successful for path: ${call.path} (ID: ${call.id}, Duration: ${duration}ms)`);
                 return { id: call.id, result: { type: 'data', data: finalOutput } };
 
             } else if (procDef.type === 'subscription') {
                  // --- Subscription Start Handling ---
                  if (!procDef.subscriptionResolver) {
                       const error = formatError('Subscription resolver not implemented'); // Remove defaultCode argument
-                      console.error(`[TypeQL Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
+                      console.error(`[zenQuery Handler ${clientId}] ${error.code} for path ${call.path}: ${error.message}`);
                       return { id: call.id, result: { type: 'error', error } };
                  }
 
@@ -415,7 +415,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
 
                  // Check if already subscribed by this handler
                  if (activeClientSubscriptions.has(subId)) {
-                     console.warn(`[TypeQL Handler ${clientId}] Received duplicate subscription request (ID: ${subId}). Ignoring.`);
+                     console.warn(`[zenQuery Handler ${clientId}] Received duplicate subscription request (ID: ${subId}). Ignoring.`);
                      return; // Don't re-setup
                  }
 
@@ -423,7 +423,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                  const publish = (rawData: unknown) => {
                      // Check if this specific subscription is still active before publishing
                      if (!activeClientSubscriptions.has(subId)) {
-                         console.warn(`[TypeQL Handler ${clientId}] Attempted to publish to inactive/stopped subscription (ID: ${subId}). Skipping.`);
+                         console.warn(`[zenQuery Handler ${clientId}] Attempted to publish to inactive/stopped subscription (ID: ${subId}). Skipping.`);
                          return;
                      }
 
@@ -434,10 +434,10 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                              dataToPublish = procDef.subscriptionOutputSchema.parse(rawData);
                          } catch (validationError) {
                              const error = formatError(validationError, false); // Pass false for output validation
-                             console.error(`[TypeQL Handler ${clientId}] Subscription output validation failed for subId ${subId}: ${error.message}`);
+                             console.error(`[zenQuery Handler ${clientId}] Subscription output validation failed for subId ${subId}: ${error.message}`);
                              const errorMsg: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error }; // Use formatted error directly
                              if (transport.send) { // Use the bound transport
-                                 Promise.resolve(transport.send(errorMsg)).catch(sendErr => console.error(`[TypeQL Handler ${clientId}] Error sending subscription error message for subId ${subId}:`, sendErr));
+                                 Promise.resolve(transport.send(errorMsg)).catch(sendErr => console.error(`[zenQuery Handler ${clientId}] Error sending subscription error message for subId ${subId}:`, sendErr));
                              }
                              // Stop the subscription on output error? Maybe configurable. For now, just log and send error.
                              // activeClientSubscriptions.delete(subId);
@@ -460,13 +460,13 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                      };
 
                      if (transport.send) { // Use the bound transport
-                         console.debug(`[TypeQL Handler ${clientId}] Publishing data for subId ${subId} (Seq: ${currentServerSeq})`);
+                         console.debug(`[zenQuery Handler ${clientId}] Publishing data for subId ${subId} (Seq: ${currentServerSeq})`);
                          Promise.resolve(transport.send(dataMsg)).catch((sendErr: any) => {
-                             console.error(`[TypeQL Handler ${clientId}] Error sending subscription data via transport.send for subId ${subId}:`, sendErr);
+                             console.error(`[zenQuery Handler ${clientId}] Error sending subscription data via transport.send for subId ${subId}:`, sendErr);
                              const error = formatError(sendErr); // Remove defaultCode argument
                              const errorMsg: SubscriptionErrorMessage = { type: 'subscriptionError', id: subId, error }; // Use formatted error directly
                              if (transport.send) {
-                                 Promise.resolve(transport.send(errorMsg)).catch(errMsgErr => console.error(`[TypeQL Handler ${clientId}] CRITICAL: Failed even to send error message for subId ${subId}:`, errMsgErr));
+                                 Promise.resolve(transport.send(errorMsg)).catch(errMsgErr => console.error(`[zenQuery Handler ${clientId}] CRITICAL: Failed even to send error message for subId ${subId}:`, errMsgErr));
                              }
                              // Remove subscription on send error?
                              activeClientSubscriptions.delete(subId);
@@ -474,7 +474,7 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                              lastServerSeqMap.delete(subId);
                          });
                      } else {
-                         console.error(`[TypeQL Handler ${clientId}] Cannot publish data for subId ${subId}: Transport lacks 'send' method.`);
+                         console.error(`[zenQuery Handler ${clientId}] Cannot publish data for subId ${subId}: Transport lacks 'send' method.`);
                          // Remove subscription if transport is broken
                          activeClientSubscriptions.delete(subId);
                          subscriptionManager.removeSubscription(subId);
@@ -502,13 +502,13 @@ export function createRequestHandler<TContext extends ProcedureContext>(
                       // Track locally for this handler
                       activeClientSubscriptions.set(subId, { path: call.path });
 
-                      console.log(`[TypeQL Handler ${clientId}] Subscription setup successful for path: ${call.path} (ID: ${subId})`);
+                      console.log(`[zenQuery Handler ${clientId}] Subscription setup successful for path: ${call.path} (ID: ${subId})`);
                       // No explicit success message needed for subscription start, client waits for data/end/error
                       return;
 
                  } catch (subSetupError: any) {
                      const error = formatError(subSetupError); // Remove defaultCode argument
-                     console.error(`[TypeQL Handler ${clientId}] ${error.code} during subscription setup for path ${call.path}: ${error.message}`);
+                     console.error(`[zenQuery Handler ${clientId}] ${error.code} during subscription setup for path ${call.path}: ${error.message}`);
                      // Send error back as a ProcedureResultMessage for the initial setup failure
                      return { id: call.id, result: { type: 'error', error } };
                  }
@@ -517,27 +517,27 @@ export function createRequestHandler<TContext extends ProcedureContext>(
         } catch (outerError: any) {
             // Catch errors during context creation or initial checks
             const error = formatError(outerError); // Remove defaultCode argument
-            console.error(`[TypeQL Handler ${clientId}] ${error.code} processing single request for ${message.type} ${'path' in message ? message.path : ''}: ${error.message}`);
+            console.error(`[zenQuery Handler ${clientId}] ${error.code} processing single request for ${message.type} ${'path' in message ? message.path : ''}: ${error.message}`);
             // Ensure message.id exists before using it
             const messageId = 'id' in message ? message.id : undefined;
             if (messageId !== undefined) {
                  return { id: messageId, result: { type: 'error', error } };
             } else {
-                 console.error(`[TypeQL Handler ${clientId}] Cannot send error response: Message ID missing.`);
+                 console.error(`[zenQuery Handler ${clientId}] Cannot send error response: Message ID missing.`);
             }
         }
     };
 
     // Define cleanup function separately
     const cleanup = () => {
-        console.log(`[TypeQL Handler] Cleaning up subscriptions for Client ID: ${clientId}`);
+        console.log(`[zenQuery Handler] Cleaning up subscriptions for Client ID: ${clientId}`);
         activeClientSubscriptions.forEach((_subInfo, subId) => {
             // Remove from global manager (which triggers resolver cleanup)
             subscriptionManager.removeSubscription(subId);
             lastServerSeqMap.delete(subId); // Clean up sequence tracking
         });
         activeClientSubscriptions.clear();
-        console.log(`[TypeQL Handler] Cleanup complete for Client ID: ${clientId}`);
+        console.log(`[zenQuery Handler] Cleanup complete for Client ID: ${clientId}`);
     };
 
     // Register cleanup with transport if possible - Ensure this happens *after* handler creation
@@ -545,11 +545,11 @@ export function createRequestHandler<TContext extends ProcedureContext>(
     // For now, assume transport.onDisconnect is available and called correctly during handler setup.
     // The test failure might be due to mock reset timing.
     if (transport.onDisconnect) {
-        console.log(`[TypeQL Handler ${clientId}] Registering cleanup function with transport.onDisconnect`);
+        console.log(`[zenQuery Handler ${clientId}] Registering cleanup function with transport.onDisconnect`);
         const unregister = transport.onDisconnect(cleanup);
         // Store unregister function if needed, though cleanup should handle unregistering from manager
     } else {
-        console.warn(`[TypeQL Handler ${clientId}] Transport does not support onDisconnect. Cleanup must be triggered manually.`);
+        console.warn(`[zenQuery Handler ${clientId}] Transport does not support onDisconnect. Cleanup must be triggered manually.`);
     }
 
 

@@ -1,5 +1,5 @@
 {
-  "name": "@sylphlab/typeql-server",
+  "name": "@sylphlab/zen-query-server",
   "version": "0.0.4",
   "description": "Server library for TypeQL - TypeScript-first realtime API framework.",
   "type": "module",
@@ -48,7 +48,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@sylphlab/typeql-shared": "workspace:*",
+    "@sylphlab/zen-query-shared": "workspace:*",
     "zod": "^3.24.2"
   }
 }

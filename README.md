@@ -1,16 +1,16 @@
-# ✨ TypeQL (@sylphlab/typeql) ✨
+# ✨ zenQuery (@sylphlab/typeql) ✨
 
 **Tired of REST/GraphQL boilerplate? Crave effortless, end-to-end typesafe APIs in TypeScript?**
 
-**TypeQL is your revolution.**
+**zenQuery is your revolution.**
 
-Inspired by tRPC, TypeQL leverages the full power of TypeScript inference to create **zero-config, zero-codegen, truly typesafe APIs**. Define your backend logic once, and get fully typed client-side procedures instantly.
+Inspired by tRPC, zenQuery leverages the full power of TypeScript inference to create **zero-config, zero-codegen, truly typesafe APIs**. Define your backend logic once, and get fully typed client-side procedures instantly.
 
-**But TypeQL goes further.** It's built from the ground up for **realtime, incremental data synchronization** via **Delta Subscriptions**.
+**But zenQuery goes further.** It's built from the ground up for **realtime, incremental data synchronization** via **Delta Subscriptions**.
 
 ---
 
-## 🔥 Why TypeQL? 🔥
+## 🔥 Why zenQuery? 🔥
 
 *   **🤯 End-to-End Typesafety:** Catch errors at compile time, not runtime. TypeScript *is* your schema.
 *   **⚡️ Zero Codegen, Zero Boilerplate:** Define your API with plain TypeScript functions. No separate schema language, no build steps.
@@ -171,14 +171,14 @@ main();
 
 This project is a monorepo managed using `pnpm` workspaces and `Turborepo`.
 
-*   `packages/`: Contains the core TypeQL libraries.
+*   `packages/`: Contains the core zenQuery libraries.
     *   `client/`: Core client logic (`createClient`).
     *   `server/`: Core server logic (`createRouter`, procedure types).
     *   `shared/`: Types and utilities shared between client and server.
     *   `react/`: React hooks (`useQuery`, `useMutation`, `useSubscription`).
     *   `preact/`: Preact hooks.
     *   `transport-*/`: Adapters for different communication protocols (WebSocket, HTTP, VSCode).
-*   `examples/`: Example applications demonstrating TypeQL usage.
+*   `examples/`: Example applications demonstrating zenQuery usage.
     *   `web-app/`: A simple web application example.
     *   `vscode-extension/`: A VSCode extension example.
 

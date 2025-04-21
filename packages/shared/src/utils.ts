@@ -64,7 +64,7 @@ export function setIn(obj: any, path: (string | number)[] | undefined | null, va
       const key = path[i];
       // Ensure key is a valid index type before using it
       if (key === undefined || key === null) {
-        console.error("ReqDelta: Invalid path segment in setIn:", key, "at index", i);
+        console.error("zenQuery: Invalid path segment in setIn:", key, "at index", i);
         return obj; // Return original object on invalid path
       }
       const nextKey = path[i + 1];
@@ -93,7 +93,7 @@ export function setIn(obj: any, path: (string | number)[] | undefined | null, va
   const lastKey = path[path.length - 1];
    // Ensure lastKey is a valid index type
   if (lastKey === undefined || lastKey === null) {
-      console.error("ReqDelta: Invalid final path segment in setIn:", lastKey);
+      console.error("zenQuery: Invalid final path segment in setIn:", lastKey);
       return obj; // Return original object on invalid path
   }
   // Allow value to be a function to update based on existing value
@@ -128,7 +128,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
               // Get the current collection (or an empty array if path leads nowhere)
               const currentCollection = getIn(state, path) ?? [];
               if (!Array.isArray(currentCollection)) {
-                  console.error(`ReqDelta: Cannot apply 'add' delta. Path [${path.join(', ')}] does not point to an array.`);
+                  console.error(`zenQuery: Cannot apply 'add' delta. Path [${path.join(', ')}] does not point to an array.`);
                   return state;
               }
               // Add the new item
@@ -140,7 +140,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
               const path = delta.path ?? []; // Get path here
               const currentCollection = getIn(state, path) ?? [];
               if (!Array.isArray(currentCollection)) {
-                  console.error(`ReqDelta: Cannot apply 'update' delta. Path [${path.join(', ')}] does not point to an array.`);
+                  console.error(`zenQuery: Cannot apply 'update' delta. Path [${path.join(', ')}] does not point to an array.`);
                   return state;
               }
               let found = false;
@@ -153,7 +153,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
                   return item;
               });
               if (!found) {
-                  console.warn(`ReqDelta: 'update' delta ignored. Item with ID "${delta.id}" not found at path [${path.join(', ')}].`);
+                  console.warn(`zenQuery: 'update' delta ignored. Item with ID "${delta.id}" not found at path [${path.join(', ')}].`);
                   return state; // Or return original collection? Decide consistency. Return state for safety.
               }
               return setIn(state, path, newCollection);
@@ -163,14 +163,14 @@ export function applyStandardDelta<State, Item extends { id: string }>(
               const path = delta.path ?? []; // Get path here
               const currentCollection = getIn(state, path) ?? [];
               if (!Array.isArray(currentCollection)) {
-                  console.error(`ReqDelta: Cannot apply 'remove' delta. Path [${path.join(', ')}] does not point to an array.`);
+                  console.error(`zenQuery: Cannot apply 'remove' delta. Path [${path.join(', ')}] does not point to an array.`);
                   return state;
               }
               const newCollection = currentCollection.filter(item =>
                   !(item && typeof item === 'object' && 'id' in item && item.id === delta.id)
               );
               if (newCollection.length === currentCollection.length) {
-                   console.warn(`ReqDelta: 'remove' delta ignored. Item with ID "${delta.id}" not found at path [${path.join(', ')}].`);
+                   console.warn(`zenQuery: 'remove' delta ignored. Item with ID "${delta.id}" not found at path [${path.join(', ')}].`);
                    // No change, return original state
                    return state;
               }
@@ -192,7 +192,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
                   const result = applyJsonPatch(state, patch, true, false); // validate = true, mutateDocument = false
                   return result.newDocument as State;
               } catch (patchError) {
-                  console.error(`ReqDelta: Error applying 'move' delta (converted to JSON Patch):`, delta, patchError);
+                  console.error(`zenQuery: Error applying 'move' delta (converted to JSON Patch):`, delta, patchError);
                   return state; // Return original state on error
               }
           }
@@ -203,7 +203,7 @@ export function applyStandardDelta<State, Item extends { id: string }>(
                   const result = applyJsonPatch(state, delta.patch as JsonPatchOperation[], true, false); // validate = true, mutateDocument = false
                   return result.newDocument as State;
               } catch (patchError) {
-                  console.error(`ReqDelta: Error applying 'patch' delta:`, delta, patchError);
+                  console.error(`zenQuery: Error applying 'patch' delta:`, delta, patchError);
                   return state; // Return original state on error
               }
           }
@@ -211,11 +211,11 @@ export function applyStandardDelta<State, Item extends { id: string }>(
           default:
               // This case should ideally be prevented by TypeScript's discriminated union checks
               // If it happens, it's an unknown delta type
-              console.warn('ReqDelta: Unsupported standard delta type:', (delta as any).type);
+              console.warn('zenQuery: Unsupported standard delta type:', (delta as any).type);
               return state;
       }
   } catch (error) {
-       console.error(`ReqDelta: Error applying delta:`, delta, error);
+       console.error(`zenQuery: Error applying delta:`, delta, error);
        return state; // Return original state on error to prevent corruption
   }
 }
@@ -282,7 +282,7 @@ export function standardOperationToDelta<Item extends { id: string }, State = an
                     // Note: StandardDelta doesn't have a 'path' property for move, it uses fromPath/toPath
                 };
             default:
-                console.warn('ReqDelta: Unsupported standard operation type for delta conversion:', (operation as any).type);
+                console.warn('zenQuery: Unsupported standard operation type for delta conversion:', (operation as any).type);
                 return null;
     }
 }
@@ -324,7 +324,7 @@ export function standardMatchesPendingOperation<Item extends { id: string }, Sta
         // Fallback (less reliable): Check if content seems similar, e.g., text content
         // This requires knowledge of the Item structure and might be too fragile.
         // Example: return delta.item.text === (operation.item as any).text;
-        console.warn("ReqDelta: Matching 'add' operation without tempId correlation is unreliable.");
+        console.warn("zenQuery: Matching 'add' operation without tempId correlation is unreliable.");
         return false; // Default to false if tempId isn't used for correlation
     }
     if (operation.type === 'update' && delta.type === 'update') {
@@ -361,7 +361,7 @@ export const defaultCloneState = <State>(state: State | undefined): State | unde
         try {
             return structuredClone(state);
         } catch (e) {
-             console.error("[ReqDelta] structuredClone failed:", e, "Falling back to JSON clone.");
+             console.error("[zenQuery] structuredClone failed:", e, "Falling back to JSON clone.");
              // Fallback if structuredClone fails for some reason (e.g., contains functions)
         }
     }
@@ -369,7 +369,7 @@ export const defaultCloneState = <State>(state: State | undefined): State | unde
     try {
         return JSON.parse(JSON.stringify(state));
     } catch(e) {
-        console.error("[ReqDelta] JSON clone failed:", e, "Returning original state (mutation risk!). Provide a custom 'cloneState' function.");
+        console.error("[zenQuery] JSON clone failed:", e, "Returning original state (mutation risk!). Provide a custom 'cloneState' function.");
         // If even JSON fails, return original as last resort, but warn heavily.
         return state;
     }

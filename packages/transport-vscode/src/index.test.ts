@@ -9,7 +9,7 @@ import type {
     SubscriptionErrorMessage,
     AckMessage, // Added import
     RequestMissingMessage, // Added import
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 
 // --- Mocks ---
 
@@ -62,7 +62,7 @@ const mockOnConnectionChange = vi.fn();
 const mockOnDisconnect = vi.fn();
 const mockIsConnected = vi.fn(() => true); // Default to connected
 
-describe('@sylphlab/typeql-transport-vscode', () => {
+describe('@sylphlab/zen-query-transport-vscode', () => {
     let transport: VSCodeTransport;
     let connectionManagerInstance: InstanceType<typeof MockConnectionManager>;
 

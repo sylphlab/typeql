@@ -4,7 +4,7 @@ import type {
     SubscriptionDataMessage,
     SubscriptionEndMessage,
     SubscriptionErrorMessage,
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 import type { PendingRequest, ActiveSubscription } from './types';
 import { cleanupSubscriptionHelper } from './helpers'; // Import helper
 
@@ -41,7 +41,7 @@ export function createMessageHandler(
     const transportContext = { activeSubscriptions }; // Context for cleanup helper
 
     const handleIncomingMessage = (event: MessageEvent): void => {
-        const message = event.data as any; // Assume data is a valid TypeQL message
+        const message = event.data as any; // Assume data is a valid zenQuery message
 
         if (!message || typeof message.id === 'undefined') {
             return;

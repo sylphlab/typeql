@@ -577,7 +577,7 @@ To fully understand the potential for FP style, we need to see how procedures th
 Roo wants to read this file:
 👨‍🔬 Analysta
 *Thinking: I have reviewed packages/server/src/procedure.ts.
-Builder Pattern: Procedures are defined using a fluent builder pattern initiated by initTypeQL<TContext>(). This returns an object with getters (query, mutation, subscription) that create instances of ProcedureBuilder.
+Builder Pattern: Procedures are defined using a fluent builder pattern initiated by initzenQuery<TContext>(). This returns an object with getters (query, mutation, subscription) that create instances of ProcedureBuilder.
 Chaining: The builder (ProcedureBuilder) has methods like .input(), .output(), .resolve(), .subscribe() that return new instances of the builder with updated type information and definition state. This chaining is immutable at the builder level.
 Resolver Functions: The actual API logic resides within the functions passed to .resolve() (for queries/mutations) or .subscribe() (for subscriptions). These functions receive ctx (context) and input (validated input) and are expected to return the result (or setup/teardown logic for subscriptions).
 
@@ -596,7 +596,7 @@ Conclusion: The current "register, then chain" pattern is a combination of decla
 
 Analysis of procedure.ts complete.
 
-How it works: Procedures (query, mutation, subscription) are defined using a builder pattern (initTypeQL().query.input(...).resolve(...)). This builder is immutable during chaining. The actual logic lives inside the .resolve() or .subscribe() functions.
+How it works: Procedures (query, mutation, subscription) are defined using a builder pattern (initzenQuery().query.input(...).resolve(...)). This builder is immutable during chaining. The actual logic lives inside the .resolve() or .subscribe() functions.
 FP Perspective: The builder itself is fine. The main area where FP principles might be lacking is within the resolver functions. These functions currently can (and likely do) contain imperative logic and direct side effects (database access, logging, etc.).
 Your Observation: The "register, then chain" pattern accurately describes how procedures built this way are added to the router (router.ts) and how the client proxy (client.ts) allows calling them.
 Making it "More FP":
@@ -732,7 +732,7 @@ Thinking: The user wants to focus on the current server usage pattern and potent
 
 目前 Server Usage 嘅情況 (基於 router.ts 同 procedure.ts):
 
-初始化: 用 initTypeQL<Context>() 創建一個 builder instance (通常叫 t)。
+初始化: 用 initzenQuery<Context>() 創建一個 builder instance (通常叫 t)。
 定義 Procedure:
 用 t.query, t.mutation, 或 t.subscription 開始定義。
 鏈式調用 (chaining) .input(zodSchema) 去定義同驗證輸入。
@@ -1032,7 +1032,7 @@ Okay, 再次收到你嘅澄清。你主要係擔心鏈式調用 (chaining) 呢�
 1. Server 端 Builder Chaining (e.g., t.query.input(...).resolve(...))
 
 點樣運作:
-initTypeQL() 創建一個起始點 (t)。
+initzenQuery() 創建一個起始點 (t)。
 t.query (或者 .mutation, .subscription) 開始一個 procedure 定義，返回一個 ProcedureBuilder object。
 之後每次調用 .input(), .output() 等方法，都會根據你傳入嘅 schema 返回一個新嘅、帶有更新咗類型信息嘅 ProcedureBuilder object。呢個過程係 immutable 嘅。
 最後調用 .resolve() 或 .subscribe()，傳入你嘅核心邏輯 function，完成定義，並返回最終嘅 procedure definition object。
@@ -1152,7 +1152,7 @@ createClient<AppRouter>(...) 用呢個 AppRouter type 去創建一個類型安�
 因為 Client 知道咗 Server API 嘅準確形狀同類型，所以當你打 client.user.get.query(...) 嘅時候：
 VS Code (或者其他編輯器) 可以俾你自動補全 (autocompletion)。
 TypeScript 可以喺編譯階段 (compile time) 就檢查到你係咪打錯 procedure 名 (client.users vs client.user)，或者傳入嘅 input type啱唔啱 (query({ id: 123 }) vs query({ id: '123' }))，或者你用嘅 return value type 啱唔啱。
-呢個就係 TypeQL (或者類似 tRPC 嘅庫) 嘅核心優勢：端到端類型安全，大大減少咗好多 runtime 先會發現嘅錯誤。
+呢個就係 zenQuery (或者類似 tRPC 嘅庫) 嘅核心優勢：端到端類型安全，大大減少咗好多 runtime 先會發現嘅錯誤。
 如果唔 import type 會點？
 
 createClient 就唔知道 Server API 嘅樣貌，佢返回嘅 client object 可能周圍都係 any type。
@@ -1314,7 +1314,7 @@ async function main() {
 結構: Function-based 方式冇直接反映 Server API 嘅層級結構。Chaining 方式 Client 調用結構同 Server 定義結構一致。
 Boilerplate: Function-based 方式喺每個 Server function 內部需要手動 validation，Client 端調用需要手動指定類型。Builder pattern 將部分 boilerplate 封裝咗。
 靈活性 vs. 約束性: Function-based 睇起嚟更 "自由"，但代價係失去咗 Chaining 帶嚟嘅類型約束同結構化引導。
-總括嚟講，完全用普通 function 嘅方式雖然可行，但會犧牲咗 TypeQL / tRPC 呢類框架最核心嘅價值 —— 端到端類型安全同埋良好嘅開發體驗。目前嘅 Chaining pattern (無論係 Server Builder 定 Client Proxy) 正正係為咗解決呢啲問題而設計嘅。
+總括嚟講，完全用普通 function 嘅方式雖然可行，但會犧牲咗 zenQuery / tRPC 呢類框架最核心嘅價值 —— 端到端類型安全同埋良好嘅開發體驗。目前嘅 Chaining pattern (無論係 Server Builder 定 Client Proxy) 正正係為咗解決呢啲問題而設計嘅。
 
 Roo has a question:
 睇完呢個純 Function 嘅例子同埋佢同 Chaining 嘅比較之後，你點睇？你仲係傾向於 Function 方式，定係覺得 Chaining 嘅類型安全優勢更重要？
@@ -1421,7 +1421,7 @@ Thinking: The user is asking for a broader overview of different ways to define 
 
 Builder Pattern (鏈式調用 / Fluent API):
 
-例子: 就係我哋目前 TypeQL 嘅 t.query.input(...).resolve(...) 或者 tRPC 嘅方式。
+例子: 就係我哋目前 zenQuery 嘅 t.query.input(...).resolve(...) 或者 tRPC 嘅方式。
 點做: 通過一步步鏈式調用方法嚟構建 procedure 嘅定義，每一步都會返回一個更新咗類型嘅 builder object。
 優點: 類型安全逐步建立，引導性強。
 缺點: 可能比較冗長。
@@ -1437,7 +1437,7 @@ Decorator Pattern (裝飾器):
 點做: 用 Decorator (例如 @Query(), @Mutation(), @Input(), @Arg()) 附加喺 Class 或者 Method 上面，去聲明 API 端點、參數、類型等。
 優點: 非常聲明式，同 Object-Oriented Programming (OOP) 或者 Dependency Injection (DI) 結合得好好。
 缺點: 依賴 TypeScript 嘅 Decorator 語法 (可能仲係 experimental)，依賴 metadata reflection，有時可能會隱藏咗背後嘅複雜性。
-// Decorator 概念例子 (唔係 TypeQL 嘅語法)
+// Decorator 概念例子 (唔係 zenQuery 嘅語法)
 @Resolver()
 class UserResolver {
   @Query(() => User) // 聲明返回類型
@@ -1483,15 +1483,15 @@ Plain Functions + Manual Registry (普通函數 + 手動註冊):
 缺點: 類型安全極差，大量 boilerplate code (手動 validation)，容易出錯。
 總結:
 
-目前 TypeQL 嘅方式屬於 Builder Pattern，你提出嘅係 Configuration Object Pattern。兩者都係為咗喺 TypeScript 環境下提供較好嘅類型安全同開發體驗。Decorator Pattern 同 Schema-First 係另外兩種常見嘅主流方式，各有優劣。Plain Functions 方式通常喺需要極高靈活性或者非常簡單嘅場景先會考慮。
+目前 zenQuery 嘅方式屬於 Builder Pattern，你提出嘅係 Configuration Object Pattern。兩者都係為咗喺 TypeScript 環境下提供較好嘅類型安全同開發體驗。Decorator Pattern 同 Schema-First 係另外兩種常見嘅主流方式，各有優劣。Plain Functions 方式通常喺需要極高靈活性或者非常簡單嘅場景先會考慮。
 
-了解咗呢幾種常見嘅 API 定義方式之後，你對目前 TypeQL 嘅 Builder Pattern 有冇新嘅睇法？或者你覺得邊種方式可能更適合你嘅期望？
-
-
-我覺得目前 TypeQL 嘅 Builder Pattern 係一個唔錯嘅平衡。
+了解咗呢幾種常見嘅 API 定義方式之後，你對目前 zenQuery 嘅 Builder Pattern 有冇新嘅睇法？或者你覺得邊種方式可能更適合你嘅期望？
 
 
-我對 Configuration Object Pattern 比較有興趣，想睇下 TypeQL 能唔能夠支持。
+我覺得目前 zenQuery 嘅 Builder Pattern 係一個唔錯嘅平衡。
+
+
+我對 Configuration Object Pattern 比較有興趣，想睇下 zenQuery 能唔能夠支持。
 
 
 我對 Decorator Pattern 比較有興趣。
@@ -1623,7 +1623,7 @@ Subscription 用 Discriminated Union 處理多種消息類型嘅方式睇起嚟�
 Thinking: The user wants a detailed comparison and recommendation between the Builder Pattern and the Configuration Object Pattern for defining server procedures. We need to analyze the pros and cons of each regarding type safety, developer experience (DX), readability, maintainability, flexibility, and implementation complexity, then provide a reasoned recommendation.
 好問題！我哋詳細比較下 Builder Pattern (鏈式調用) 同 Configuration Object Pattern (配置對象) 呢兩種定義 Server Procedure 嘅方式：
 
-1. Builder Pattern (目前 TypeQL 嘅方式)
+1. Builder Pattern (目前 zenQuery 嘅方式)
 
 寫法: t.query.input(InputSchema).output(OutputSchema).resolve(resolverFn)
 運作: 通過一步步調用方法 (.input, .output, .resolve) 嚟構建定義，每一步返回一個帶有更新類型嘅新 Builder object。
@@ -1657,7 +1657,7 @@ Thinking: The user wants a detailed comparison and recommendation between the Bu
 
 結論 & 推薦:
 
-如果喺呢兩個 pattern 之間揀一個，對於 TypeQL 呢類追求端到端類型安全同良好開發體驗嘅框架嚟講，我會推薦繼續使用目前嘅 Builder Pattern (鏈式調用)。
+如果喺呢兩個 pattern 之間揀一個，對於 zenQuery 呢類追求端到端類型安全同良好開發體驗嘅框架嚟講，我會推薦繼續使用目前嘅 Builder Pattern (鏈式調用)。
 
 主要原因: 佢喺確保類型安全方面嘅實現更簡單、更可靠。雖然 Config Object pattern 睇起嚟可能簡潔啲，但要喺框架層面完美實現佢嘅類型推斷係一個非常大嘅挑戰，容易出錯。Builder pattern 將類型檢查分散到每一步，令到 TypeScript Compiler 可以更好咁幫手，最終俾用家嘅保障更強。
 
@@ -1670,7 +1670,7 @@ Roo has a question:
 同意，Builder Pattern 嘅類型安全實現優勢更重要，我哋繼續用 Builder。
 
 
-我仲係覺得 Config Object 比較好，想探討下點樣可以喺 TypeQL 實現 Config Object 模式。
+我仲係覺得 Config Object 比較好，想探討下點樣可以喺 zenQuery 實現 Config Object 模式。
 
 
 兩種模式都唔係我想要嘅，我想再睇下其他可能性 (例如 Decorator)。
@@ -1770,49 +1770,49 @@ Roo has a question:
 其實我地依家好似graphql. proto 果個套件
 
 👨‍🏫 Elucidator
-Thinking: The user observes that the current TypeQL setup resembles GraphQL or Protobuf ("proto 果個套件" likely refers to Protocol Buffers). This is an insightful comparison regarding the schema-driven nature and potential for type safety. I need to acknowledge the similarities, explain the key differences in approach (especially regarding schema definition and type sharing), and then gently steer back to the original FP discussion.
-你觀察得好好，目前 TypeQL 嘅設計，尤其係強調類型安全同埋 Client/Server 之間嘅 contract (契約)，的確同 GraphQL 或者 Protobuf (gRPC 常用嘅格式) 有啲相似嘅地方，但實現方式有好大分別。
+Thinking: The user observes that the current zenQuery setup resembles GraphQL or Protobuf ("proto 果個套件" likely refers to Protocol Buffers). This is an insightful comparison regarding the schema-driven nature and potential for type safety. I need to acknowledge the similarities, explain the key differences in approach (especially regarding schema definition and type sharing), and then gently steer back to the original FP discussion.
+你觀察得好好，目前 zenQuery 嘅設計，尤其係強調類型安全同埋 Client/Server 之間嘅 contract (契約)，的確同 GraphQL 或者 Protobuf (gRPC 常用嘅格式) 有啲相似嘅地方，但實現方式有好大分別。
 
 相似之處:
 
 Schema-Driven (模式驅動): 大家都係基於一個預先定義好嘅 API 結構或者 schema。
 GraphQL: 用獨立嘅 Schema Definition Language (SDL)。
 Protobuf: 用 .proto 文件定義 messages 同 services。
-TypeQL: 隱式 (implicitly) 用 TypeScript 嘅 Router 類型定義 (typeof appRouter) 作為 schema。
+zenQuery: 隱式 (implicitly) 用 TypeScript 嘅 Router 類型定義 (typeof appRouter) 作為 schema。
 Type Safety (類型安全): 大家都追求 Client 同 Server 之間嘅類型安全，減少因為類型唔匹配而導致嘅 runtime error。
 主要分別:
 
 Schema 定義方式:
 
 GraphQL/Protobuf: 需要額外維護一個獨立於程式碼嘅 schema 文件 (SDL 或 .proto)。呢個 schema 係 "Source of Truth"。
-TypeQL: 直接用 TypeScript 程式碼 (Router 定義) 作為 "Source of Truth"。你定義 router 嘅 TypeScript code 就係 schema。
+zenQuery: 直接用 TypeScript 程式碼 (Router 定義) 作為 "Source of Truth"。你定義 router 嘅 TypeScript code 就係 schema。
 類型共享 / Code Generation:
 
 GraphQL/Protobuf: 通常需要代碼生成 (Code Generation) 工具。例如，用 GraphQL Code Generator 根據 SDL 生成 Client 端需要嘅 TypeScript types；用 protoc 根據 .proto 文件生成唔同語言嘅 Client/Server stubs。
-TypeQL: 唔需要額外嘅代碼生成步驟 (如果 Client/Server 都係 TypeScript)。通過 TypeScript 嘅 import type，Client 可以直接引入 Server Router 嘅類型定義，實現端到端類型安全。呢個係佢嘅核心優勢之一，簡化咗 workflow。
+zenQuery: 唔需要額外嘅代碼生成步驟 (如果 Client/Server 都係 TypeScript)。通過 TypeScript 嘅 import type，Client 可以直接引入 Server Router 嘅類型定義，實現端到端類型安全。呢個係佢嘅核心優勢之一，簡化咗 workflow。
 查詢方式 (Querying):
 
 GraphQL: Client 可以精確指定需要返回邊啲 fields，避免 over-fetching。
-TypeQL/Protobuf (gRPC): 通常係 RPC (Remote Procedure Call) 模式，Client 調用一個 procedure，Server 返回一個預先定義好結構嘅完整 response object。
+zenQuery/Protobuf (gRPC): 通常係 RPC (Remote Procedure Call) 模式，Client 調用一個 procedure，Server 返回一個預先定義好結構嘅完整 response object。
 協議 (Protocol) / 序列化 (Serialization):
 
 GraphQL: 通常用 JSON over HTTP。
 Protobuf (gRPC): 通常用 Protobuf binary format over HTTP/2，性能較好。
-TypeQL: 協議同序列化方式取決於你用嘅 transport (可以係 JSON over HTTP, JSON over WebSockets, VSCode message passing 等)。
-總結 TypeQL 嘅特點:
+zenQuery: 協議同序列化方式取決於你用嘅 transport (可以係 JSON over HTTP, JSON over WebSockets, VSCode message passing 等)。
+總結 zenQuery 嘅特點:
 
-TypeQL 嘅方法可以話係利用 TypeScript 自身嘅強大類型系統嚟充當 API Schema，避免咗額外嘅 schema 文件同 code generation 步驟 (喺 TS 生態內)，直接通過 import type 實現類型共享同端到端安全。
+zenQuery 嘅方法可以話係利用 TypeScript 自身嘅強大類型系統嚟充當 API Schema，避免咗額外嘅 schema 文件同 code generation 步驟 (喺 TS 生態內)，直接通過 import type 實現類型共享同端到端安全。
 
 返到 FP 嘅討論:
 
-雖然 TypeQL 喺 schema 定義同類型共享方面同 GraphQL/Protobuf 有異同，但呢啲主要係關於 API 契約 (contract) 嘅定義方式。你最初提出想令 usage 更 FP 嘅問題，仍然主要關乎：
+雖然 zenQuery 喺 schema 定義同類型共享方面同 GraphQL/Protobuf 有異同，但呢啲主要係關於 API 契約 (contract) 嘅定義方式。你最初提出想令 usage 更 FP 嘅問題，仍然主要關乎：
 
 Server 端: Resolver function 內部嘅實現邏輯 (點樣處理 side effects、錯誤、異步操作)。
 Client 端: 調用 API 嘅方式 (除咗 Chaining 之外有冇更 functional 嘅組合方式)。
 無論 Server API 係用 Builder Pattern、Config Object、Decorator 定係 Schema-First (GraphQL/Protobuf) 方式定義，你都可以喺 Resolver function 內部選擇用命令式或者函數式 (FP) 嘅風格去編寫核心邏輯。
 
 Roo has a question:
-了解咗 TypeQL 同 GraphQL/Protobuf 喺 schema 同類型共享方面嘅異同之後，你係咪想繼續探討點樣喺 TypeQL 目前嘅架構下，令 Server Resolver function 嘅內部實現或者 Client 調用方式更符合 FP 風格？
+了解咗 zenQuery 同 GraphQL/Protobuf 喺 schema 同類型共享方面嘅異同之後，你係咪想繼續探討點樣喺 zenQuery 目前嘅架構下，令 Server Resolver function 嘅內部實現或者 Client 調用方式更符合 FP 風格？
 
 
 係，我想繼續討論點樣改進 Resolver function 內部嘅 FP 寫法。
@@ -1821,18 +1821,18 @@ Roo has a question:
 係，我想繼續討論 Client 端有冇更 Functional 嘅調用方式。
 
 
-我想了解如果 TypeQL 改用 Schema-First (類似 GraphQL/Protobuf) 會點樣。
+我想了解如果 zenQuery 改用 Schema-First (類似 GraphQL/Protobuf) 會點樣。
 
 
-我對目前 TypeQL 嘅整體設計有更清晰嘅了解，暫時唔需要深入 FP 嘅改動。
+我對目前 zenQuery 嘅整體設計有更清晰嘅了解，暫時唔需要深入 FP 嘅改動。
 
 我係講緊 pothos
 
 👨‍🏫 Elucidator
-Thinking: The user specifies Pothos as the comparison point. Pothos is a code-first GraphQL schema builder, making it a much closer analogue to TypeQL's code-first RPC approach than schema-first GraphQL or Protobuf. I need to compare TypeQL's builder to Pothos's builder.
-啊，原來你係指緊 Pothos！Pothos 係一個用 TypeScript Code-First 嘅方式去構建 GraphQL Schema 嘅 library。呢個同 TypeQL 嘅方式更加接近，因為大家都係用 TypeScript code 去定義 API 結構，而唔係用獨立嘅 schema 文件。
+Thinking: The user specifies Pothos as the comparison point. Pothos is a code-first GraphQL schema builder, making it a much closer analogue to zenQuery's code-first RPC approach than schema-first GraphQL or Protobuf. I need to compare zenQuery's builder to Pothos's builder.
+啊，原來你係指緊 Pothos！Pothos 係一個用 TypeScript Code-First 嘅方式去構建 GraphQL Schema 嘅 library。呢個同 zenQuery 嘅方式更加接近，因為大家都係用 TypeScript code 去定義 API 結構，而唔係用獨立嘅 schema 文件。
 
-等我哋比較下 TypeQL 嘅 Builder Pattern 同 Pothos 嘅方式：
+等我哋比較下 zenQuery 嘅 Builder Pattern 同 Pothos 嘅方式：
 
 相似之處:
 
@@ -1844,19 +1844,19 @@ Builder Pattern: Pothos 都係用一種 Builder Pattern 嚟定義 Types, Queries
 目標 Schema 類型:
 
 Pothos: 目標係構建一個符合 GraphQL 規範嘅 Schema。佢定義嘅係 GraphQL Types (Object, Scalar, Enum), Fields, Queries, Mutations, Subscriptions。
-TypeQL: 目標係定義一組 RPC-style (Remote Procedure Call) 嘅 Procedures (Query, Mutation, Subscription)，結構可以係任意嵌套嘅 object。
+zenQuery: 目標係定義一組 RPC-style (Remote Procedure Call) 嘅 Procedures (Query, Mutation, Subscription)，結構可以係任意嵌套嘅 object。
 Builder 語法風格:
 
 Pothos: 語法通常係圍繞住 builder object，例如 builder.queryType({...}), builder.objectRef('User').implement({...}), t.field({...})。佢需要明確定義 GraphQL 嘅 Type 同 Field。
-TypeQL: 語法係 t.query.input(...).resolve(...) 呢種鏈式調用，更側重於定義單個 procedure 嘅輸入、輸出同處理邏輯。
+zenQuery: 語法係 t.query.input(...).resolve(...) 呢種鏈式調用，更側重於定義單個 procedure 嘅輸入、輸出同處理邏輯。
 Client 查詢方式:
 
 Pothos (GraphQL): Client 可以用 GraphQL query language 精確選擇需要嘅 fields。
-TypeQL (RPC): Client 調用特定 procedure，獲取該 procedure 預先定義好嘅完整返回結構。
+zenQuery (RPC): Client 調用特定 procedure，獲取該 procedure 預先定義好嘅完整返回結構。
 類型共享:
 
 Pothos: 雖然係 Code-First，但因為最終生成嘅係標準 GraphQL Schema，Client 端通常仍然會用 GraphQL Code Generator 根據生成嘅 schema 去創建類型定義，以獲得最佳嘅 Client 體驗 (尤其係對於非 TypeScript Client)。
-TypeQL: 主要通過 import type 直接共享 TypeScript 類型定義，喺 TS 生態內更直接。
+zenQuery: 主要通過 import type 直接共享 TypeScript 類型定義，喺 TS 生態內更直接。
 例子比較 (概念上):
 
 // --- Pothos 方式 (概念) ---
@@ -1877,7 +1877,7 @@ builder.queryField('user', (t) => // 定義一個 Query field 叫 'user'
   })
 );
 
-// --- TypeQL 方式 (回顧) ---
+// --- zenQuery 方式 (回顧) ---
 import { t } from './init';
 import { z } from 'zod';
 
@@ -1888,28 +1888,28 @@ const getUserProcedure = t.query
   .output(UserOutputSchema)
   .resolve(async ({ input, ctx }) => {
     // input.id 係 string
-    console.log(`TypeQL: Fetching user ${input.id}`);
+    console.log(`zenQuery: Fetching user ${input.id}`);
     // ... 核心邏輯 ...
-    return { id: input.id, name: 'From TypeQL' }; // 返回值需要符合 UserOutputSchema
+    return { id: input.id, name: 'From zenQuery' }; // 返回值需要符合 UserOutputSchema
   });
 返到 Chaining 問題:
 
 Pothos 嘅 t.field({...}) 雖然唔係長鏈式，但佢都係一種 Builder Pattern，只係將配置放喺傳俾 t.field 嘅 object 裡面，有啲似我哋之前討論嘅 Configuration Object Pattern，不過佢係喺 Pothos 嘅 Builder context 下使用。
 
-所以，無論係 TypeQL 嘅鏈式 Builder，定係 Pothos 嘅 Builder + Config Object 方式，佢哋都係用 code 去定義 API 結構。你對 Chaining 嘅擔憂，可能係針對 TypeQL 嗰種特定嘅 .input().output().resolve() 鏈式寫法？
+所以，無論係 zenQuery 嘅鏈式 Builder，定係 Pothos 嘅 Builder + Config Object 方式，佢哋都係用 code 去定義 API 結構。你對 Chaining 嘅擔憂，可能係針對 zenQuery 嗰種特定嘅 .input().output().resolve() 鏈式寫法？
 
 FP 角度:
 
-同樣地，無論用 Pothos 定 TypeQL，令 API 更 FP 嘅關鍵仍然係喺 resolve function (或者 Pothos 嘅 field resolver) 內部點樣處理 side effects 同埋組織邏輯。Pothos 本身亦唔會強制你喺 resolver 裡面用 FP 風格。
+同樣地，無論用 Pothos 定 zenQuery，令 API 更 FP 嘅關鍵仍然係喺 resolve function (或者 Pothos 嘅 field resolver) 內部點樣處理 side effects 同埋組織邏輯。Pothos 本身亦唔會強制你喺 resolver 裡面用 FP 風格。
 
 Roo has a question:
-了解咗 Pothos 同 TypeQL 嘅異同之後，你係咪覺得 Pothos 嗰種 Builder + Config Object 嘅寫法比 TypeQL 嘅純鏈式寫法更好？定係你嘅關注點始終係 Resolver 內部嘅實現方式？
+了解咗 Pothos 同 zenQuery 嘅異同之後，你係咪覺得 Pothos 嗰種 Builder + Config Object 嘅寫法比 zenQuery 嘅純鏈式寫法更好？定係你嘅關注點始終係 Resolver 內部嘅實現方式？
 
 
 我覺得 Pothos 嗰種寫法 (Builder + Config Object) 比較好。
 
 
-我覺得 TypeQL 嘅鏈式寫法冇問題。
+我覺得 zenQuery 嘅鏈式寫法冇問題。
 
 
 我嘅關注點始終係 Resolver 內部嘅實現方式，想討論點樣令佢更 FP。
@@ -1921,7 +1921,7 @@ Roo has a question:
 但成日都有typing問題
 
 👨‍🏫 Elucidator
-Thinking: The user reveals their background as a heavy Pothos user and mentions experiencing typing issues with its configuration object approach. This context is crucial. It explains their potential skepticism towards chaining and configuration objects if they perceive typing issues as inherent to complex type inference in these patterns. I need to acknowledge their experience, relate it back to the comparison (highlighting why TypeQL's builder might be less prone to those issues), and guide the discussion forward.
+Thinking: The user reveals their background as a heavy Pothos user and mentions experiencing typing issues with its configuration object approach. This context is crucial. It explains their potential skepticism towards chaining and configuration objects if they perceive typing issues as inherent to complex type inference in these patterns. I need to acknowledge their experience, relate it back to the comparison (highlighting why zenQuery's builder might be less prone to those issues), and guide the discussion forward.
 啊！原來你係 Pothos 嘅重度使用者，仲遇到過 typing 問題。呢個背景非常重要，多謝你分享！咁就完全明白你點解會對呢啲定義模式（無論係 Chaining 定 Config Object）嘅類型推斷咁關注。
 
 Pothos 確實係用類似 Configuration Object 嘅方式 (t.field({...})) 嚟定義 field，而且佢背後嘅 TypeScript 泛型 (Generics) 同類型推斷係相當複雜嘅，尤其係配合 Pothos 嘅 plugin 系統，有時的確可能會遇到啲 tricky 嘅 typing 問題或者推斷唔符合預期嘅情況。
@@ -1929,27 +1929,27 @@ Pothos 確實係用類似 Configuration Object 嘅方式 (t.field({...})) 嚟定
 呢個正好印證咗我哋之前比較嘅一個重點：
 
 Configuration Object Pattern: 雖然睇起嚟可能簡潔，但要喺一個 function (defineQuery 或者 Pothos 嘅 t.field) 內部，根據一個包含多種信息 (input, output, args, context, etc.) 嘅 object，完美咁推斷出所有相關類型 (尤其係 resolver 嘅參數同返回值)，對 TypeScript 嘅類型系統嚟講係一個非常大嘅挑戰。框架開發者需要寫非常複雜嘅 Generic Types，先至能夠盡量確保類型安全，但都難免會有啲邊界情況或者組合會出問題 (正如你喺 Pothos 可能遇到嘅)。
-Builder Pattern (Chaining): 相比之下，TypeQL 目前用嘅 Builder Pattern 將類型推斷分散到每一步。例如，.input() 只負責推斷 input type 同更新 builder 嘅狀態；.output() 只負責推斷 output type；.resolve() 就基於前面步驟已經確定咗嘅 input/output/context type 去檢查 resolver function 嘅簽名。呢種逐步推斷通常對 TypeScript 嚟講更容易處理，框架實現起嚟相對簡單啲，類型推斷出錯嘅機會亦都相對較低。
+Builder Pattern (Chaining): 相比之下，zenQuery 目前用嘅 Builder Pattern 將類型推斷分散到每一步。例如，.input() 只負責推斷 input type 同更新 builder 嘅狀態；.output() 只負責推斷 output type；.resolve() 就基於前面步驟已經確定咗嘅 input/output/context type 去檢查 resolver function 嘅簽名。呢種逐步推斷通常對 TypeScript 嚟講更容易處理，框架實現起嚟相對簡單啲，類型推斷出錯嘅機會亦都相對較低。
 
-所以，雖然兩種模式都係 Code-First，都係想做到類型安全，但 Builder Pattern 喺實現類型推斷嘅複雜度同可靠性方面，可能比 Configuration Object Pattern (尤其係 Pothos 嗰種複雜嘅實現) 更有優勢。TypeQL 選擇 Builder Pattern 可能就係考慮到呢點，想提供一個更穩定、更容易理解嘅類型推斷體驗。
+所以，雖然兩種模式都係 Code-First，都係想做到類型安全，但 Builder Pattern 喺實現類型推斷嘅複雜度同可靠性方面，可能比 Configuration Object Pattern (尤其係 Pothos 嗰種複雜嘅實現) 更有優勢。zenQuery 選擇 Builder Pattern 可能就係考慮到呢點，想提供一個更穩定、更容易理解嘅類型推斷體驗。
 
 當然，冇任何模式係完美嘅，Builder Pattern 都可能有佢嘅缺點 (例如冗長)。
 
 返到我哋嘅討論：
 
-既然你有 Pothos 嘅經驗，又遇到過 typing 問題，咁你點睇 TypeQL 目前呢個相對簡單啲嘅 Builder Pattern？
+既然你有 Pothos 嘅經驗，又遇到過 typing 問題，咁你點睇 zenQuery 目前呢個相對簡單啲嘅 Builder Pattern？
 
 Roo has a question:
-基於你對 Pothos typing 問題嘅經驗，你覺得 TypeQL 目前呢種逐步推斷嘅 Builder Pattern 係咪一個可以接受嘅方案？定係你覺得佢都可能存在類似問題，或者想探索其他完全唔同嘅方式？
+基於你對 Pothos typing 問題嘅經驗，你覺得 zenQuery 目前呢種逐步推斷嘅 Builder Pattern 係咪一個可以接受嘅方案？定係你覺得佢都可能存在類似問題，或者想探索其他完全唔同嘅方式？
 
 
-我覺得 TypeQL 呢種逐步推斷嘅 Builder 可能會更穩定啲，可以接受。
+我覺得 zenQuery 呢種逐步推斷嘅 Builder 可能會更穩定啲，可以接受。
 
 
-我擔心 TypeQL 嘅 Builder 長遠嚟講都會遇到類似 Pothos 嘅 typing 問題。
+我擔心 zenQuery 嘅 Builder 長遠嚟講都會遇到類似 Pothos 嘅 typing 問題。
 
 
-我想了解 TypeQL 嘅 Builder Pattern 有冇方法可以寫得簡潔啲。
+我想了解 zenQuery 嘅 Builder Pattern 有冇方法可以寫得簡潔啲。
 
 
 既然兩種模式都可能關乎複雜類型推斷，我想返去討論 Resolver 內部實現，呢個可能更實際。
@@ -1957,7 +1957,7 @@ Roo has a question:
 但佢之前好耐, 可以係個builder入面裝plugins 然後就多左分頁, 用唔同既default id field之類, 然後config object 既field都會變左唔同.
 
 👨‍🏫 Elucidator
-Thinking: The user is elaborating on their Pothos experience, specifically mentioning its plugin system and how plugins could modify the builder and the configuration object's fields (e.g., adding pagination, changing default ID fields). This highlights a key aspect of Pothos's complexity and a potential source of the typing issues they encountered – the dynamic modification of the builder/config based on plugins. I need to acknowledge this, compare it to TypeQL's current state, and relate it back to the typing stability discussion.
+Thinking: The user is elaborating on their Pothos experience, specifically mentioning its plugin system and how plugins could modify the builder and the configuration object's fields (e.g., adding pagination, changing default ID fields). This highlights a key aspect of Pothos's complexity and a potential source of the typing issues they encountered – the dynamic modification of the builder/config based on plugins. I need to acknowledge this, compare it to zenQuery's current state, and relate it back to the typing stability discussion.
 你講得完全正確！Pothos 強大嘅地方之一就係佢嘅 plugin 系統。你可以引入唔同嘅 plugin (例如 for Relay pagination, Prisma integration, authorization 等)，然後呢啲 plugin 可以：
 
 喺 builder 上面加新嘅方法。
@@ -1967,28 +1967,28 @@ Thinking: The user is elaborating on their Pothos experience, specifically menti
 
 優點: 非常靈活同強大，可以將好多常用嘅 pattern (例如分頁) 抽象化。
 缺點 (同 Typing 問題相關): 正如你所講，呢種動態修改 builder 同 config object 嘅能力，令到底層嘅 TypeScript 類型推斷變得極度複雜。類型系統需要能夠理解唔同 plugin 組合帶嚟嘅所有可能性，要準確推斷出 t.field config object 應該接受咩 properties，以及 resolver 裡面 args, context 等嘅最終類型。呢個複雜性好容易導致 TypeScript 推斷出錯、類型提示唔準確，或者出現難以理解嘅類型錯誤，尤其係當多個 plugin 互動嘅時候。
-對比 TypeQL 目前嘅 Builder:
+對比 zenQuery 目前嘅 Builder:
 
-根據我哋目前睇到嘅 procedure.ts 代碼，TypeQL 嘅 Builder (ProcedureBuilder) 睇起嚟冇類似 Pothos 嗰種複雜嘅、可以動態修改 Builder/Config 結構嘅 plugin 系統。
+根據我哋目前睇到嘅 procedure.ts 代碼，zenQuery 嘅 Builder (ProcedureBuilder) 睇起嚟冇類似 Pothos 嗰種複雜嘅、可以動態修改 Builder/Config 結構嘅 plugin 系統。
 佢嘅核心方法 (.input, .output, .resolve, .subscribe) 睇起嚟係固定嘅。
 呢種相對簡單同靜態嘅結構，意味住佢嘅類型推斷會簡單直接好多。TypeScript 只需要處理固定嘅幾種方法同佢哋之間嘅類型轉換，而唔需要考慮大量 plugin 組合帶嚟嘅動態變化。
 結論:
 
 你喺 Pothos 遇到嘅 typing 問題，好大可能就係源於佢嗰個強大但同時非常複雜嘅 plugin 系統所帶嚟嘅類型推斷挑戰。
 
-相比之下，TypeQL 目前嘅 Builder Pattern 因為冇呢種動態 plugin 系統，佢嘅類型推斷理論上會穩定同可預測好多。佢犧牲咗 Pothos 嗰種 plugin 帶嚟嘅部分靈活性，但換嚟嘅可能就係更可靠、更易於理解嘅類型安全體驗。
+相比之下，zenQuery 目前嘅 Builder Pattern 因為冇呢種動態 plugin 系統，佢嘅類型推斷理論上會穩定同可預測好多。佢犧牲咗 Pothos 嗰種 plugin 帶嚟嘅部分靈活性，但換嚟嘅可能就係更可靠、更易於理解嘅類型安全體驗。
 
 Roo has a question:
-了解到 Pothos 嘅 typing 問題可能同佢複雜嘅 plugin 系統有關，而 TypeQL 目前嘅 Builder 相對簡單啲，冇呢種動態 plugin 系統。呢個對比有冇改變你對 TypeQL Builder Pattern 嘅睇法？
+了解到 Pothos 嘅 typing 問題可能同佢複雜嘅 plugin 系統有關，而 zenQuery 目前嘅 Builder 相對簡單啲，冇呢種動態 plugin 系統。呢個對比有冇改變你對 zenQuery Builder Pattern 嘅睇法？
 
 
-有，如果 TypeQL 嘅 Builder 類型推斷更穩定，咁我傾向接受目前嘅 Builder Pattern。
+有，如果 zenQuery 嘅 Builder 類型推斷更穩定，咁我傾向接受目前嘅 Builder Pattern。
 
 
-我仍然擔心 TypeQL 將來加 plugin 都會變複雜，想睇下 Config Object 會唔會好啲。
+我仍然擔心 zenQuery 將來加 plugin 都會變複雜，想睇下 Config Object 會唔會好啲。
 
 
-我想確認下 TypeQL 係咪真係冇類似 Pothos 嘅 plugin 機制去修改 Builder？
+我想確認下 zenQuery 係咪真係冇類似 Pothos 嘅 plugin 機制去修改 Builder？
 
 
 既然 Builder/Config Object 嘅類型問題咁複雜，我哋不如返去討論 Resolver 內部實現點樣更 FP。
@@ -1996,7 +1996,7 @@ Roo has a question:
 如果最後我地想做埋relay 可以點做?
 
 👨‍🏫 Elucidator
-*Thinking: The user is asking how Relay specifications (specifically pagination, which is Relay's most prominent feature) could be implemented within the current TypeQL builder pattern, given the previous discussion about Pothos plugins handling such features. This requires thinking about how to adapt the builder or structure the procedures to support Relay's connection model (edges, nodes, pageInfo, cursor-based pagination arguments like first, after, last, before).
+*Thinking: The user is asking how Relay specifications (specifically pagination, which is Relay's most prominent feature) could be implemented within the current zenQuery builder pattern, given the previous discussion about Pothos plugins handling such features. This requires thinking about how to adapt the builder or structure the procedures to support Relay's connection model (edges, nodes, pageInfo, cursor-based pagination arguments like first, after, last, before).
 Acknowledge the Goal: The user wants Relay-style pagination.
 
 Analyze Relay Requirements:
@@ -2006,14 +2006,14 @@ Edge Type: Contains a node (the actual data item) and a cursor (opaque string fo
 PageInfo Type: Contains hasNextPage, hasPreviousPage, startCursor, endCursor.
 Arguments: Procedures need to accept pagination arguments (first, after, last, before).
 Resolver Logic: The resolver needs to fetch data based on cursors and limits, determine hasNextPage/hasPreviousPage, and construct the Connection object.
-Evaluate Implementation Options within TypeQL's Builder:
+Evaluate Implementation Options within zenQuery's Builder:
 
 Option A: Manual Implementation (No Builder Changes):
 Define Zod schemas for Connection, Edge, PageInfo types manually (likely in shared/types.ts or a dedicated pagination types file).
 Define a Zod schema for the pagination arguments (first, after, etc.).
 Use these schemas in the .input() and .output() methods of the builder.
 The resolver function would manually implement all the cursor logic, data fetching based on args, and construction of the Connection object.
-Pros: No changes needed to the core TypeQL builder. Flexible.
+Pros: No changes needed to the core zenQuery builder. Flexible.
 Cons: Lots of boilerplate for every paginated procedure. Cursor logic can be complex and error-prone to reimplement each time. Less "guided" than a dedicated plugin/helper.
 Option B: Helper Functions/Composition (No Builder Changes):
 Create reusable helper functions (outside the builder chain) that take pagination arguments, a data-fetching function (e.g., one that returns items based on cursor/limit), and return a fully formed Connection object.
@@ -2029,17 +2029,17 @@ Add standard pagination arguments (first, after, etc.) to the input schema.
 Define the standard Connection/Edge/PageInfo structure for the output schema, using the provided nodeSchema.
 Provide a specialized resolver context (resolvePagination) that might include helper utilities or abstract away some cursor logic.
 Pros: Best DX, least boilerplate, most guided approach, similar to Pothos plugins.
-Cons: Requires modifying the core TypeQL library (procedure.ts). Increases the complexity of the builder's type inference (though perhaps manageable if done carefully for a specific feature like pagination, unlike Pothos's open plugin system). This is exactly the kind of complexity we discussed might lead to typing issues if not implemented very carefully.
+Cons: Requires modifying the core zenQuery library (procedure.ts). Increases the complexity of the builder's type inference (though perhaps manageable if done carefully for a specific feature like pagination, unlike Pothos's open plugin system). This is exactly the kind of complexity we discussed might lead to typing issues if not implemented very carefully.
 Formulate Response:
 
 Acknowledge Relay pagination is a common need.
-Explain that TypeQL's current builder (as analyzed) doesn't have built-in Relay support like Pothos plugins.
+Explain that zenQuery's current builder (as analyzed) doesn't have built-in Relay support like Pothos plugins.
 Present Option A (Manual) and Option B (Helpers) as ways to achieve it without changing the core builder, explaining the boilerplate involved.
 Present Option C (Builder Extension) as the ideal DX solution but highlight that it requires core library changes and introduces the type complexity we discussed.
 Ask the user which approach aligns best with their goals, considering the trade-offs.*
 呢個問題好好，Relay Connection (分頁) 係一個好常見嘅需求。Pothos 嘅 plugin 系統可以好方便咁處理呢啲 pattern。
 
-喺 TypeQL 目前嘅 Builder Pattern 下，因為冇類似 Pothos 嗰種 plugin 系統去動態修改 builder，要實現 Relay Connection specification，主要有幾種方式：
+喺 zenQuery 目前嘅 Builder Pattern 下，因為冇類似 Pothos 嗰種 plugin 系統去動態修改 builder，要實現 Relay Connection specification，主要有幾種方式：
 
 方式一：手動實現 (Manual Implementation)
 
@@ -2058,7 +2058,7 @@ Pagination arguments schema (first, after, last, before - 通常係 optional)
 自己構建 pageInfo。
 最後返回符合 Connection schema 嘅 object。
 優點:
-唔需要修改 TypeQL 核心 builder。
+唔需要修改 zenQuery 核心 builder。
 完全控制所有邏輯。
 缺點:
 大量 Boilerplate: 每個需要分頁嘅 procedure 都要重複定義 schemas 同埋實現複雜嘅 cursor/pageInfo 邏輯。
@@ -2074,14 +2074,14 @@ Helper function 內部封裝咗計算 hasNextPage/hasPreviousPage、生成 curso
 使用 Helper: 喺 procedure 定義時，仍然用 .input() 同 .output() 傳入標準 schemas。喺 .resolve() 裡面，主要係調用呢個 helper function。
 優點:
 將複雜嘅 Relay 邏輯封裝起身，減少 resolver 裡面嘅 boilerplate。
-唔需要修改 TypeQL 核心 builder。
+唔需要修改 zenQuery 核心 builder。
 缺點:
 仍然需要手動喺每個 procedure 用 .input() / .output() 定義 Relay schemas。
 Helper function 嘅設計需要考慮周全。
-方式三：擴展 Builder (需要修改 TypeQL 核心)
+方式三：擴展 Builder (需要修改 zenQuery 核心)
 
 做法 (概念性):
-修改 TypeQL 嘅 ProcedureBuilder class，加入類似 .paginated() 嘅新方法。
+修改 zenQuery 嘅 ProcedureBuilder class，加入類似 .paginated() 嘅新方法。
 呢個 .paginated() 方法可以：
 自動幫你喺 input 加入標準嘅 pagination arguments (first, after 等)。
 自動根據你提供嘅 nodeSchema 生成標準嘅 Connection, Edge, PageInfo output schema。
@@ -2090,14 +2090,14 @@ Helper function 嘅設計需要考慮周全。
 最佳開發體驗 (DX): 最接近 Pothos plugin 嘅效果，最少 boilerplate。
 引導性最強。
 缺點:
-需要修改 TypeQL 核心庫。
+需要修改 zenQuery 核心庫。
 增加類型推斷複雜度: 正如我哋之前討論，擴展 Builder 功能會令類型推斷變複雜，雖然可能比 Pothos 嘅開放 plugin 系統容易控制啲，但仍然有引入 typing 問題嘅風險。
 總結:
 
-喺 TypeQL 目前嘅設計下，要實現 Relay Connection，最可行嘅係方式一 (手動) 或者方式二 (Helper Function)。方式二可以更好地重用邏輯。方式三係最理想嘅 DX，但需要改動 TypeQL 核心，並且要小心處理隨之而嚟嘅類型複雜性。
+喺 zenQuery 目前嘅設計下，要實現 Relay Connection，最可行嘅係方式一 (手動) 或者方式二 (Helper Function)。方式二可以更好地重用邏輯。方式三係最理想嘅 DX，但需要改動 zenQuery 核心，並且要小心處理隨之而嚟嘅類型複雜性。
 
 Roo has a question:
-考慮到實現 Relay Connection 嘅呢幾種方式，你傾向邊種？係接受目前 Builder 下嘅手動/Helper 方式，定係覺得值得去探索修改 TypeQL 核心嚟支持類似 Plugin 嘅功能？
+考慮到實現 Relay Connection 嘅呢幾種方式，你傾向邊種？係接受目前 Builder 下嘅手動/Helper 方式，定係覺得值得去探索修改 zenQuery 核心嚟支持類似 Plugin 嘅功能？
 
 
 我覺得用 Helper Function (方式二) 係目前最好嘅平衡。
@@ -2106,14 +2106,14 @@ Roo has a question:
 我可以接受手動實現 (方式一)，雖然比較繁瑣。
 
 
-我認為值得探索修改 TypeQL 核心嚟直接支持 Relay (方式三)。
+我認為值得探索修改 zenQuery 核心嚟直接支持 Relay (方式三)。
 
 
 了解咗，Relay 可能太複雜，我想返去討論 Resolver 內部嘅基本 FP 寫法。
 
-修改 TypeQL 核心庫 唔係重點, 我係諗緊我地有無辦法做到plugin既概念.
+修改 zenQuery 核心庫 唔係重點, 我係諗緊我地有無辦法做到plugin既概念.
 👨‍🏫 Elucidator
-*Thinking: The user clarifies their interest is not necessarily in modifying the core library, but in exploring if a "plugin concept" can be achieved within the current TypeQL structure or with minimal additions, likely to encapsulate reusable patterns like pagination without the full complexity of Pothos's dynamic system.
+*Thinking: The user clarifies their interest is not necessarily in modifying the core library, but in exploring if a "plugin concept" can be achieved within the current zenQuery structure or with minimal additions, likely to encapsulate reusable patterns like pagination without the full complexity of Pothos's dynamic system.
 Acknowledge the Refined Goal: The user wants the concept of plugins – reusable, composable logic extensions – without necessarily modifying the core builder or introducing Pothos-level dynamic complexity.
 
 Re-evaluate Options in Light of "Plugin Concept":
@@ -2146,7 +2146,7 @@ Explain that Option B (Helper Functions) already achieves this to some extent.
 Introduce Option D (Higher-Order Procedures) as another way to achieve the plugin concept without modifying the core builder chain, by wrapping the builder usage in a reusable function.
 Provide a conceptual example of Option D.
 Ask the user if Option B or Option D better captures the "plugin concept" they envision.*
-明白，你嘅重點係想喺 TypeQL 實現類似 Pothos 嗰種 "Plugin 嘅概念"，即係將一啲通用嘅模式 (例如 Relay 分頁) 封裝成可重用嘅組件，而唔一定係要改 TypeQL 核心或者引入 Pothos 嗰種動態修改 Builder 嘅複雜性。
+明白，你嘅重點係想喺 zenQuery 實現類似 Pothos 嗰種 "Plugin 嘅概念"，即係將一啲通用嘅模式 (例如 Relay 分頁) 封裝成可重用嘅組件，而唔一定係要改 zenQuery 核心或者引入 Pothos 嗰種動態修改 Builder 嘅複雜性。
 
 呢個目標係可以通過幾種方式實現嘅，而唔一定需要一個好似 Pothos 咁複雜嘅 plugin system：
 
@@ -2158,8 +2158,8 @@ Ask the user if Option B or Option D better captures the "plugin concept" they e
 缺點: Resolver 仍然需要手動定義 pagination 相關嘅 input/output schemas。
 方式二：Higher-Order Procedures (用 Function 包裝 Builder)
 
-做法: 創建一個更高階嘅 function，例如 createPaginatedQuery。呢個 function 接受特定嘅配置 (例如 Node 嘅 schema、核心數據獲取邏輯)，然後喺佢內部幫你調用 TypeQL 嘅 t.query.input(...).output(...).resolve(...)，自動處理好 pagination 相關嘅 input/output schema 同埋 Connection 結構。
-"Plugin" 概念體現: createPaginatedQuery 就好似一個 "Pagination Plugin Function"，佢封裝咗使用 TypeQL Builder 實現特定模式 (分頁) 嘅細節。
+做法: 創建一個更高階嘅 function，例如 createPaginatedQuery。呢個 function 接受特定嘅配置 (例如 Node 嘅 schema、核心數據獲取邏輯)，然後喺佢內部幫你調用 zenQuery 嘅 t.query.input(...).output(...).resolve(...)，自動處理好 pagination 相關嘅 input/output schema 同埋 Connection 結構。
+"Plugin" 概念體現: createPaginatedQuery 就好似一個 "Pagination Plugin Function"，佢封裝咗使用 zenQuery Builder 實現特定模式 (分頁) 嘅細節。
 優點: 抽象程度更高，使用起嚟更簡潔 (用家只需要提供核心邏輯，唔使關心分頁 schema 細節)。更貼近 "Plugin" 嘅感覺。
 缺點: 需要編寫同維護呢啲 Higher-Order functions，並且要確保佢哋內部嘅類型推斷正確。
 Higher-Order Procedure 例子 (概念):
@@ -2209,7 +2209,7 @@ function createPaginatedQuery<NodeSchema extends z.ZodTypeAny, FilterSchema exte
       pageInfo: PageInfoSchema,
   });
 
-  // 內部使用 TypeQL Builder
+  // 內部使用 zenQuery Builder
   return t.query
     .input(ConnectionArgsSchema)
     .output(ConnectionSchema)
@@ -2282,7 +2282,7 @@ Thinking: The user is asking if it's possible to achieve a syntax like t.query.r
 
 點樣可以做到 (概念上):
 
-修改 Builder: 需要修改 TypeQL 核心嘅 ProcedureBuilder class (喺 procedure.ts 文件)。
+修改 Builder: 需要修改 zenQuery 核心嘅 ProcedureBuilder class (喺 procedure.ts 文件)。
 加入新方法/屬性:
 可以喺 t.query (或者 t.mutation 等) 返回嘅 Builder object 上面加一個 .relay 屬性或者方法。
 例如，t.query.relay 可能會返回一個新嘅、專門處理 Relay 分頁嘅 Builder (例如叫 RelayQueryBuilder)。
@@ -2296,7 +2296,7 @@ Thinking: The user is asking if it's possible to achieve a syntax like t.query.r
 喺 procedure 嘅 input 加入標準嘅 Relay 分頁參數 (first, after, last, before)。
 根據你提供嘅 NodeSchema，自動生成標準嘅 Relay Connection output schema (edges, pageInfo 等)。
 最後 .resolveConnection() 會完成成個 procedure 嘅定義。
-例子 (純概念，TypeQL 目前冇咁嘅功能):
+例子 (純概念，zenQuery 目前冇咁嘅功能):
 
 const usersConnection = t.query.relay // <--- 假設有 .relay
   .node(UserNodeSchema) // <--- 指定 Node 類型
@@ -2322,7 +2322,7 @@ const appRouter = createRouter<any>()({
 最佳 DX: 寫法最流暢、最直觀，將 Relay 變成好似內建功能一樣。
 Boilerplate 最少: 大量重複嘅 schema 定義同邏輯被封裝。
 缺點:
-需要修改 TypeQL 核心庫: 呢個係最大嘅門檻。
+需要修改 zenQuery 核心庫: 呢個係最大嘅門檻。
 增加類型推斷複雜度: 正如我哋之前擔心 Pothos plugin 嘅問題，修改 Builder 加入新嘅狀態同方法，會令 TypeScript 嘅類型推斷變得更加複雜。雖然可能比 Pothos 嗰種任意 plugin 組合容易控制啲 (因為只係針對特定功能如 Relay)，但仍然有引入 typing 問題嘅風險，需要非常小心咁設計同實現。
 總結:
 
@@ -2427,7 +2427,7 @@ Thinking: The user is questioning the tree-shaking effectiveness even if .relay 
 咁樣 relay-builder.ts 就會變成一個獨立嘅 chunk，只有當 .relay 實際被調用時先會 (異步) 加載。呢個可以保證 tree-shaking，但會令 Builder 嘅使用變成異步，通常唔係理想嘅 DX。
 現代 Bundler 優化:
 有啲現代 Bundler (尤其係 Rollup) 喺特定情況下，如果佢哋能夠通過靜態分析確定某個 export (例如 RelayQueryBuilder) 只係被一個確定冇被使用嘅 getter/method 內部引用，佢哋可能可以移除相關代碼。但呢個係一種優化，依賴於好多因素 (代碼結構、bundler 配置)，唔係 100% 保證。
-庫嘅構建方式: TypeQL 呢個庫本身點樣被打包發布都會有影響。如果佢將 Relay 相關代碼放喺獨立嘅 entry point 或者 chunk，可能有助於 tree-shaking。
+庫嘅構建方式: zenQuery 呢個庫本身點樣被打包發布都會有影響。如果佢將 Relay 相關代碼放喺獨立嘅 entry point 或者 chunk，可能有助於 tree-shaking。
 重新比較 Tree-shaking 可靠性:
 
 擴展 Builder (.relay):
@@ -2461,7 +2461,7 @@ Helper / Higher-Order Function: 係點?
 
 👨‍🏫 Elucidator
 Thinking: The user wants clarification and examples of the "Helper Function" and "Higher-Order Procedure" approaches. I need to revisit the examples provided earlier and explain them more clearly, focusing on how they achieve reusability and abstraction without modifying the core builder.
-冇問題，等我再詳細解釋下 Helper Function 同 Higher-Order Procedure 呢兩種方式點樣實現類似 "Plugin" 嘅概念，並且俾啲例子。呢兩種方法嘅目標都係重用邏輯 (例如 Relay 分頁)，同時避免修改 TypeQL 核心 Builder，並且保證良好嘅 Tree-shaking。
+冇問題，等我再詳細解釋下 Helper Function 同 Higher-Order Procedure 呢兩種方式點樣實現類似 "Plugin" 嘅概念，並且俾啲例子。呢兩種方法嘅目標都係重用邏輯 (例如 Relay 分頁)，同時避免修改 zenQuery 核心 Builder，並且保證良好嘅 Tree-shaking。
 
 1. Helper Function (喺 Resolver 內部調用)
 
@@ -2472,7 +2472,7 @@ Thinking: The user wants clarification and examples of the "Helper Function" and
 
 用法:
 
-你仍然用標準嘅 TypeQL Builder (t.query.input(...).output(...)) 去定義 procedure，包括手動指定 Relay 需要嘅 Input Schema (含 first, after 等) 同 Output Schema (Connection Schema)。
+你仍然用標準嘅 zenQuery Builder (t.query.input(...).output(...)) 去定義 procedure，包括手動指定 Relay 需要嘅 Input Schema (含 first, after 等) 同 Output Schema (Connection Schema)。
 喺 .resolve() function 裡面，你調用你寫好嘅 Helper Function，將相關參數 (例如 input.first, input.after) 同埋一個用嚟實際攞數據嘅 function (data fetcher) 傳俾佢。
 Helper Function 負責執行複雜嘅分頁邏輯，調用你傳入嘅 data fetcher，最後返回一個完整嘅 Connection object。
 你嘅 resolver 就直接返回 Helper Function 嘅結果。
@@ -2513,7 +2513,7 @@ const getUsersPaginated = t.query
 
 2. Higher-Order Procedure (用 Function 包裝 Builder)
 
-概念: 創建一個更高階嘅 function (例如 createPaginatedQuery)，呢個 function 嘅作用係生成一個完整嘅 TypeQL Procedure Definition。佢將使用 TypeQL Builder (t.query.input(...).output(...)) 嘅細節封裝喺內部。
+概念: 創建一個更高階嘅 function (例如 createPaginatedQuery)，呢個 function 嘅作用係生成一個完整嘅 zenQuery Procedure Definition。佢將使用 zenQuery Builder (t.query.input(...).output(...)) 嘅細節封裝喺內部。
 
 用法:
 
@@ -2548,7 +2548,7 @@ function createPaginatedQuery<NodeSchema extends z.ZodTypeAny, FilterSchema exte
   const ConnectionArgsSchema = z.object({ /* first, after, etc. */ }).merge(config.filterSchema);
   const ConnectionSchema = z.object({ /* edges, pageInfo using config.nodeSchema */ });
 
-  // --- 內部使用 TypeQL Builder ---
+  // --- 內部使用 zenQuery Builder ---
   return t.query
     .input(ConnectionArgsSchema) // <--- 內部自動處理
     .output(ConnectionSchema)   // <--- 內部自動處理
@@ -2609,7 +2609,7 @@ Helper Function 比較簡單直接，我覺得夠用。
 Acknowledge the User's Point: Validate their observation. Yes, the Higher-Order Procedure approach uses a configuration object as its input to configure the reusable pattern.
 Clarify the Distinction: Explain the key difference:
 Initial Config Object Pattern (defineQuery({...})): This pattern replaces the builder entirely. The defineQuery function itself needs to handle all the complex type inference based on the entire config object (input, output, resolver, context, etc.) in one go. This is where complex typing issues often arise (as seen in Pothos).
-Higher-Order Procedure (createPaginatedQuery({...})): This pattern wraps the existing, simpler TypeQL builder. The config object passed to createPaginatedQuery is typically simpler and more focused (e.g., just node schema, filter schema, core fetch logic). The internal implementation of createPaginatedQuery still uses the TypeQL builder's step-by-step type inference (t.query.input(...).output(...).resolve(...)), which we established is likely more robust. The Higher-Order function's main typing challenge is ensuring the fetchNodes function signature matches correctly based on the provided schemas, which is complex but potentially less complex than inferring everything from scratch like defineQuery would need to.
+Higher-Order Procedure (createPaginatedQuery({...})): This pattern wraps the existing, simpler zenQuery builder. The config object passed to createPaginatedQuery is typically simpler and more focused (e.g., just node schema, filter schema, core fetch logic). The internal implementation of createPaginatedQuery still uses the zenQuery builder's step-by-step type inference (t.query.input(...).output(...).resolve(...)), which we established is likely more robust. The Higher-Order function's main typing challenge is ensuring the fetchNodes function signature matches correctly based on the provided schemas, which is complex but potentially less complex than inferring everything from scratch like defineQuery would need to.
 Relate to Typing Concerns: Acknowledge that any abstraction involving generics and inference can have edge cases. However, the Higher-Order Procedure approach leverages the existing, potentially more stable, step-by-step inference of the core builder internally, possibly reducing the risk compared to a Pothos-style config object that does everything at once. The config object for the Higher-Order Procedure is also more specialized for a specific pattern (like pagination).
 Reiterate Trade-offs:
 Higher-Order Procedure: Good abstraction, good tree-shaking, uses a config object for configuration, leverages the existing builder's inference internally (potentially more stable than a from-scratch config object approach). Implementation requires careful generic typing.
@@ -2627,15 +2627,15 @@ defineQuery 呢個 function 需要自己處理所有嘢：根據傳入嘅 input 
 呢種「一次過」嘅類型推斷非常複雜，好容易喺邊界情況出錯，可能就係你喺 Pothos 遇到 typing 問題嘅原因之一 (尤其係 Pothos 仲要處理 plugins)。
 Higher-Order Procedure (createPaginatedQuery({...})):
 
-呢個模式冇取代 Builder，而係包裝 (wrap) 咗 TypeQL 現有嘅 Builder。
+呢個模式冇取代 Builder，而係包裝 (wrap) 咗 zenQuery 現有嘅 Builder。
 傳入嘅 config object 通常更簡單、更專注 (例如只係針對分頁需要嘅 node schema 同 fetcher function)。
-createPaginatedQuery 內部仍然係用 TypeQL 嗰個逐步推斷嘅 Builder (t.query.input(...).output(...).resolve(...)) 去實際構建 procedure。我哋之前分析過，呢種逐步推斷相對嚟講更簡單、更穩定。
+createPaginatedQuery 內部仍然係用 zenQuery 嗰個逐步推斷嘅 Builder (t.query.input(...).output(...).resolve(...)) 去實際構建 procedure。我哋之前分析過，呢種逐步推斷相對嚟講更簡單、更穩定。
 createPaginatedQuery 嘅主要類型挑戰係確保佢能夠根據傳入嘅 nodeSchema 同 filterSchema，正確推斷出 fetchNodes function 應該有嘅參數類型。呢個都需要啲 TypeScript 技巧，但可能比 defineQuery 要處理嘅整體複雜度低啲，因為佢可以依賴內部 Builder 嘅部分推斷能力。
 簡單嚟講：
 
 defineQuery({...}) 係想用一個複雜嘅 Config Object 直接生成最終定義，類型推斷難度高。
 createPaginatedQuery({...}) 係用一個相對簡單嘅 Config Object 去配置一個模板，然後用現有嘅、可能更穩定嘅 Builder 去生成最終定義。
-所以，雖然 Higher-Order Procedure 都用到 Config Object，但佢內部依賴嘅係 TypeQL Builder 嘅逐步推斷機制，喺類型推斷嘅穩定性方面，可能比一個完全從零開始嘅 Config Object Pattern (尤其係 Pothos 嗰種) 風險更低。
+所以，雖然 Higher-Order Procedure 都用到 Config Object，但佢內部依賴嘅係 zenQuery Builder 嘅逐步推斷機制，喺類型推斷嘅穩定性方面，可能比一個完全從零開始嘅 Config Object Pattern (尤其係 Pothos 嗰種) 風險更低。
 
 Roo has a question:
 了解到 Higher-Order Procedure 雖然都用 Config Object，但佢內部係包裝咗現有嘅 Builder，類型推斷風險可能比完全取代 Builder 嘅 Config Object Pattern 低啲。呢個解釋有冇解答到你嘅疑慮？你覺得 Higher-Order Procedure 係咪一個可以考慮嘅方向？
@@ -2770,20 +2770,20 @@ defineRelayQuery 接受針對 Relay 嘅配置 (例如 nodeSchema, filterSchema, 
 喺 defineRelayQuery 內部，佢會自動處理 Relay 相關嘅 Input/Output Schema，並且最終調用基礎嘅 defineQuery，將所有嘢砌埋一齊。
 呢個方法同我哋之前討論嘅關係:
 
-呢個方法同我哋講用 createPaginatedQuery 去包裝 TypeQL 現有 Builder (t.query...) 嘅思路係非常相似嘅。兩者都係用一個更高層次嘅 function 去封裝特定模式嘅實現細節。
+呢個方法同我哋講用 createPaginatedQuery 去包裝 zenQuery 現有 Builder (t.query...) 嘅思路係非常相似嘅。兩者都係用一個更高層次嘅 function 去封裝特定模式嘅實現細節。
 主要分別在於底層用嘅係乜嘢：
 你嘅建議係基於一個假設存在嘅、用 Configuration Object 嘅 defineQuery。
-我之前嘅例子係基於 TypeQL 目前存在嘅、用 Builder Pattern 嘅 t.query。
+我之前嘅例子係基於 zenQuery 目前存在嘅、用 Builder Pattern 嘅 t.query。
 重要考慮點 (返到類型推斷問題):
 
 一致性問題: 雖然 defineRelayQuery 內部調用咗 defineQuery，但係你喺使用嘅時候，仍然係用緊兩個唔同嘅 function (defineQuery vs defineRelayQuery) 去定義唔同類型嘅 query。所以，寫法上嘅唔一致性其實仍然存在，只係由 Builder chain vs Higher-Order Function 變成咗 Base Config Function vs Higher-Order Config Function。
 核心類型推斷: 呢個方法嘅類型安全程度，最終仍然取決於基礎 defineQuery function 實現得有幾好。如果 defineQuery 喺處理 Configuration Object 嘅類型推斷方面本身就好複雜、容易出錯 (類似 Pothos 可能遇到嘅問題)，咁 defineRelayQuery 包裝佢都只會繼承呢啲潛在問題。
-對比 TypeQL Builder: 如果 TypeQL 目前嘅 Builder (t.query...) 嘅逐步類型推斷相對更穩定可靠，咁用 Higher-Order Function 去包裝 Builder (例如 createPaginatedQuery 包裝 t.query)，可能會比包裝一個假設嘅、類型推斷更複雜嘅 defineQuery 風險更低。
+對比 zenQuery Builder: 如果 zenQuery 目前嘅 Builder (t.query...) 嘅逐步類型推斷相對更穩定可靠，咁用 Higher-Order Function 去包裝 Builder (例如 createPaginatedQuery 包裝 t.query)，可能會比包裝一個假設嘅、類型推斷更複雜嘅 defineQuery 風險更低。
 總結:
 
 你提出用 defineRelayQuery 包裝 defineQuery 嘅諗法，的確係一種實現 Function Composition 同抽象化嘅好方法。但佢並冇完全解決「寫法唔一致」嘅問題，而且佢嘅類型安全穩健性，最終都係依賴於底層 defineQuery 嘅實現質量。
 
-考慮到實現一個完美類型推斷嘅 defineQuery (Config Object 模式) 嘅複雜性同潛在風險 (基於你 Pothos 嘅經驗)，而 TypeQL 目前嘅 Builder 可能喺類型推斷方面更穩定啲，咁或者用 Higher-Order Function 去包裝現有嘅 Builder 會係一個更穩妥嘅方式去實現類似 "Plugin" 嘅抽象化？
+考慮到實現一個完美類型推斷嘅 defineQuery (Config Object 模式) 嘅複雜性同潛在風險 (基於你 Pothos 嘅經驗)，而 zenQuery 目前嘅 Builder 可能喺類型推斷方面更穩定啲，咁或者用 Higher-Order Function 去包裝現有嘅 Builder 會係一個更穩妥嘅方式去實現類似 "Plugin" 嘅抽象化？
 
 Roo has a question:
 了解到你嘅 defineRelayQuery(defineQuery(...)) 想法同 Higher-Order Procedure 包裝 Builder 嘅相似性，以及兩者都存在寫法唔一致嘅問題，但前者嘅類型安全可能更依賴一個複雜嘅 defineQuery 實現。你點睇？係咪仲係覺得 defineQuery + defineRelayQuery 呢個方向比較好？
@@ -2934,10 +2934,10 @@ Middleware 聽起嚟係一個唔錯嘅方式去組合行為。
 middleware有無可能做到relay example比我睇下?
 
 👨‍🏫 Elucidator
-Thinking: The user wants to see an example of implementing Relay pagination using middleware within the TypeQL builder pattern. I need to conceptualize how such a middleware would work and show its usage.
+Thinking: The user wants to see an example of implementing Relay pagination using middleware within the zenQuery builder pattern. I need to conceptualize how such a middleware would work and show its usage.
 用 Middleware 嚟處理 Relay Connection 係一個幾有趣嘅想法。佢嘅目標係將處理分頁參數、構建 Connection object 呢啲通用邏輯抽離到 Middleware 度，令到最終嘅 Resolver 更專注於獲取數據本身。
 
-等我哋構思一個概念性嘅例子 (注意：TypeQL 目前冇內建呢個 Middleware，呢個只係展示可能性)：
+等我哋構思一個概念性嘅例子 (注意：zenQuery 目前冇內建呢個 Middleware，呢個只係展示可能性)：
 
 1. 構思 Relay Middleware (relayPaginationMiddleware)
 
@@ -3135,7 +3135,7 @@ Configuration Object Pattern: 同樣，如果你定義好多 procedures，input:
 
 Schema 同 Resolver 嘅內容: 你喺 Zod schema 裡面定義嘅複雜度，以及你喺 resolver function 裡面寫嘅業務邏輯代碼，對最終 bundle size 嘅影響，遠遠大於你選擇用 Builder 定係 Config Object 嚟定義 procedure 嗰部分嘅代碼。
 Tree-Shaking: 正如我哋之前討論，點樣處理可選功能 (例如 Relay) 嘅代碼分離同 tree-shaking，對 bundle size 嘅影響亦都比定義模式本身大。Helper/Higher-Order Function 方式喺呢方面最可靠。
-Library 大小: TypeQL 核心庫本身嘅大小，以及你引入嘅其他依賴 (例如 Zod) 嘅大小，都係主要因素。
+Library 大小: zenQuery 核心庫本身嘅大小，以及你引入嘅其他依賴 (例如 Zod) 嘅大小，都係主要因素。
 總結:
 
 單純比較 Builder Pattern 同 Configuration Object Pattern 對於定義 procedure 嗰部分代碼嘅 Minify/Compress 效果，兩者嘅差別可能微乎其微，唔太可能成為決定性因素。你更應該關注：
@@ -3236,10 +3236,10 @@ Roo has a question:
 咁我地個套件有無辦法可以做到好似graphql, fe first既概念, 佢可以query 咩 field 都得
 
 👨‍🏫 Elucidator
-*Thinking: The user is asking if TypeQL can support a GraphQL-like feature where the client (FE - Front End) can specify which fields it wants to query, achieving a "FE first" concept and avoiding over-fetching.
+*Thinking: The user is asking if zenQuery can support a GraphQL-like feature where the client (FE - Front End) can specify which fields it wants to query, achieving a "FE first" concept and avoiding over-fetching.
 Analyze the Request: The core feature requested is field selection initiated by the client, similar to GraphQL.
 
-Analyze TypeQL's Current Model: Based on the analysis of router.ts, procedure.ts, and client.ts, TypeQL operates on an RPC (Remote Procedure Call) model.
+Analyze zenQuery's Current Model: Based on the analysis of router.ts, procedure.ts, and client.ts, zenQuery operates on an RPC (Remote Procedure Call) model.
 
 Server defines procedures (query, mutation, subscription).
 Each procedure has a predefined input schema and a predefined output schema (defined via .output() or inferred).
@@ -3251,7 +3251,7 @@ Compare with GraphQL: GraphQL is fundamentally different. It's a query language 
 Server defines a schema of types and fields.
 Client sends a query document specifying exactly which fields it needs, potentially traversing relationships between types.
 Server resolves the query based on the client's request and returns only the requested fields.
-Can TypeQL achieve GraphQL-like field selection?
+Can zenQuery achieve GraphQL-like field selection?
 
 Not directly with the current RPC model: The RPC nature means the server dictates the response shape. Adding client-driven field selection would fundamentally change the model.
 Option A: Simulate via Input Arguments: The client could pass an argument specifying desired fields (e.g., input: { id: '123', fields: ['name', 'email'] }). The server resolver would then need to manually parse this fields argument and construct the response object containing only those fields.
@@ -3262,24 +3262,24 @@ Changing the protocol to allow clients to send selection sets.
 Changing the server request handler to parse selection sets.
 Changing resolvers to potentially receive field selection info and resolve fields individually (like GraphQL resolvers).
 Changing the client to build and send selection sets.
-This essentially means turning TypeQL into a GraphQL implementation, losing its RPC identity.
+This essentially means turning zenQuery into a GraphQL implementation, losing its RPC identity.
 Option C: Automatic Partial Types (Advanced Typing): Could TypeScript's type system be used somehow so that if the client only uses certain fields from the returned object, the unused fields are somehow "tree-shaken" from the data transfer? No, this is not how data transfer or standard tree-shaking works. Tree-shaking applies to code, not data payloads.
 Formulate Response:
 
 Acknowledge the user is asking about client-driven field selection like GraphQL.
-Explain that TypeQL currently uses an RPC model where the server defines the full response shape for each procedure.
-State that directly supporting GraphQL-style field selection is not part of TypeQL's current design and would require fundamental changes.
+Explain that zenQuery currently uses an RPC model where the server defines the full response shape for each procedure.
+State that directly supporting GraphQL-style field selection is not part of zenQuery's current design and would require fundamental changes.
 Briefly mention the "Simulate via Input Arguments" option (Option A) and its significant drawbacks (boilerplate, loss of type safety).
 Explain that truly achieving this would mean becoming a GraphQL implementation (Option B).
-Conclude that TypeQL, in its current RPC form, prioritizes end-to-end type safety for predefined procedure calls over client-driven field selection.
+Conclude that zenQuery, in its current RPC form, prioritizes end-to-end type safety for predefined procedure calls over client-driven field selection.
 Ask if this RPC model is acceptable or if GraphQL's field selection is a critical requirement.*
-你提出咗一個關於 API 設計哲學嘅重要問題：TypeQL 能唔能夠做到好似 GraphQL 咁，由 Client (FE) 決定想要 query 邊啲 fields ("FE first")？
+你提出咗一個關於 API 設計哲學嘅重要問題：zenQuery 能唔能夠做到好似 GraphQL 咁，由 Client (FE) 決定想要 query 邊啲 fields ("FE first")？
 
-簡單答案係：唔能夠直接做到，因為 TypeQL 嘅核心設計係 RPC (Remote Procedure Call)，而唔係 GraphQL 嗰種 Query Language。
+簡單答案係：唔能夠直接做到，因為 zenQuery 嘅核心設計係 RPC (Remote Procedure Call)，而唔係 GraphQL 嗰種 Query Language。
 
 等我解釋下個分別：
 
-TypeQL (RPC 模式):
+zenQuery (RPC 模式):
 
 Server 定義形狀: Server 端喺定義每個 procedure (query/mutation) 嘅時候，就已經固定咗佢會返回乜嘢數據結構 (通過 .output() schema 或者 resolver 嘅 return type)。
 Client 調用 Procedure: Client 調用一個特定嘅 procedure (例如 client.user.get.query({ id: '123' }))。
@@ -3293,21 +3293,21 @@ Client 構建 Query: Client 發送一個 Query document，明確指定佢需要�
 Server 按需返回: Server 根據 Client 嘅 Query 去執行，並且只會返回 Client 要求嘅 fields。
 優點: 冇 Over-fetching，Client 精確控制所需數據。
 缺點: Client 需要構建 Query document，Server 端 resolver 實現可能更複雜 (需要處理 field-level resolving)，類型安全通常需要 code generation 工具。
-TypeQL 能唔能夠模擬 GraphQL 嘅 Field Selection？
+zenQuery 能唔能夠模擬 GraphQL 嘅 Field Selection？
 
-理論上可以 (但唔建議): 你可以喺 TypeQL procedure 嘅 .input() 加入一個 optional 嘅 fields 參數，俾 Client 傳一個 string array (例如 ['name', 'email'])。然後喺 Server 嘅 .resolve() function 裡面，根據呢個 fields 參數，手動去篩選你想返回嘅數據。
+理論上可以 (但唔建議): 你可以喺 zenQuery procedure 嘅 .input() 加入一個 optional 嘅 fields 參數，俾 Client 傳一個 string array (例如 ['name', 'email'])。然後喺 Server 嘅 .resolve() function 裡面，根據呢個 fields 參數，手動去篩選你想返回嘅數據。
 咁做嘅壞處:
 Server 端極度繁瑣: 每個 resolver 都要加呢啲手動篩選邏輯。
 Client 端失去類型安全: Server 返回嘅 object 變成動態嘅，Client 嘅 TypeScript 唔再能夠準確知道返回咗邊啲 fields (除非用非常複雜嘅 generic types 去嘗試推斷，但好難做到完美)。
 違背 RPC 設計初衷: 完全失去咗 RPC 模式嘅簡單直接同強類型優勢。
 總結:
 
-TypeQL 嘅設計哲學同 GraphQL 唔同。TypeQL 選擇咗 RPC 模式，優先考慮嘅係端到端類型安全同埋簡化嘅開發體驗 (喺 TypeScript 生態內，唔需要 code generation)。代價就係冇 GraphQL 嗰種由 Client 驅動嘅精確 field selection 能力。
+zenQuery 嘅設計哲學同 GraphQL 唔同。zenQuery 選擇咗 RPC 模式，優先考慮嘅係端到端類型安全同埋簡化嘅開發體驗 (喺 TypeScript 生態內，唔需要 code generation)。代價就係冇 GraphQL 嗰種由 Client 驅動嘅精確 field selection 能力。
 
-如果你嘅應用場景非常需要 Client 精確控制返回字段，避免任何 over-fetching，咁 GraphQL 可能係一個更適合嘅技術。如果端到端類型安全同簡化嘅 RPC 調用方式更重要，咁 TypeQL 就比較適合。
+如果你嘅應用場景非常需要 Client 精確控制返回字段，避免任何 over-fetching，咁 GraphQL 可能係一個更適合嘅技術。如果端到端類型安全同簡化嘅 RPC 調用方式更重要，咁 zenQuery 就比較適合。
 
 Roo has a question:
-了解到 TypeQL 係 RPC 模式，Server 決定返回結構，而唔係好似 GraphQL 咁由 Client 揀 fields。你覺得呢個 RPC 模式能唔能夠滿足你嘅項目需求？定係 Client 控制 field selection 對你嚟講係一個必須嘅功能？
+了解到 zenQuery 係 RPC 模式，Server 決定返回結構，而唔係好似 GraphQL 咁由 Client 揀 fields。你覺得呢個 RPC 模式能唔能夠滿足你嘅項目需求？定係 Client 控制 field selection 對你嚟講係一個必須嘅功能？
 
 RPC 模式可以接受，端到端類型安全更重要。
 
@@ -3315,7 +3315,7 @@ RPC 模式可以接受，端到端類型安全更重要。
 我需要 Client 控制 field selection，可能會考慮 GraphQL 或者其他方案。
 
 
-有冇可能喺 TypeQL 嘅 RPC 基礎上，用其他方式減少 over-fetching？
+有冇可能喺 zenQuery 嘅 RPC 基礎上，用其他方式減少 over-fetching？
 
 
 我想返去討論點樣改進目前 RPC 模式下 Resolver 內部嘅 FP 寫法。
@@ -3323,7 +3323,7 @@ RPC 模式可以接受，端到端類型安全更重要。
 唔會繁瑣, 可以做middlewre?
 
 👨‍🏫 Elucidator
-*Thinking: The user suggests using middleware to handle field selection logic, arguing it wouldn't be "繁瑣" (cumbersome/tedious) in the resolver itself. I need to analyze if middleware can achieve GraphQL-like field selection within TypeQL's RPC model without the previously mentioned drawbacks (boilerplate, loss of type safety).
+*Thinking: The user suggests using middleware to handle field selection logic, arguing it wouldn't be "繁瑣" (cumbersome/tedious) in the resolver itself. I need to analyze if middleware can achieve GraphQL-like field selection within zenQuery's RPC model without the previously mentioned drawbacks (boilerplate, loss of type safety).
 你提出用 Middleware 嚟處理 Client 揀 field 嘅邏輯，想避免喺 Resolver 裡面寫好多篩選代碼。呢個諗法可以理解，等我哋分析下用 Middleware 點做同埋會有咩效果：
 
 用 Middleware 處理 Field Selection 嘅可能做法 (概念):
@@ -3348,24 +3348,24 @@ Middleware 只係喺所有嘢都攞完/計完之後，先至將唔要嘅嘢掉�
 Server 端導出嘅 AppRouter type 描述嘅係 Resolver 原本會返回嘅完整 object 結構 ({ id, name, email, age })。
 Client 端嘅 createClient<AppRouter> 亦都係期望收到呢個完整結構。
 但係 Middleware 實際上返回嘅係一個動態篩選後、結構唔完整嘅 object ({ name, email })。
-咁樣 Client 喺 TypeScript 層面就會類型出錯，因為佢以為會收到 id 同 age，但實際上冇。Client 要麼報 compile error，要麼就需要用 as any 或者 Partial types 等唔安全嘅方式去處理，失去咗 TypeQL 最核心嘅類型安全優勢。
+咁樣 Client 喺 TypeScript 層面就會類型出錯，因為佢以為會收到 id 同 age，但實際上冇。Client 要麼報 compile error，要麼就需要用 as any 或者 Partial types 等唔安全嘅方式去處理，失去咗 zenQuery 最核心嘅類型安全優勢。
 總結:
 
-用 Middleware 喺 Resolver 之後做篩選，只係將篩選邏輯搬咗個位，冇解決 over-fetching 問題，而且嚴重破壞咗 TypeQL 嘅端到端類型安全。呢個做法通常係得不償失嘅。
+用 Middleware 喺 Resolver 之後做篩選，只係將篩選邏輯搬咗個位，冇解決 over-fetching 問題，而且嚴重破壞咗 zenQuery 嘅端到端類型安全。呢個做法通常係得不償失嘅。
 
-要真正做到 Client 控制 field selection 並且保持類型安全，就需要一個類似 GraphQL 嘅、由 Client Query 驅動嘅系統，而唔係 TypeQL 目前嘅 RPC 模型。
+要真正做到 Client 控制 field selection 並且保持類型安全，就需要一個類似 GraphQL 嘅、由 Client Query 驅動嘅系統，而唔係 zenQuery 目前嘅 RPC 模型。
 
 Roo has a question:
 了解到用 Middleware 篩選 Resolver 結果會破壞類型安全同埋冇解決 over-fetching 根源之後，你係咪同意呢個唔係一個理想嘅方案？
 
 
-同意，Middleware 方案唔理想，我接受 TypeQL 嘅 RPC 模式。
+同意，Middleware 方案唔理想，我接受 zenQuery 嘅 RPC 模式。
 
 
 咁有冇其他方法可以喺 RPC 模式下稍微減少 over-fetching？
 
 
-我仲係覺得 Client 控制 field selection 好重要，可能 TypeQL 唔適合我。
+我仲係覺得 Client 控制 field selection 好重要，可能 zenQuery 唔適合我。
 
 
 我想返去討論點樣改進目前 RPC 模式下 Resolver 內部嘅 FP 寫法。
@@ -3378,7 +3378,7 @@ for server:
 pothos都係無解決到over fetching問題, 仲係doc同我地講, 其實over fetching問題唔會好大,
 
 👨‍🏫 Elucidator
-*Thinking: The user is proposing a new idea for TypeQL, inspired by GraphQL, to handle field selection while potentially maintaining type safety.
+*Thinking: The user is proposing a new idea for zenQuery, inspired by GraphQL, to handle field selection while potentially maintaining type safety.
 User's Proposal:
 
 Client Side: Introduce a .fields([...]) method alongside .input(...) in the client call chain. The type system should then infer the final returned object type based on the selected fields.
@@ -3389,18 +3389,18 @@ Analysis of Proposal:
 Client-Side .fields([...]) and Type Inference:
 Technical Feasibility: Implementing this type inference in TypeScript is extremely complex. It requires advanced conditional types, mapped types, and potentially type-level computations to take the original full output type (defined by the server's .output() schema or resolver return type) and dynamically create a new partial type based on the string array passed to .fields([...]).
 Comparison to GraphQL Clients: GraphQL clients (like Apollo Client, urql) achieve this type safety not just through TypeScript inference on the query function, but primarily through code generation. Tools read the GraphQL query document (which includes the field selection) and the server schema, then generate precise TypeScript types matching that specific query's expected result shape.
-TypeQL Challenge: TypeQL aims to avoid code generation. Trying to achieve the same dynamic partial type inference purely through TypeScript generics based on a runtime array of strings (.fields(['name', 'email'])) is significantly harder and potentially less robust than GraphQL's code generation approach. It pushes the boundaries of what TypeScript's type system can comfortably handle, risking complex, slow, or incorrect type inference (similar to the concerns with complex Pothos plugins).
+zenQuery Challenge: zenQuery aims to avoid code generation. Trying to achieve the same dynamic partial type inference purely through TypeScript generics based on a runtime array of strings (.fields(['name', 'email'])) is significantly harder and potentially less robust than GraphQL's code generation approach. It pushes the boundaries of what TypeScript's type system can comfortably handle, risking complex, slow, or incorrect type inference (similar to the concerns with complex Pothos plugins).
 Protocol Change: The client would need to send the selected fields list to the server along with the input.
 Server-Side Handling & Over-fetching:
 User's Point on Pothos/GraphQL: The user is correct that even in GraphQL, while the API response doesn't over-fetch, the underlying data resolvers might still over-fetch from the database (e.g., fetching the whole User row even if only name is requested). Optimizing this requires more advanced techniques like analyzing the info object in GraphQL resolvers to see requested fields and adjusting the database query accordingly (e.g., using select in Prisma).
-Applying to TypeQL: If TypeQL were to adopt the .fields([...]) approach:
+Applying to zenQuery: If zenQuery were to adopt the .fields([...]) approach:
 The server request handler would receive the fields list.
 This list would need to be passed down to the .resolve() function (likely via ctx or a new argument).
 The resolver could then potentially use this information to optimize data fetching (e.g., database.user.findUnique({ where: ..., select: { name: true, email: true } })). This would address over-fetching at the data source level.
 However, the resolver also needs to return an object whose type dynamically matches the requested fields to satisfy the client-side type inference. This is the hard part.
 Synthesis:
 
-The user's proposed .fields([...]) method on the client aims for GraphQL's field selection benefit within a TypeQL-like framework.
+The user's proposed .fields([...]) method on the client aims for GraphQL's field selection benefit within a zenQuery-like framework.
 Achieving the corresponding type safety on the client purely through TypeScript inference (without code generation) is highly complex and potentially fragile.
 On the server, resolvers could use the fields info to optimize data fetching, addressing the over-fetching point more effectively than the post-resolver middleware approach.
 However, the complexity lies in making the server resolver's return type dynamically match the client's request for end-to-end type safety, which is non-trivial.
@@ -3414,7 +3414,7 @@ Validate the goal: Achieve field selection benefits.
 Explain the major challenge: Implementing the dynamic type inference on the client without code generation is extremely difficult in TypeScript and risks type instability. Contrast with GraphQL's reliance on code generation for this.
 Explain the server-side potential: If the fields list is passed to the resolver, it could be used to optimize data fetching (unlike the middleware approach).
 Highlight the server-side challenge: The resolver's return type needs to dynamically match the request for type safety, which is hard.
-Conclude: While the idea targets GraphQL's benefits, achieving it with TypeQL's "no code-gen" philosophy and maintaining robust type safety is a very significant technical hurdle, primarily on the type inference side.
+Conclude: While the idea targets GraphQL's benefits, achieving it with zenQuery's "no code-gen" philosophy and maintaining robust type safety is a very significant technical hurdle, primarily on the type inference side.
 Ask if they understand the type system complexity involved and if they still want to pursue this direction, or return to other topics.*
 你提出咗一個好有意思嘅方向：喺 Client 端加入類似 .fields(['name', 'email']) 嘅語法，然後期望 TypeScript 可以自動推斷出最終返回嘅 object type 只包含 name 同 email。
 
@@ -3426,7 +3426,7 @@ Client 端類型推斷挑戰:
 要純粹用 TypeScript 嘅類型系統 (Generics, Conditional Types, Mapped Types) 嚟實現呢種動態嘅部分類型推斷係極度困難嘅。你需要寫非常複雜嘅類型體操，去根據一個運行時先知道內容嘅 string array (['name', 'email']) 去動態構建一個新嘅 TypeScript type。
 呢種做法非常容易出錯，可能會令 TypeScript 變慢，或者喺某啲邊界情況下推斷唔正確，導致類型安全嘅假象。
 對比 GraphQL Client: GraphQL Client (例如 Apollo, urql) 點解可以做到咁精確嘅類型？因為佢哋通常依賴代碼生成 (Code Generation)。工具會讀取你寫嘅 GraphQL query (裡面包含咗 field selection) 同埋 Server Schema，然後預先生成完全匹配呢個 query 結果嘅 TypeScript type 文件。佢哋唔係喺運行時動態推斷。
-TypeQL 嘅目標之一就係避免 code generation。如果想喺呢個前提下實現動態部分類型推斷，技術難度非常高。
+zenQuery 嘅目標之一就係避免 code generation。如果想喺呢個前提下實現動態部分類型推斷，技術難度非常高。
 Server 端處理 Over-fetching:
 
 你提到 Pothos/GraphQL 其實都冇完全解決數據源層面嘅 over-fetching，呢點係啱嘅。就算 GraphQL query 只係要 name，resolver 內部嘅 database query 可能仍然係 SELECT *。要優化呢層需要喺 resolver 裡面做更多功夫 (例如根據 GraphQL info object 去動態構建 SELECT name)。
@@ -3437,7 +3437,7 @@ Resolver 可以利用呢個列表去優化數據源查詢 (例如 prisma.user.fi
 
 你嘅 .fields([...]) 想法好好咁捕捉到 GraphQL field selection 嘅優點，並且指出咗 Server 端可以點樣利用呢個信息去優化 data fetching。
 
-但最大嘅樽頸位係Client 端嘅類型推斷。要喺 TypeQL 堅持 "no code-gen" 嘅前提下，純粹用 TypeScript 實現可靠、高效嘅動態部分類型推斷係一個非常巨大嘅技術挑戰，可能會引入我哋之前擔心嘅類型唔穩定問題。
+但最大嘅樽頸位係Client 端嘅類型推斷。要喺 zenQuery 堅持 "no code-gen" 嘅前提下，純粹用 TypeScript 實現可靠、高效嘅動態部分類型推斷係一個非常巨大嘅技術挑戰，可能會引入我哋之前擔心嘅類型唔穩定問題。
 
 Roo has a question:
 了解到用 .fields([...]) 實現動態類型推斷嘅巨大挑戰之後，你覺得呢個方向仲係值得深入研究，定係佢嘅複雜性同潛在風險太大？
@@ -3532,7 +3532,7 @@ Roo has a question:
 挑戰太大，風險太高，我哋應該放棄純類型推斷嘅 Field Selection。
 
 
-或者我哋可以考慮喺 TypeQL 引入可選嘅 Code Generation 嚟實現 Field Selection？
+或者我哋可以考慮喺 zenQuery 引入可選嘅 Code Generation 嚟實現 Field Selection？
 
 
 我哋返去討論點樣改進目前 RPC 模式下 Resolver 內部嘅 FP 寫法。
@@ -3574,7 +3574,7 @@ Config Object Pattern: 可以通過喺 config object 加入新嘅 optional prope
 
 純 TS Field Selection 嘅高難度同風險: 實現一個可靠、易用嘅純 TS field selection 非常困難。
 Breaking Change 嘅代價: 將來轉換核心模式代價好大。
-TypeQL 目前 Builder 嘅穩定性: 目前嘅 Builder pattern 類型推斷相對簡單直接，可能更穩定。
+zenQuery 目前 Builder 嘅穩定性: 目前嘅 Builder pattern 類型推斷相對簡單直接，可能更穩定。
 擴展方式: Builder 可以用 Middleware / Higher-Order Function 擴展；Config Object 可以用 Optional Props / Higher-Order Function 擴展。
 似乎比較穩妥嘅做法可能係：
 
@@ -3688,39 +3688,39 @@ Roo has a question:
 我係想知, 我地有無辦法秒殺graphql 姐, 至少係 ts eco方面. 但要解決到query field同nested object方面.
 
 👨‍🏫 Elucidator
-你嘅目標好清晰，想知道 TypeQL 有冇可能喺 TypeScript 生態入面「秒殺」GraphQL，即係同時擁有 TypeQL 嘅優點 (例如唔需要 code generation 嘅端到端類型安全) 並且 解決 GraphQL 嘅核心優勢 —— Client 可以自由選擇 query fields (包括 nested objects)。
+你嘅目標好清晰，想知道 zenQuery 有冇可能喺 TypeScript 生態入面「秒殺」GraphQL，即係同時擁有 zenQuery 嘅優點 (例如唔需要 code generation 嘅端到端類型安全) 並且 解決 GraphQL 嘅核心優勢 —— Client 可以自由選擇 query fields (包括 nested objects)。
 
-直接嘅答案係：以目前 TypeQL 嘅 RPC 設計模式嚟睇，要完美複製 GraphQL 嘅 Client field selection 功能，同時保持 TypeQL 嘅「零 Code Gen」類型安全優勢，係非常非常困難嘅，甚至可以話係兩者設計哲學上嘅根本衝突。
+直接嘅答案係：以目前 zenQuery 嘅 RPC 設計模式嚟睇，要完美複製 GraphQL 嘅 Client field selection 功能，同時保持 zenQuery 嘅「零 Code Gen」類型安全優勢，係非常非常困難嘅，甚至可以話係兩者設計哲學上嘅根本衝突。
 
 等我哋再深入啲分析點解：
 
 核心衝突：Server 定義 vs Client 選擇
 
-TypeQL (RPC): 類型安全嘅基礎係 Server 預先定義好每個 procedure 返回嘅完整數據結構。Client 通過 import type 知道呢個完整結構，所以調用時可以得到精確嘅類型檢查。
+zenQuery (RPC): 類型安全嘅基礎係 Server 預先定義好每個 procedure 返回嘅完整數據結構。Client 通過 import type 知道呢個完整結構，所以調用時可以得到精確嘅類型檢查。
 GraphQL (Query Language): 類型安全嘅基礎係 Client 明確指定佢想要嘅 fields，然後通常通過 Code Generation 工具，根據呢個特定嘅 query 同 Server schema 生成對應呢個 query 嘅精確返回類型。
-衝突點: TypeQL 嘅「零 Code Gen」類型安全，依賴於 Server 返回固定結構。而 GraphQL 嘅靈活 field selection，佢嘅類型安全通常依賴於 Code Generation 去處理動態返回結構。
+衝突點: zenQuery 嘅「零 Code Gen」類型安全，依賴於 Server 返回固定結構。而 GraphQL 嘅靈活 field selection，佢嘅類型安全通常依賴於 Code Generation 去處理動態返回結構。
 純 TypeScript 實現 Field Selection 嘅極限:
 
 我哋之前討論過，用 TypeScript 高級類型去動態推斷 Client .fields([...]) 選擇後嘅返回類型，對於簡單情況可能做到，但對於嵌套字段嚟講，複雜度會爆炸性增長，好可能超出 TypeScript 類型系統嘅能力範圍，或者導致非常差嘅編譯性能同錯誤提示。要做到同 GraphQL + Code Gen 一樣嘅效果係極度困難嘅。
 Over-fetching 問題:
 
 你提到 Pothos/GraphQL 冇完全解決數據源層面嘅 over-fetching，呢點係啱嘅。但 GraphQL 至少解決咗 API 傳輸層面嘅 over-fetching (Client 唔會收到多餘字段)。
-TypeQL (RPC) 喺兩層面都可能 over-fetch (Server 可能攞多咗數據，Client 一定會收到完整結構)。雖然 Server resolver 可以嘗試根據 Client input (如果 Client 傳遞 fields 參數) 去優化數據源查詢，但 Client 端仍然會收到完整類型定義嘅數據 (即使部分字段可能係 undefined 或者冇被 Server 填充)，除非 Client 端類型推斷嗰個極難嘅問題被解決。
-結論：點解 TypeQL 難以「秒殺」GraphQL 喺 Field Selection 方面？
+zenQuery (RPC) 喺兩層面都可能 over-fetch (Server 可能攞多咗數據，Client 一定會收到完整結構)。雖然 Server resolver 可以嘗試根據 Client input (如果 Client 傳遞 fields 參數) 去優化數據源查詢，但 Client 端仍然會收到完整類型定義嘅數據 (即使部分字段可能係 undefined 或者冇被 Server 填充)，除非 Client 端類型推斷嗰個極難嘅問題被解決。
+結論：點解 zenQuery 難以「秒殺」GraphQL 喺 Field Selection 方面？
 
 因為佢哋解決問題嘅哲學唔同：
 
-TypeQL/tRPC: 優先考慮極致嘅開發體驗同零配置/零 Code Gen 嘅端到端類型安全 (喺全 TS 環境下)，接受 RPC 模式下 Server 定義返回結構嘅限制。
+zenQuery/tRPC: 優先考慮極致嘅開發體驗同零配置/零 Code Gen 嘅端到端類型安全 (喺全 TS 環境下)，接受 RPC 模式下 Server 定義返回結構嘅限制。
 GraphQL: 優先考慮 Client 數據獲取嘅靈活性同避免 API 層面 over-fetching，接受需要額外 Schema 定義同埋 Client 端通常需要 Code Generation 嚟獲得最佳類型安全。
 目前嚟講，似乎冇一個方案可以完美結合兩者所有嘅優點而冇任何缺點。你通常需要根據項目嘅具體需求做取捨：
 
 如果 Client 端數據需求變化多端，精確控制 field selection 非常重要，咁 GraphQL 可能更適合。
-如果端到端類型安全、簡單直接嘅調用方式、避免 Code Gen 更重要，而且可以接受一定程度嘅 over-fetching (或者通過定義更多特定 endpoint 嚟緩解)，咁 TypeQL/tRPC 就係好好嘅選擇。
+如果端到端類型安全、簡單直接嘅調用方式、避免 Code Gen 更重要，而且可以接受一定程度嘅 over-fetching (或者通過定義更多特定 endpoint 嚟緩解)，咁 zenQuery/tRPC 就係好好嘅選擇。
 Roo has a question:
-了解到 TypeQL 同 GraphQL 喺設計哲學上嘅根本差異，以及純 TS 實現 Field Selection 嘅巨大挑戰之後，你覺得邊種方案嘅取捨更適合你目前嘅項目需求？
+了解到 zenQuery 同 GraphQL 喺設計哲學上嘅根本差異，以及純 TS 實現 Field Selection 嘅巨大挑戰之後，你覺得邊種方案嘅取捨更適合你目前嘅項目需求？
 
 
-我接受 RPC 模式嘅取捨，TypeQL 嘅類型安全同 DX 對我更重要。
+我接受 RPC 模式嘅取捨，zenQuery 嘅類型安全同 DX 對我更重要。
 
 
 Client Field Selection 對我好重要，我可能需要重新考慮技術選型 (例如 GraphQL)。
@@ -3746,21 +3746,21 @@ Client Field Selection 對我好重要，我可能需要重新考慮技術選型
 
 點解會破壞類型安全:
 
-記得 TypeQL 嘅核心優勢係 Client 通過 import type { AppRouter } 攞到 Server API 嘅完整類型定義。
+記得 zenQuery 嘅核心優勢係 Client 通過 import type { AppRouter } 攞到 Server API 嘅完整類型定義。
 所以，Client 嘅 TypeScript 代碼喺調用 client.user.get.query(...) 之後，佢期望收到嘅 object 類型係 { id: string, name: string, email: string, age: number } (根據 Server 嘅定義)。
 但係，如果 Server 喺 send 之前剪走咗 id 同 age，Client 實際收到嘅數據就只係 { name: string, email: string }。
 當 Client 嘅 TypeScript 代碼嘗試去 access result.id 或者 result.age 嘅時候，就會出現問題：
 喺 Runtime，呢啲 property 根本唔存在，會攞到 undefined，可能導致錯誤。
 喺 Compile time，TypeScript 仍然以為呢啲 property 存在，唔會報錯，但呢個係錯誤嘅類型信息。
-為咗解決呢個 mismatch，Client 端就需要用 result as any 或者將類型改成 Partial<User> 等唔安全嘅做法，咁就完全失去咗 TypeQL 提供嘅端到端類型安全保障。
+為咗解決呢個 mismatch，Client 端就需要用 result as any 或者將類型改成 Partial<User> 等唔安全嘅做法，咁就完全失去咗 zenQuery 提供嘅端到端類型安全保障。
 GraphQL 點樣避免呢個問題:
 
 GraphQL Client 唔係依賴一個固定嘅 Server return type。佢係根據 Client 自己寫嘅 Query document (裡面包含 field selection) 同 Server Schema，通過 Code Generation 工具，為呢個特定嘅 Query 生成一個獨一無二嘅、精確匹配返回數據結構嘅 TypeScript type。所以 Client 嘅類型定義同實際收到嘅數據永遠都係一致嘅。
 總結:
 
-喺 Server send response 之前剪裁數據，的確可以解決 API 傳輸層面 嘅 over-fetching。但係喺 TypeQL 呢種依賴 import type 做端到端類型安全嘅 RPC 框架下，咁做嘅代價係犧牲咗核心嘅類型安全保證，令到 Client 端嘅類型定義同實際收到嘅數據唔一致。
+喺 Server send response 之前剪裁數據，的確可以解決 API 傳輸層面 嘅 over-fetching。但係喺 zenQuery 呢種依賴 import type 做端到端類型安全嘅 RPC 框架下，咁做嘅代價係犧牲咗核心嘅類型安全保證，令到 Client 端嘅類型定義同實際收到嘅數據唔一致。
 
-呢個通常唔係一個理想嘅 trade-off，因為類型安全正正係 TypeQL/tRPC 呢類框架最想解決嘅痛點之一。
+呢個通常唔係一個理想嘅 trade-off，因為類型安全正正係 zenQuery/tRPC 呢類框架最想解決嘅痛點之一。
 
 Roo has a question:
 了解到喺 Server 端剪裁 Response 會破壞 Client 端嘅類型安全之後，你覺得為咗解決傳輸層 over-fetching 而犧牲類型安全，係咪一個可以接受嘅做法？
@@ -3789,26 +3789,26 @@ Roo has a question:
 一般壓縮 (Gzip/Brotli): 通常呢種壓縮唔係由應用程式層面嘅 Middleware (好似我哋之前討論嗰啲處理 request/response 邏輯嘅 middleware) 直接做嘅。佢係喺更底層處理：
 Web Server 層面: 例如 Nginx 或者 Apache 可以配置自動對 HTTP response 做 Gzip 或 Brotli 壓縮 (基於 Client request 嘅 Accept-Encoding header)。
 Transport 層面: Node.js 嘅 HTTP server (或者例如 Express 嘅 compression middleware) 可以喺 response stream 度做壓縮。Client 嘅 HTTP library (例如 fetch 或者 axios 喺 Node.js 環境) 通常會自動處理 Gzip/Brotli 嘅解壓 (基於 response 嘅 Content-Encoding header)。
-結論: 所以，標準嘅 HTTP 壓縮通常係由 Web Server 或者 HTTP 框架/庫喺 Transport 層處理，而唔係 TypeQL 應用層面嘅 Middleware 負責實際壓縮/解壓。應用層 Middleware 可以做嘅係設置相關嘅 HTTP headers (例如 Content-Encoding)，但實際工作由底層完成。
-更高效嘅序列化格式 (例如 Protobuf, MessagePack): 如果你想用比 JSON 更細、更快嘅格式，呢個就唔係 Middleware 嘅範疇，而係需要 Transport 層嘅支持。你需要一個 Client 同 Server 都同意使用嘅 Transport，佢哋內部會負責將數據序列化成特定格式 (例如 Protobuf) 先至傳輸，收到之後再反序列化。TypeQL 嘅核心邏輯同 Transport 係分開嘅，所以你可以實現一個用 Protobuf 嘅 Transport。
-2. 個名 "TypeQL" 係咪唔太合適？
+結論: 所以，標準嘅 HTTP 壓縮通常係由 Web Server 或者 HTTP 框架/庫喺 Transport 層處理，而唔係 zenQuery 應用層面嘅 Middleware 負責實際壓縮/解壓。應用層 Middleware 可以做嘅係設置相關嘅 HTTP headers (例如 Content-Encoding)，但實際工作由底層完成。
+更高效嘅序列化格式 (例如 Protobuf, MessagePack): 如果你想用比 JSON 更細、更快嘅格式，呢個就唔係 Middleware 嘅範疇，而係需要 Transport 層嘅支持。你需要一個 Client 同 Server 都同意使用嘅 Transport，佢哋內部會負責將數據序列化成特定格式 (例如 Protobuf) 先至傳輸，收到之後再反序列化。zenQuery 嘅核心邏輯同 Transport 係分開嘅，所以你可以實現一個用 Protobuf 嘅 Transport。
+2. 個名 "zenQuery" 係咪唔太合適？
 
 你嘅觀察好敏銳。"QL" 確實容易令人聯想到 GraphQL 嗰種 Query Language 同埋 Client field selection。
-TypeQL 嘅核心係 RPC，強調嘅係 "Type" —— 利用 TypeScript 實現嘅端到端類型安全。
+zenQuery 嘅核心係 RPC，強調嘅係 "Type" —— 利用 TypeScript 實現嘅端到端類型安全。
 個名可能係想強調佢係一個帶有強類型嘅 API 方案，而 "QL" 可能係一個比較 catchy 或者想借鑒 GraphQL 知名度嘅選擇。類似嘅情況，tRPC 個名都有 "RPC"，但佢都係提供類型安全嘅 RPC 方案。
 結論: 個名係咪最貼切可以商榷，但佢嘅重點明顯係想突出 Type Safety 呢個核心價值。佢嘅運作模式確實係 RPC，而唔係 Query Language。
 3. 點做 Batch Query (批量查詢)?
 
 概念: Batching 係指將短時間內發生嘅多個獨立 API 調用 (通常係 queries 或者 mutations) 合併成一個網絡請求發送俾 Server，Server 處理完之後再將多個結果合併成一個 response 返回。主要目的係減少網絡請求嘅數量，降低延遲。
-實現方式 (喺 TypeQL 概念上):
+實現方式 (喺 zenQuery 概念上):
 Client Transport: 需要修改 Client 嘅 Transport 層。當有多個 query/mutation 喺好短時間內 (例如同一個 event loop tick) 被觸發時，Transport 唔係即刻逐個 send，而係將佢哋收集起嚟，放入一個 array，然後一次過將呢個 array send 俾 Server。
 Server Request Handler: Server 端嘅 Request Handler (可能係 requestHandler.ts 或者類似嘅文件) 需要能夠識別收到嘅 payload 係單個請求定係一個包含多個請求嘅 array。如果係 array，就需要遍歷 array 裡面每個請求，分別調用對應嘅 procedure resolver，將每個結果 (或者錯誤) 收集起嚟，最後返回一個包含所有結果嘅 array。
 Protocol: Client 同 Server 之間嘅通信協議需要定義好點樣表示一個 batch request (例如一個 JSON array) 同埋 batch response。
-目前情況: 我哋之前分析嘅 client.ts, router.ts, procedure.ts 核心代碼似乎冇直接包含 batching 邏輯。Batching 通常係喺 Transport 層或者 Client/Server 嘅鏈接 (Link) 層面實現嘅 (類似 tRPC 嘅 httpBatchLink)。你需要檢查下 TypeQL 項目裡面嘅 Transport package (例如 packages/transport-http) 或者 Server 處理 request 嘅入口點，睇下有冇實現 batching。如果冇，就需要喺嗰啲層面添加相關邏輯。
+目前情況: 我哋之前分析嘅 client.ts, router.ts, procedure.ts 核心代碼似乎冇直接包含 batching 邏輯。Batching 通常係喺 Transport 層或者 Client/Server 嘅鏈接 (Link) 層面實現嘅 (類似 tRPC 嘅 httpBatchLink)。你需要檢查下 zenQuery 項目裡面嘅 Transport package (例如 packages/transport-http) 或者 Server 處理 request 嘅入口點，睇下有冇實現 batching。如果冇，就需要喺嗰啲層面添加相關邏輯。
 總結:
 
 壓縮主要由 Transport 層或 Web Server 負責，唔係應用層 Middleware。
-"TypeQL" 個名可能側重 Type Safety 多過 Query Language。
+"zenQuery" 個名可能側重 Type Safety 多過 Query Language。
 Batching 需要 Client Transport 同 Server Handler 配合，將多個請求合併處理，需要檢查 Transport 層有冇實現。
 Roo has a question:
 針對呢三個問題嘅解答，你有冇邊方面想再深入了解？例如 Batching 嘅具體實現細節？
@@ -3828,7 +3828,7 @@ Roo has a question:
 依家唔同transport 係點應用? 比個usage example我睇下
 
 👨‍🏫 Elucidator
-Thinking: The user wants to see usage examples of applying different transports when creating the TypeQL client. I need to recall the createClient signature and show how transport instances (presumably created by functions from transport packages) are passed in.
+Thinking: The user wants to see usage examples of applying different transports when creating the zenQuery client. I need to recall the createClient signature and show how transport instances (presumably created by functions from transport packages) are passed in.
 冇問題，等我哋睇下喺 Client 端創建 client 實例嘅時候，點樣應用唔同嘅 Transport。
 
 根據我哋之前睇過嘅 client.ts，createClient function 接受一個 options object，裡面可以包含一個 transport property。呢個 transport 就係 Client 同 Server 之間實際通信嘅方式。
@@ -3843,7 +3843,7 @@ import type { AppRouter } from '../server/router'; // <--- 引入 Server Router 
 
 // 1. 創建 HTTP Transport 實例，需要提供 Server URL
 const httpTransport = createHttpTransport({
-  url: 'http://localhost:3000/typeql', // 你 Server 嘅 TypeQL endpoint URL
+  url: 'http://localhost:3000/typeql', // 你 Server 嘅 zenQuery endpoint URL
   // 可以有其他配置，例如 headers
   // headers: async () => {
   //   const token = await getAuthToken();
@@ -3940,7 +3940,7 @@ Roo has a question:
 清楚咗，主要係創建 Transport 實例再傳俾 `createClient`。
 
 
-我想了解 Transport 接口 (`TypeQLTransport`) 嘅定義係點樣？
+我想了解 Transport 接口 (`zenQueryTransport`) 嘅定義係點樣？
 
 
 我想了解 Server 端點樣接收同處理唔同 Transport 嘅請求？
@@ -3958,13 +3958,13 @@ createWebSocketTransport({
 咁 debounce , 或者 client data first remote data later 果啲呢?
 incremental data 呢?
 
-你提出咗幾個關於 Client 端數據處理模式嘅好問題，等我逐一分析下喺 TypeQL 嘅架構下點樣處理：
+你提出咗幾個關於 Client 端數據處理模式嘅好問題，等我逐一分析下喺 zenQuery 嘅架構下點樣處理：
 
 1. Batching (批量請求):
 
 batching: true 係可行嘅做法: 你講得啱，將 batching 作為 transport 嘅一個配置選項 (例如 createWebSocketTransport({ ..., batching: true })) 係非常常見同合理嘅實現方式 (類似 tRPC 嘅 httpBatchLink)。
 實現位置: Batching 邏輯通常喺 Transport 層實現。當 batching: true 嘅時候，transport 嘅 .request() 方法唔會即刻發送請求，而係會用 setTimeout(0) 或者類似機制，將同一個 event loop tick 內嘅所有請求收集起嚟，變成一個 array，然後一次過發送俾 Server。Server 端亦都需要配合處理呢種 array 形式嘅 batch request。
-目前情況: 需要檢查 TypeQL 嘅 transport packages (例如 @sylphlab/transport-http, @sylphlab/transport-websocket) 有冇實現呢個 batching 選項同邏輯。如果冇，就需要喺 Transport 層添加。
+目前情況: 需要檢查 zenQuery 嘅 transport packages (例如 @sylphlab/transport-http, @sylphlab/transport-websocket) 有冇實現呢個 batching 選項同邏輯。如果冇，就需要喺 Transport 層添加。
 2. Debounce (防抖動):
 
 實現位置: Debounce 通常唔係喺 Transport 層或者核心 Client (client.ts) 做嘅。佢更適合喺觸發 API 調用之前嘅地方處理，例如：
@@ -3980,23 +3980,23 @@ useQuery 調用時，先檢查內部嘅 cache 有冇對應呢個 query key + inp
 如果有，即刻返回 cache 數據，UI 可以先顯示舊數據 (狀態可能標記為 stale)。
 同時，useQuery 喺背景觸發 client.xxx.query() 去 Server 攞新數據。
 攞到新數據後，更新 cache，並且將新數據返回俾 UI (狀態標記為 fresh)。
-目前情況: TypeQL 嘅 core client 似乎冇內建 query cache。呢個 stale-while-revalidate 邏輯需要喺 React/Preact 嘅 useQuery hook 內部實現，可能需要配合一個簡單嘅 in-memory cache 或者集成一個專門嘅 client-side cache library。
+目前情況: zenQuery 嘅 core client 似乎冇內建 query cache。呢個 stale-while-revalidate 邏輯需要喺 React/Preact 嘅 useQuery hook 內部實現，可能需要配合一個簡單嘅 in-memory cache 或者集成一個專門嘅 client-side cache library。
 4. Incremental Data (增量數據，類似 GraphQL @defer/@stream):
 
 概念: 對於一個 query，Server 可以先返回一部分必要數據，然後再逐步推送剩餘嘅、可以延遲加載嘅數據塊。
 實現位置: 呢個需要從底層開始嘅支持，包括 Protocol (協議)、Transport (傳輸) 同 Server (伺服器) 都需要重新設計。
 挑戰:
-TypeQL 目前嘅 RPC 協議係基於單次請求/響應 (或者 subscription 嘅獨立消息)，冇定義點樣喺一個 query response 裡面傳輸多個數據塊。
+zenQuery 目前嘅 RPC 協議係基於單次請求/響應 (或者 subscription 嘅獨立消息)，冇定義點樣喺一個 query response 裡面傳輸多個數據塊。
 HTTP Transport 需要支持 multipart response，WebSocket Transport 需要新嘅消息格式。
 Server Resolver 同 Request Handler 需要能夠支持產生同推送部分結果。
 Client 需要能夠處理呢啲分塊嘅響應。
-結論: 喺 TypeQL 目前嘅 RPC 模型下實現類似 GraphQL @defer/@stream 嘅功能係一個非常重大嘅架構改動，唔係簡單加個 option 或者 middleware 就可以做到。
+結論: 喺 zenQuery 目前嘅 RPC 模型下實現類似 GraphQL @defer/@stream 嘅功能係一個非常重大嘅架構改動，唔係簡單加個 option 或者 middleware 就可以做到。
 總結:
 
 Batching: 可以而且應該喺 Transport 層通過 option 實現。
 Debounce: 應該喺 UI/Hooks 層實現。
 Stale-While-Revalidate: 應該喺 UI/Hooks 層結合 Client-side Cache 實現。
-Incremental Data: 需要對 TypeQL 進行重大嘅架構改動先至可能支持。
+Incremental Data: 需要對 zenQuery 進行重大嘅架構改動先至可能支持。
 Roo has a question:
 針對 Batching, Debounce, Stale-While-Revalidate, Incremental Data 呢幾種模式，你對邊方面嘅實現方式或者可行性仲有疑問？
 
@@ -4144,16 +4144,16 @@ Roo has a question:
 API 定義模式比較:
 Builder Pattern (目前): 優點係類型安全逐步建立、引導性強；缺點可能係冗長。支持拆 file。
 Configuration Object Pattern (defineQuery({...})): 你提出嘅方案，可能更簡潔、定義集中；但類型安全實現複雜度高，引導性弱。支持拆 file。
-Pothos 經驗: 你提到用 Pothos (類似 Config Object) 遇到 typing 問題，可能源於其複雜嘅 plugin 系統動態修改類型。TypeQL 目前 Builder 相對簡單，冇 plugin system，類型推斷可能更穩定。
+Pothos 經驗: 你提到用 Pothos (類似 Config Object) 遇到 typing 問題，可能源於其複雜嘅 plugin 系統動態修改類型。zenQuery 目前 Builder 相對簡單，冇 plugin system，類型推斷可能更穩定。
 其他模式: 簡略提及 Decorator, Schema-First (GraphQL/Protobuf), Plain Functions。
 結論 (模式選擇): Builder Pattern 喺類型安全實現嘅可靠性方面有優勢，雖然 Config Object 可能睇起嚟簡潔啲，但實現完美類型推斷嘅挑戰大。Builder 係一個務實嘅選擇。
 Composition (組合性):
 你關心 Builder 能否組合。結論係可以，主要通過 Middleware (組合行為) 或者喺 Resolver 內部組合業務邏輯 function。
 Helper/Higher-Order Procedures: 討論咗用呢啲方式嚟封裝通用模式 (例如 Relay 分頁)，作為一種實現 "Plugin 概念" 嘅方法，可以保持 Tree-shaking 嘅可靠性，同時避免修改核心 Builder。
 GraphQL 對比 & Field Selection:
-你問 TypeQL 能否做到 GraphQL 嘅 Client field selection ("FE first")。
-結論: TypeQL 係 RPC 模式，Server 預先定義完整返回結構，核心優勢係零 Code Gen 嘅端到端類型安全。GraphQL 係 Query Language 模式，Client 選擇 fields，類型安全通常依賴 Code Gen。兩者哲學唔同。
-喺 TypeQL 用純 TypeScript 實現可靠嘅動態 field selection 非常困難，而且喺 Server response 前剪裁數據會破壞類型安全。
+你問 zenQuery 能否做到 GraphQL 嘅 Client field selection ("FE first")。
+結論: zenQuery 係 RPC 模式，Server 預先定義完整返回結構，核心優勢係零 Code Gen 嘅端到端類型安全。GraphQL 係 Query Language 模式，Client 選擇 fields，類型安全通常依賴 Code Gen。兩者哲學唔同。
+喺 zenQuery 用純 TypeScript 實現可靠嘅動態 field selection 非常困難，而且喺 Server response 前剪裁數據會破壞類型安全。
 其他 Client/Transport 功能:
 壓縮: 主要由 Transport 層 / Web Server 處理。
 Batching: 可行，應喺 Transport 層實現。
@@ -4180,7 +4180,7 @@ Client Hooks 功能增強:
 Transport 層功能:
 (優先度: 中) Batching: 喺 HTTP / WebSocket Transport 加入 Batching 支持，提升性能。
 項目改名:
-你提到 "TypeQL" 個名可能因為冇 Query Language 功能而令人誤解。
+你提到 "zenQuery" 個名可能因為冇 Query Language 功能而令人誤解。
 考慮方向: 個名應該反映佢嘅核心價值：TypeScript 同 RPC 嘅結合，以及類型安全。
 建議名稱 ( brainstorming):
 TypeRPC (直接明了)
@@ -4191,7 +4191,7 @@ SafeRPC (強調類型安全)
 SchemaLink (強調類型鏈接)
 總結:
 
-我哋深入探討咗好多關於 API 設計模式、FP 應用、類型安全同 Client 功能嘅權衡。目前睇嚟，堅持 TypeQL 嘅 RPC 核心同 Builder Pattern，同時喺 Resolver 內部推行 FP (尤其係錯誤處理)，並通過 Helper/Higher-Order Procedures 擴展常用模式，可能係一個比較務實同低風險嘅前進方向。Client Hooks 同 Transport 層嘅功能增強亦都值得考慮。改名嘅話，可以考慮更能反映 RPC 同類型安全特性嘅名稱。
+我哋深入探討咗好多關於 API 設計模式、FP 應用、類型安全同 Client 功能嘅權衡。目前睇嚟，堅持 zenQuery 嘅 RPC 核心同 Builder Pattern，同時喺 Resolver 內部推行 FP (尤其係錯誤處理)，並通過 Helper/Higher-Order Procedures 擴展常用模式，可能係一個比較務實同低風險嘅前進方向。Client Hooks 同 Transport 層嘅功能增強亦都值得考慮。改名嘅話，可以考慮更能反映 RPC 同類型安全特性嘅名稱。
 
 Roo has a question:
 睇完呢個總結同埋建議嘅改進方向之後，你覺得邊啲係我哋應該優先處理嘅？或者你想先討論改名嘅問題？
@@ -4381,7 +4381,7 @@ Middleware 嘅常規角色 vs 類型轉換:
 控制執行流程 (調用 next() 或者提前結束)。
 類型安全通常係通過約定 (例如你知道某個 middleware 會喺 ctx 加入 user object) 或者手動類型斷言嚟保證嘅。
 
-TypeQL Builder 嘅設計:
+zenQuery Builder 嘅設計:
 
 .input() 同 .output() 嘅作用係喺編譯時 (Compile Time) 就明確固定呢個 procedure 嘅外部契約 (Contract) / 藍圖。呢個契約係俾 Client 端 import type 並且依賴嘅。
 .use() 嘅作用係喺呢個固定契約嘅內部執行流程中加入額外嘅運行時行為。
@@ -4623,7 +4623,7 @@ const getUsersPaginated = createPaginatedQuery({ // <--- 只需提供核心配�
 高度抽象: 使用時非常簡潔。
 重用性: createPaginatedQuery 可以喺好多地方用。
 Tree-shaking 友好: 如果你冇 import createPaginatedQuery，相關代碼就會被移除。
-類型穩定性: 佢內部仍然係用 TypeQL 嘅 Builder，可以繼承 Builder 逐步推斷可能帶嚟嘅穩定性優勢。
+類型穩定性: 佢內部仍然係用 zenQuery 嘅 Builder，可以繼承 Builder 逐步推斷可能帶嚟嘅穩定性優勢。
 代價係你需要編寫同維護 createPaginatedQuery 呢個 helper function，並且要處理好佢嘅泛型類型。
 
 
@@ -4776,7 +4776,7 @@ Roo has a question:
 核心討論點：Server API 定義模式 & FP 風格
 
 起點: 你希望探討將項目重構成更 FP 風格，尤其關注 Server/Client API Usage Pattern。
-目前模式 (TypeQL):
+目前模式 (zenQuery):
 Server: 使用 Builder Pattern (鏈式調用) (t.query.input(...).resolve(...)) 定義 RPC Procedures。優點係類型安全逐步建立、引導性強；缺點可能係冗長。
 
 Client: 使用 Proxy Chaining (client.user.get.query(...)) 調用 API，基於 Server 導出嘅 Router Type (import type) 實現端到端類型安全，無需 Code Gen。
@@ -4789,7 +4789,7 @@ Configuration Object Pattern (defineQuery({...})): 可能更簡潔，但類型�
 Middleware (.use(...)): 適合組合運行時行為 (如 Caching, Auth, Logging)，但唔適合改變編譯時嘅 Input/Output 類型契約，因為類型推斷極度複雜且風險高。
 Helper Functions (喺 Resolver 內): 可以封裝重用邏輯 (如 Relay)，簡單直接，Tree-shaking 好，但 Resolver 仍需處理部分 Boilerplate (如 Schema 定義)。
 Higher-Order Procedures (createPaginatedQuery({...})): 用 Function 包裝 Builder，可以高度抽象特定模式 (如 Relay)，隱藏 Boilerplate，Tree-shaking 好。缺點係犧牲咗頂層寫法一致性 (用 createPaginatedQuery vs t.query)。
-Client Field Selection (GraphQL-like): TypeQL 係 RPC 模式，Server 定義完整返回結構。要實現 Client Field Selection：
+Client Field Selection (GraphQL-like): zenQuery 係 RPC 模式，Server 定義完整返回結構。要實現 Client Field Selection：
 純 TS 類型推斷極度困難，尤其係嵌套字段，且犧牲零 Code Gen 優勢。
 Server Response 前剪裁會破壞類型安全。
 根本上同 RPC 設計哲學衝突。
@@ -4806,7 +4806,7 @@ Builder vs Config Object: Builder Pattern 嘅逐步類型推斷可能比 Config 
 Chaining: 本身唔係 Bad Pattern，帶嚟嘅類型安全係重要優點。Client 端長鏈條可以用 Helper 封裝。
 Composition in Builder: 主要通過 Middleware (組合行為) 和 Resolver 內部組合實現。用 Middleware 改變類型定義風險極高。
 抽象化 vs 一致性: Higher-Order Procedures 提供咗一種喺保持 Builder 基礎上做高度抽象嘅方法 (例如 Relay)，代價係犧牲頂層寫法一致性。Middleware + Helper 保持一致性，但抽象程度較低。
-Field Selection: TypeQL 嘅 RPC 模式同 GraphQL 嘅 Query Language 模式各有取捨。喺 TypeQL 實現完美嘅 Client Field Selection 非常困難，會犧牲其核心優勢。
+Field Selection: zenQuery 嘅 RPC 模式同 GraphQL 嘅 Query Language 模式各有取捨。喺 zenQuery 實現完美嘅 Client Field Selection 非常困難，會犧牲其核心優勢。
 FP in Resolver: 無論用邊種 API 定義模式，Resolver 內部嘅 FP 改進 (如用 Result/Either 處理錯誤，管理 Side Effects) 都係獨立且值得考慮嘅方向。
 建議方向 (綜合考慮):
 
@@ -4879,7 +4879,7 @@ withRelay(t.query).input(...) 呢個語法風格睇起嚟好吸引，佢嘗試�
 
 相比之下：
 
-Higher-Order Procedure (createPaginatedQuery({...})): 雖然犧牲咗 Builder Chain 嘅一致性，但佢將複雜性封裝喺 createPaginatedQuery 內部，而呢個 function 內部仍然可以用相對穩定嘅 TypeQL Builder。佢對類型系統嘅要求可能比 withRelay(builder) 呢種需要喺類型層面「改造」Builder 嘅方式要低啲。
+Higher-Order Procedure (createPaginatedQuery({...})): 雖然犧牲咗 Builder Chain 嘅一致性，但佢將複雜性封裝喺 createPaginatedQuery 內部，而呢個 function 內部仍然可以用相對穩定嘅 zenQuery Builder。佢對類型系統嘅要求可能比 withRelay(builder) 呢種需要喺類型層面「改造」Builder 嘅方式要低啲。
 Middleware + Helper: 保持 Builder Chain 一致性，但抽象程度最低，需要最多 boilerplate。
 似乎目前冇一種完美嘅方法可以同時滿足所有要求 (一致性、高度抽象、類型穩定、實現簡單)。
 
@@ -4937,7 +4937,7 @@ withRelay(t.query).input(...).output(...).resolve(...): 將配置分散到唔同
 
 你講得啱，withRelay(builder) 嘅核心可以睇成係包裝。但要令呢個包裝類型安全，即係 .input(), .output(), .resolve() 之間嘅類型能夠正確流動同互相推斷，令到最後傳俾 .resolve() 嘅 fetchNodesFn 類型完全正確，呢個類型體操嘅難度仍然非常高。
 
-佢可能比一個完全取代 Builder 嘅 defineQuery 簡單啲 (因為可以依賴底層 Builder 做部分推斷)，但比目前 TypeQL 嘅基本 Builder 或者簡單嘅 Higher-Order Procedure (createPaginatedQuery) 複雜得多。
+佢可能比一個完全取代 Builder 嘅 defineQuery 簡單啲 (因為可以依賴底層 Builder 做部分推斷)，但比目前 zenQuery 嘅基本 Builder 或者簡單嘅 Higher-Order Procedure (createPaginatedQuery) 複雜得多。
 
 所以，雖然語法上睇起嚟保持咗 Builder Chain，但要完美實現佢嘅類型安全，仍然會引入相當大嘅複雜性同風險。
 
@@ -5286,7 +5286,7 @@ Roo has a question:
 
 
 
-你完全捉到個重點！我之前個例子用咗 this.baseBuilder = ... 確實係誤導，因為 TypeQL 嘅 Builder （同埋良好嘅 Builder pattern）本身就應該係 immutable 嘅，即係每次調用 .input() / .output() 都係返回一個新嘅 Builder instance，而唔係修改舊嗰個。非常抱歉令你混淆咗！
+你完全捉到個重點！我之前個例子用咗 this.baseBuilder = ... 確實係誤導，因為 zenQuery 嘅 Builder （同埋良好嘅 Builder pattern）本身就應該係 immutable 嘅，即係每次調用 .input() / .output() 都係返回一個新嘅 Builder instance，而唔係修改舊嗰個。非常抱歉令你混淆咗！
 
 Immutable Builder 嘅運作:
 
@@ -5814,7 +5814,7 @@ Builder Wrapper (withRelay(t.query).input(FilterSchema).output(NodeSchema).resol
 
 你嘅觀察力真係非常敏銳，直接點出咗我之前解釋中嘅矛盾之處！你講得完全正確：
 
-如果 TypeQL 目前嘅基礎 Builder (ProcedureBuilder) 已經成功實現咗喺鏈式調用中傳遞 Input (TInput) 同 Output (TOutput) 類型，令到 .resolve() 可以正確推斷 resolverFn 嘅簽名，咁點解我哋喺 RelayEnhancedBuilder 度做類似嘅事（傳遞 TFilterInput 同 TNodeOutput）就會突然變得「極度困難」呢？
+如果 zenQuery 目前嘅基礎 Builder (ProcedureBuilder) 已經成功實現咗喺鏈式調用中傳遞 Input (TInput) 同 Output (TOutput) 類型，令到 .resolve() 可以正確推斷 resolverFn 嘅簽名，咁點解我哋喺 RelayEnhancedBuilder 度做類似嘅事（傳遞 TFilterInput 同 TNodeOutput）就會突然變得「極度困難」呢？
 
 你嘅質疑係完全合理嘅。我之前嘅解釋確實有問題，過於強調咗「跨實例類型狀態傳遞」嘅普遍難度，而冇意識到基礎 Builder 其實已經解決咗類似嘅問題。
 
@@ -5869,13 +5869,13 @@ Roo has a question:
 
 好的，經過我哋反覆深入嘅討論同釐清，以下係最終嘅總結：
 
-核心目標: 探討 TypeQL 嘅 API 定義同使用模式，特別係點樣可以更符合 FP 風格，以及點樣處理類似 Relay 分頁等複雜模式。
+核心目標: 探討 zenQuery 嘅 API 定義同使用模式，特別係點樣可以更符合 FP 風格，以及點樣處理類似 Relay 分頁等複雜模式。
 
 討論關鍵點 & 最終結論:
 
 API 定義模式 (Builder vs Config Object vs ...):
 
-TypeQL 目前使用 Builder Pattern (鏈式調用)，優點係類型安全逐步建立、引導性強。
+zenQuery 目前使用 Builder Pattern (鏈式調用)，優點係類型安全逐步建立、引導性強。
 你提出 Configuration Object Pattern 可能更簡潔，但基於 Pothos 經驗，擔心其類型推斷複雜性同潛在問題。
 我哋分析咗 Middleware，結論係佢適合組合行為，但難以安全地改變類型契約。
 我哋探討咗 Higher-Order Procedure (包裝 Builder)，佢可以提供高度抽象，但會犧牲頂層寫法一致性。
@@ -5883,7 +5883,7 @@ TypeQL 目前使用 Builder Pattern (鏈式調用)，優點係類型安全逐步
 結論: Builder Wrapper 模式 (例如 withRelay(builder)) 被確定為最值得優先探索嘅方向，用嚟實現類似 Plugin 嘅抽象化，同時保持 Builder 風格。
 Client Field Selection (GraphQL-like):
 
-結論: TypeQL 係 RPC 模式，Server 定義完整返回結構。要喺 TypeQL 實現 Client Field Selection 同時保持零 Code Gen 嘅端到端類型安全，技術上極度困難且風險高。接受 RPC 模式嘅限制係更務實嘅選擇。
+結論: zenQuery 係 RPC 模式，Server 定義完整返回結構。要喺 zenQuery 實現 Client Field Selection 同時保持零 Code Gen 嘅端到端類型安全，技術上極度困難且風險高。接受 RPC 模式嘅限制係更務實嘅選擇。
 Resolver 內部 FP 改進:
 
 結論: 無論用邊種 API 定義模式，改進 Resolver 內部嘅 FP 寫法都係有價值嘅。特別係將錯誤處理從 throw/console 改成返回 Result type，可以提升 Purity 同可測試性，係一個值得考慮嘅步驟。
@@ -6021,16 +6021,16 @@ Roo has a question:
 喺一個中心化嘅文件 (例如 src/server/builder.ts 或者 src/server/init.ts)，你初始化一次 Builder instance。
 然後將呢個 instance 導出 (export)。
 // src/server/builder.ts
-import { initTypeQL } from '@sylphlab/typeql-server'; // 假設路徑
+import { initzenQuery } from '@sylphlab/typeql-server'; // 假設路徑
 import type { MyContext } from './context'; // 假設 Context type
 
 // 初始化一次，然後導出俾其他文件用
-export const t = initTypeQL<MyContext>();
+export const t = initzenQuery<MyContext>();
 
 // (可以喺度導出埋 createRouter，方便啲)
 // export const createRouter = t.router;
 // export const publicProcedure = t.procedure;
-(注意：上面例子用咗 tRPC 嘅 t.router, t.procedure 概念，TypeQL 係用 createRouter，但共享 t 嘅原理一樣)
+(注意：上面例子用咗 tRPC 嘅 t.router, t.procedure 概念，zenQuery 係用 createRouter，但共享 t 嘅原理一樣)
 
 喺 Procedure 文件中導入 (import) t:
 
@@ -6113,8 +6113,8 @@ Roo has a question:
 佢更準確嚟講係一個 Module Singleton (模塊單例)。所有 import 咗 t 嘅 module 都係攞到同一個喺 builder.ts 初始化嘅 instance 嘅引用。
 點解通常只用一個 t Instance？ (設計原因)
 
-Context 一致性: 呢個係最主要原因。initTypeQL<MyContext>() 呢個初始化步驟通常會綁定一個特定嘅 Context 類型 (MyContext)。所有用呢個 t instance 定義出嚟嘅 procedures (t.query, t.mutation) 都會期望喺運行時接收到符合 MyContext 結構嘅 context object。如果成個 application 嘅 API 都係用同一個 context 結構，咁用一個共享嘅 t instance 就可以保證所有 procedures 嘅 context 類型都係一致嘅。如果你創建咗多個 t instance (例如 t1 = initTypeQL<Ctx1>(), t2 = initTypeQL<Ctx2>())，然後想將用 t1 定義嘅 procedure 同用 t2 定義嘅 procedure 組合埋一個 router 度，就會出現 context 類型唔匹配嘅問題，好難處理。
-中央配置: 如果 initTypeQL 或者 t 本身將來需要接受一啲全局配置 (例如 default middleware, error formatter 等)，用一個共享 instance 可以確保呢啲配置應用到所有 procedures。
+Context 一致性: 呢個係最主要原因。initzenQuery<MyContext>() 呢個初始化步驟通常會綁定一個特定嘅 Context 類型 (MyContext)。所有用呢個 t instance 定義出嚟嘅 procedures (t.query, t.mutation) 都會期望喺運行時接收到符合 MyContext 結構嘅 context object。如果成個 application 嘅 API 都係用同一個 context 結構，咁用一個共享嘅 t instance 就可以保證所有 procedures 嘅 context 類型都係一致嘅。如果你創建咗多個 t instance (例如 t1 = initzenQuery<Ctx1>(), t2 = initzenQuery<Ctx2>())，然後想將用 t1 定義嘅 procedure 同用 t2 定義嘅 procedure 組合埋一個 router 度，就會出現 context 類型唔匹配嘅問題，好難處理。
+中央配置: 如果 initzenQuery 或者 t 本身將來需要接受一啲全局配置 (例如 default middleware, error formatter 等)，用一個共享 instance 可以確保呢啲配置應用到所有 procedures。
 簡單性: 提供一個單一、清晰嘅入口點 (t) 去定義所有 procedures，令代碼結構更易理解。
 係咪「格硬嚟」？
 
@@ -6154,21 +6154,21 @@ Roo has a question:
 
 唔再導出 t: 唔再需要 src/server/builder.ts 呢個文件去導出一個共享嘅 t。
 喺創建 Server/Router 時初始化 t:
-當你需要創建一個特定嘅 Server 實例或者 Router 嘅時候，先至喺嗰個 scope 入面調用 initTypeQL<SpecificContext>() 嚟創建一個專屬於呢個 Server/Router 嘅 t instance。
+當你需要創建一個特定嘅 Server 實例或者 Router 嘅時候，先至喺嗰個 scope 入面調用 initzenQuery<SpecificContext>() 嚟創建一個專屬於呢個 Server/Router 嘅 t instance。
 然後將呢個局部嘅 t instance 傳遞俾需要用佢嚟定義 procedures 嘅地方。
 例子：創建兩個獨立 Server
 
 // serverA.ts
-import { initTypeQL, createRouter } from '@sylphlab/typeql-server';
+import { initzenQuery, createRouter } from '@sylphlab/typeql-server';
 import type { ContextA } from './contextA';
 import { procedureA1 } from './proceduresA';
 import { createHttpServer } from './httpServer'; // 假設
 
 // 1. 為 Server A 創建專屬嘅 tA
-const tA = initTypeQL<ContextA>();
+const tA = initzenQuery<ContextA>();
 
 // 2. procedureA1 可能係喺另一個 file 定義，需要接收 tA
-//    (或者 procedureA1 file import initTypeQL 自己創建 tA，如果 ContextA 喺嗰度定義)
+//    (或者 procedureA1 file import initzenQuery 自己創建 tA，如果 ContextA 喺嗰度定義)
 // const procedureA1 = defineProcedureA1(tA); // 假設 defineProcedureA1 接收 t
 
 // 3. 用 tA 定義嘅 procedures 創建 Router A
@@ -6184,13 +6184,13 @@ serverA.listen(3000);
 // -----------------------------------------
 
 // serverB.ts
-import { initTypeQL, createRouter } from '@sylphlab/typeql-server';
+import { initzenQuery, createRouter } from '@sylphlab/typeql-server';
 import type { ContextB } from './contextB';
 import { procedureB1 } from './proceduresB';
 import { createWebSocketServer } from './wsServer'; // 假設
 
 // 1. 為 Server B 創建專屬嘅 tB
-const tB = initTypeQL<ContextB>();
+const tB = initzenQuery<ContextB>();
 
 // 2. procedureB1 用 tB 定義
 
@@ -6206,10 +6206,10 @@ serverB.listen(3001);
 優點:
 
 靈活性: 你可以為每個 Server instance 創建獨立嘅 Builder (tA, tB)，佢哋可以有唔同嘅 Context 類型 (ContextA, ContextB)，甚至將來可以有唔同嘅全局配置。
-延遲創建: 你可以喺任何你需要嘅時候先調用 initTypeQL() 創建 Builder，唔需要喺應用程式啟動時就創建。
+延遲創建: 你可以喺任何你需要嘅時候先調用 initzenQuery() 創建 Builder，唔需要喺應用程式啟動時就創建。
 缺點:
 
-傳遞 t: 如果你想將 procedure 定義拆分到唔同文件，你需要將對應嘅 t instance (例如 tA) 傳遞俾嗰啲文件 (例如通過 function 參數)，或者喺嗰啲文件內部根據需要嘅 Context 類型自己 initTypeQL() (如果 Context 類型可以喺嗰度 access 到)。相比共享 t，可能多咗少少傳遞參數嘅功夫。
+傳遞 t: 如果你想將 procedure 定義拆分到唔同文件，你需要將對應嘅 t instance (例如 tA) 傳遞俾嗰啲文件 (例如通過 function 參數)，或者喺嗰啲文件內部根據需要嘅 Context 類型自己 initzenQuery() (如果 Context 類型可以喺嗰度 access 到)。相比共享 t，可能多咗少少傳遞參數嘅功夫。
 結論:
 
 共享 t instance 嘅做法只係一種常見嘅簡化模式，適用於大部分單一 Server、單一 Context 嘅場景。如果你需要創建多個 Server 或者延遲創建 Builder，完全可以唔共享 t，改為喺需要嘅地方獨立創建 Builder instance。呢個會提供更高嘅靈活性。
@@ -6269,25 +6269,25 @@ function defineUserProcedures(t: typeof t): ProcedureDefs<typeof t> {
 }
 
 // Server 文件
-const tA = initTypeQL<ContextA>();
+const tA = initzenQuery<ContextA>();
 const userProceduresA = defineUserProcedures(tA); // 將 tA 傳入
 
-const tB = initTypeQL<ContextB>();
+const tB = initzenQuery<ContextB>();
 const userProceduresB = defineUserProcedures(tB); // 將 tB 傳入
 
 const routerA = createRouter<ContextA>()({ user: userProceduresA });
 const routerB = createRouter<ContextB>()({ user: userProceduresB });
 挑戰: defineUserProcedures 嘅參數 t 嘅類型 (typeof t) 仍然需要被正確推斷。如果 t 嘅類型本身就好複雜，呢度可能仍然有困難。
-喺 Procedure 文件內部 initTypeQL():
+喺 Procedure 文件內部 initzenQuery():
 
-如果 procedure 文件可以 access 到佢需要嘅 Context Type，佢可以喺文件內部自己調用 initTypeQL<SpecificContext>() 嚟創建一個局部嘅 t。
+如果 procedure 文件可以 access 到佢需要嘅 Context Type，佢可以喺文件內部自己調用 initzenQuery<SpecificContext>() 嚟創建一個局部嘅 t。
 呢個避免咗傳遞 t，但要求 Context Type 嘅定義要容易被 procedure 文件 import。
 // src/procedures/user/getUser.ts
-import { initTypeQL } from '@sylphlab/typeql-server';
+import { initzenQuery } from '@sylphlab/typeql-server';
 import type { UserContext } from '../../context/userContext'; // 導入特定 Context
 import { z } from 'zod';
 
-const t = initTypeQL<UserContext>(); // <--- 喺文件內部創建
+const t = initzenQuery<UserContext>(); // <--- 喺文件內部創建
 
 export const getUserProcedure = t.query
     .input(z.object({ id: z.string() }))
@@ -6295,12 +6295,12 @@ export const getUserProcedure = t.query
         // ...
     });
 優點: 簡單直接，唔使傳遞 t。
-缺點: 如果多個 procedure 文件用同一個 Context，會創建多個 t instance (雖然通常冇副作用)。如果將來 initTypeQL 需要全局配置，呢個配置會分散。
+缺點: 如果多個 procedure 文件用同一個 Context，會創建多個 t instance (雖然通常冇副作用)。如果將來 initzenQuery 需要全局配置，呢個配置會分散。
 結論 (再次權衡):
 
 你對手動寫複雜 Builder type 嘅擔憂係非常合理嘅。
 共享 t (Module Singleton) 嘅方式，雖然睇起嚟似 global，但佢最好地利用咗 TypeScript 嘅類型推斷，避免咗手動處理複雜類型簽名嘅問題，同時保證咗 Context 一致性。對於單一 Server、單一 Context 嘅標準場景，佢通常係最簡單、最可靠嘅方案。
-如果你確實需要多 Server 或者延遲創建，喺 Procedure 文件內部 initTypeQL() 可能是比傳遞 t 更可行嘅方式 (只要 Context Type 可以方便 import)。
+如果你確實需要多 Server 或者延遲創建，喺 Procedure 文件內部 initzenQuery() 可能是比傳遞 t 更可行嘅方式 (只要 Context Type 可以方便 import)。
 
 Roo has a question:
 考慮到手動處理複雜 Builder 類型嘅困難，以及共享 t 可以更好地利用類型推斷，你係咪覺得對於單一 Server 嘅場景，共享 t 仍然係最實用嘅做法？
@@ -6327,10 +6327,10 @@ Roo has a question:
 創建並導出 t:
 
 // src/server/builder.ts
-import { initTypeQL } from '@sylphlab/typeql-server';
+import { initzenQuery } from '@sylphlab/typeql-server';
 import type { MyContext } from './context';
 
-export const t = initTypeQL<MyContext>(); // <--- 初始化並導出
+export const t = initzenQuery<MyContext>(); // <--- 初始化並導出
 export type TBuilder = typeof t; // <--- (可選) 導出 t 的類型別名
 喺 Procedure 文件導入並使用 t:
 
@@ -6356,7 +6356,7 @@ export function defineUserProcedures() { // <--- 唔再需要接收 t 作為參�
 // export function defineUserProceduresExplicit(t: TBuilder) { ... }
 點解咁樣得？
 
-因為 import { t } from '../../builder' 唔單止引入咗 t 呢個 value (即係 initTypeQL 返回嘅 object)，同時 TypeScript 亦都通過呢個 import 知道咗 t 嘅完整類型。
+因為 import { t } from '../../builder' 唔單止引入咗 t 呢個 value (即係 initzenQuery 返回嘅 object)，同時 TypeScript 亦都通過呢個 import 知道咗 t 嘅完整類型。
 你喺 defineUserProcedures 裡面直接用 t 嘅時候，所有類型檢查、方法補全都會正常運作，因為 TypeScript 已經知道 t 係乜嘢類型。
 你唔需要再手動喺 function 參數度寫 t 嘅類型，避免咗處理複雜類型簽名嘅問題。
 結論 (再次強調):
@@ -6404,32 +6404,32 @@ Side Effect / Global State: 你指出 import { t } from './builder' 呢種做法
 傳遞 t 作為參數 (defineProcedures(t)):
 優點: 更符合函數式原則 (依賴注入)，支持多 Server/Context。
 缺點: 需要喺調用者同被調用者之間正確傳遞 t 嘅類型，如果 t 類型複雜，手動寫簽名非常困難。
-喺 Procedure 文件內部 initTypeQL():
+喺 Procedure 文件內部 initzenQuery():
 優點: 避免傳遞 t，支持多 Server/Context (只要 Context type 可 import)。
 缺點: 可能創建多個 t instance (通常冇害)，全局配置分散。
 重新評估:
 
 考慮到你對 FP 原則嘅關注 (指出 side effect) 同埋對多 instance 場景嘅擔憂，似乎共享 t 嘅缺點對你嚟講比較重要。
 
-咁剩低嘅選擇就係「傳遞 t」同「內部 initTypeQL()」。
+咁剩低嘅選擇就係「傳遞 t」同「內部 initzenQuery()」。
 
 「傳遞 t」嘅主要障礙係手動處理複雜類型簽名。
-「內部 initTypeQL()」睇起嚟係一個更可行嘅方案，只要：
+「內部 initzenQuery()」睇起嚟係一個更可行嘅方案，只要：
 Procedure 文件可以方便咁 import 到佢需要嘅 Context type。
 你接受可能會創建多個 t instance 嘅事實 (通常問題不大)。
-如果將來 initTypeQL 需要全局配置，你需要搵方法將配置傳遞俾所有 initTypeQL 調用點 (可能通過一個共享嘅 config module)。
+如果將來 initzenQuery 需要全局配置，你需要搵方法將配置傳遞俾所有 initzenQuery 調用點 (可能通過一個共享嘅 config module)。
 結論 (再次修正):
 
 基於你嘅反饋，特別係對 side effect 同多 instance 場景嘅關注，共享 t 可能唔係最適合你嘅方案。
 
-喺 Procedure 文件內部自己 initTypeQL<SpecificContext>() 睇起嚟係一個更靈活、更能避免複雜類型傳遞問題嘅務實選擇，只要 Context Type 可以方便管理同導入。
+喺 Procedure 文件內部自己 initzenQuery<SpecificContext>() 睇起嚟係一個更靈活、更能避免複雜類型傳遞問題嘅務實選擇，只要 Context Type 可以方便管理同導入。
 
 
 Roo has a question:
-經過進一步釐清，考慮到你對 FP 原則同多 Instance 場景嘅關注，係咪「喺 Procedure 文件內部 initTypeQL()」呢個方案更能滿足你嘅需求？
+經過進一步釐清，考慮到你對 FP 原則同多 Instance 場景嘅關注，係咪「喺 Procedure 文件內部 initzenQuery()」呢個方案更能滿足你嘅需求？
 
 
-係，喺 Procedure 文件內部 `initTypeQL()` 睇起嚟更靈活，可以接受。
+係，喺 Procedure 文件內部 `initzenQuery()` 睇起嚟更靈活，可以接受。
 
 
 咁 Context Type 點樣管理同導入會比較好？
@@ -6445,22 +6445,22 @@ Roo has a question:
 
 
 
-你講得啱，如果 TypeQL 嘅 Builder type (typeof t) 相對簡單，可以比較容易咁手動寫出嚟或者通過 typeof 推斷出嚟，咁「傳遞 t」呢個方案 (defineProcedures(t: TBuilder)) 就變得可行。
+你講得啱，如果 zenQuery 嘅 Builder type (typeof t) 相對簡單，可以比較容易咁手動寫出嚟或者通過 typeof 推斷出嚟，咁「傳遞 t」呢個方案 (defineProcedures(t: TBuilder)) 就變得可行。
 
 對比 Pothos:
 
 Pothos 嘅 Builder type 因為佢複雜嘅 plugin 系統、泛型、schema builder 狀態等等，確實係非常非常複雜，幾乎冇可能人手準確寫出嚟。所以喺 Pothos 嘅生態裡面，通常都係用 Module Singleton (共享 builder instance) 嘅方式。
-TypeQL 嘅情況:
+zenQuery 嘅情況:
 
-如果 TypeQL 嘅 initTypeQL() 返回嘅 t object 嘅類型相對穩定同簡單，冇 Pothos 嗰種極度複雜嘅泛型同 plugin 狀態。
+如果 zenQuery 嘅 initzenQuery() 返回嘅 t object 嘅類型相對穩定同簡單，冇 Pothos 嗰種極度複雜嘅泛型同 plugin 狀態。
 咁你確實可以考慮：
 導出類型別名:
 // src/server/builder.ts (或者 init.ts)
-import { initTypeQL } from '@sylphlab/typeql-server';
+import { initzenQuery } from '@sylphlab/typeql-server';
 import type { MyContext } from './context';
 
 // 創建一個臨時 instance 只為咗攞到類型
-const tempT = initTypeQL<MyContext>();
+const tempT = initzenQuery<MyContext>();
 // 導出類型別名
 export type TBuilder = typeof tempT;
 
@@ -6484,11 +6484,11 @@ export function defineUserProcedures(t: TBuilder) {
 }
 喺 Server 文件創建並傳遞 t:
 // src/server/serverA.ts
-import { initTypeQL, createRouter } from '@sylphlab/typeql-server';
+import { initzenQuery, createRouter } from '@sylphlab/typeql-server';
 import type { ContextA } from './contextA';
 import { defineUserProcedures } from './procedures/user/defineUserProcedures';
 
-const tA = initTypeQL<ContextA>(); // <--- 創建 instance
+const tA = initzenQuery<ContextA>(); // <--- 創建 instance
 const userProcedures = defineUserProcedures(tA); // <--- 將 instance 傳入
 
 const routerA = createRouter<ContextA>()({
@@ -6503,10 +6503,10 @@ const routerA = createRouter<ContextA>()({
 類型安全: 只要 TBuilder 類型別名係準確嘅，類型安全就有保障。
 缺點:
 需要導出類型別名: 多咗一步 export type TBuilder = typeof tempT;。
-依賴 t 類型嘅穩定性: 如果將來 TypeQL 嘅 Builder type 變得好似 Pothos 咁複雜，呢個方法就會變得困難。但如果 TypeQL 保持相對簡單，就冇問題。
+依賴 t 類型嘅穩定性: 如果將來 zenQuery 嘅 Builder type 變得好似 Pothos 咁複雜，呢個方法就會變得困難。但如果 zenQuery 保持相對簡單，就冇問題。
 結論:
 
-既然 TypeQL 嘅 Builder type 相對簡單，「傳遞 t + 導出類型別名」睇起嚟係一個非常好嘅方案，可以完美解決你對 Module Singleton 嘅擔憂 (side effect, 多 instance)，同時又保持咗類型安全同埋 Builder Pattern 嘅優點。呢個可能係比「內部 initTypeQL()」更好嘅選擇，因為佢保持咗 t instance 同 Context 嘅明確關聯。
+既然 zenQuery 嘅 Builder type 相對簡單，「傳遞 t + 導出類型別名」睇起嚟係一個非常好嘅方案，可以完美解決你對 Module Singleton 嘅擔憂 (side effect, 多 instance)，同時又保持咗類型安全同埋 Builder Pattern 嘅優點。呢個可能係比「內部 initzenQuery()」更好嘅選擇，因為佢保持咗 t instance 同 Context 嘅明確關聯。
 
 
 Roo has a question:
@@ -6516,7 +6516,7 @@ Roo has a question:
 係，呢個「傳遞 `t` + 導出類型別名」方案睇起嚟最好，我哋採用佢。
 
 
-我想確認下 TypeQL 嘅 `typeof t` 類型係咪真係夠簡單，容易導出同使用？
+我想確認下 zenQuery 嘅 `typeof t` 類型係咪真係夠簡單，容易導出同使用？
 
 
 我想返去討論點樣改進 Resolver 內部嘅 FP 寫法。
@@ -6528,16 +6528,16 @@ Roo has a question:
 其實仲有另一個方法, 就係官方寫埋個type creater出黎
 
 
-你又提出咗一個非常好嘅解決方案！完全正確，除咗用 typeof tempT 呢個 workaround，最好嘅方式其實係由 TypeQL 官方直接提供一個方法俾你攞到 Builder 嘅類型。
+你又提出咗一個非常好嘅解決方案！完全正確，除咗用 typeof tempT 呢個 workaround，最好嘅方式其實係由 zenQuery 官方直接提供一個方法俾你攞到 Builder 嘅類型。
 
 做法：「官方 Type Creator」
 
-TypeQL 庫提供類型工具: TypeQL 庫 (@sylphlab/typeql-server) 內部定義好 initTypeQL<TContext>() 返回嘅 object 嘅準確類型，並且將呢個類型（或者一個可以生成呢個類型嘅泛型工具 type）導出。例如，佢可以導出一個叫 BuilderInstance<TContext> 嘅泛型類型。
+zenQuery 庫提供類型工具: zenQuery 庫 (@sylphlab/typeql-server) 內部定義好 initzenQuery<TContext>() 返回嘅 object 嘅準確類型，並且將呢個類型（或者一個可以生成呢個類型嘅泛型工具 type）導出。例如，佢可以導出一個叫 BuilderInstance<TContext> 嘅泛型類型。
 // @sylphlab/typeql-server 內部 (概念)
 declare class ProcedureBuilderInitializer<TContext> {
     // ... query, mutation, subscription getters ...
 }
-export function initTypeQL<TContext>(): ProcedureBuilderInitializer<TContext>;
+export function initzenQuery<TContext>(): ProcedureBuilderInitializer<TContext>;
 // 導出一個可以直接用嘅類型工具
 export type BuilderInstance<TContext> = ProcedureBuilderInitializer<TContext>;
 用戶導入並使用官方類型:
@@ -6558,11 +6558,11 @@ export function defineUserProcedures(t: BuilderInstance<MyContext>) {
 // export function defineUserProcedures<TContext>(t: BuilderInstance<TContext>) { ... }
 Server 文件創建並傳遞 t: (同之前一樣)
 // src/server/serverA.ts
-import { initTypeQL, createRouter } from '@sylphlab/typeql-server';
+import { initzenQuery, createRouter } from '@sylphlab/typeql-server';
 import type { ContextA } from './contextA';
 import { defineUserProcedures } from './procedures/user/defineUserProcedures';
 
-const tA = initTypeQL<ContextA>();
+const tA = initzenQuery<ContextA>();
 // 如果 defineUserProcedures 係泛型: const userProcedures = defineUserProcedures<ContextA>(tA);
 // 如果唔係泛型 (假設佢用 MyContext): const userProcedures = defineUserProcedures(tA); // 需要確保 ContextA 同 MyContext 兼容
 const userProcedures = defineUserProcedures(tA); // 假設 Context 匹配
@@ -6574,7 +6574,7 @@ const routerA = createRouter<ContextA>()({
 呢個「官方 Type Creator」方案嘅優點:
 
 最清晰、最標準: 避免咗 typeof tempT 呢種 workaround，直接用庫提供嘅官方類型。
-可靠: 只要 TypeQL 庫維護好呢個導出嘅類型，佢就一定係準確嘅。
+可靠: 只要 zenQuery 庫維護好呢個導出嘅類型，佢就一定係準確嘅。
 支持多 Instance / 延遲創建: 同「傳遞 t」方案一樣，完美支持呢啲場景。
 更符合 FP 原則: Procedure 定義 function 仍然係顯式依賴注入 t。
 結論:
@@ -6585,7 +6585,7 @@ const routerA = createRouter<ContextA>()({
 符合 FP 依賴注入嘅原則。
 避免咗手動寫複雜類型簽名嘅困難 (用官方提供嘅類型)。
 避免咗 Module Singleton 嘅潛在問題。
-呢個方案嘅可行性只取決於 TypeQL 庫本身有冇（或者願唔願意）導出呢個 BuilderInstance<TContext> 類型。如果佢有導出，咁呢個就係最佳實踐。
+呢個方案嘅可行性只取決於 zenQuery 庫本身有冇（或者願唔願意）導出呢個 BuilderInstance<TContext> 類型。如果佢有導出，咁呢個就係最佳實踐。
 
 
 Roo has a question:
@@ -6595,7 +6595,7 @@ Roo has a question:
 係，呢個方案最好，我哋就用呢個策略。
 
 
-我想確認下 TypeQL 係咪已經有導出類似 `BuilderInstance` 嘅類型？
+我想確認下 zenQuery 係咪已經有導出類似 `BuilderInstance` 嘅類型？
 
 
 我想返去討論點樣改進 Resolver 內部嘅 FP 寫法。
@@ -6610,7 +6610,7 @@ Roo has a question:
 
 📚 Curator
 Thinking: The user wants to finalize the API definition discussion, acknowledging the dependency on the library exporting the builder type for the "pass t + official type" approach. They want to prioritize trying the Builder Wrapper (withRelay(builder)) first and request a memory update before proceeding.
-你講得啱，如果 TypeQL 官方冇導出 Builder 類型，咁「傳遞 t + 官方類型」呢個最理想嘅方案就用唔到。到時我哋就需要 fallback 去用 typeof tempT 嘅 workaround，或者喺 procedure 文件內部 initTypeQL()。
+你講得啱，如果 zenQuery 官方冇導出 Builder 類型，咁「傳遞 t + 官方類型」呢個最理想嘅方案就用唔到。到時我哋就需要 fallback 去用 typeof tempT 嘅 workaround，或者喺 procedure 文件內部 initzenQuery()。
 
 不過，既然我哋嘅目標係探索點樣最好咁兼顧一致性同抽象化，而 Builder Wrapper (withRelay(builder)) 睇起嚟係一個有潛力嘅方向，而且你亦都想優先嘗試佢，咁我哋就將呢個定為下一步嘅探索目標。
 
@@ -6849,7 +6849,7 @@ withRelay<MyContext> ? MyContet 要傳咩? t.query 無咩?
 因為 withRelay 係創建 RelayEnhancedBuilder 嘅入口點，所以需要喺呢度就將 Context Type (MyContext) 傳入去，等之後嘅步驟可以用。
 t.query 有冇 Context Type？
 
-你講得啱，喺 TypeQL 目前嘅設計 (procedure.ts) 裡面，initTypeQL<MyContext>() 創建嘅 t instance 已經包含咗 Context 類型信息。
+你講得啱，喺 zenQuery 目前嘅設計 (procedure.ts) 裡面，initzenQuery<MyContext>() 創建嘅 t instance 已經包含咗 Context 類型信息。
 t.query (即 ProcedureBuilderInitializer 嘅 query getter) 返回嘅 ProcedureBuilder instance 亦都繼承咗呢個 Context 類型信息 (雖然喺我之前簡化嘅 ProcedureBuilder class 定義可能冇明確寫出嚟)。
 改進 withRelay 嘅設計 (唔需要手動傳 Context):
 
@@ -6993,9 +6993,9 @@ Pothos 嘅 Relay plugin 允許你定義一個 Subscription field，佢返回嘅�
 缺點:
 效率可能較低: Server 需要重新計算成個分頁，並且將成個分頁嘅數據 (Connection object) 推送俾 Client，即使可能只係多咗一條或者少咗一條數據。
 可能唔適用所有場景: 如果列表非常大，或者更新非常頻繁，每次都推送成個 Connection 可能會帶嚟性能問題或者帶寬浪費。
-TypeQL 點樣處理「分頁列表嘅實時更新」？
+zenQuery 點樣處理「分頁列表嘅實時更新」？
 
-既然 TypeQL 係 RPC 模式，而且我哋之前討論過 Subscription 通常推送細粒度事件，咁點樣處理分頁列表嘅實時更新呢？通常有幾種做法：
+既然 zenQuery 係 RPC 模式，而且我哋之前討論過 Subscription 通常推送細粒度事件，咁點樣處理分頁列表嘅實時更新呢？通常有幾種做法：
 
 細粒度事件 + Client 端合併:
 
@@ -7012,21 +7012,21 @@ TypeQL 點樣處理「分頁列表嘅實時更新」？
 
 做法: 可以設計一個特定嘅 Subscription procedure，佢接收分頁參數 (first, after 等)，然後喺相關數據變化時，重新計算對應分頁嘅 Connection object，再將呢個完整嘅 Connection object 推送俾 Client。
 優點: Client 端處理相對簡單 (直接替換數據)。
-缺點: 同 Pothos 類似，Server 需要重新計算分頁，網絡傳輸數據量可能較大。需要喺 TypeQL 實現呢種特定嘅 Subscription 模式。
+缺點: 同 Pothos 類似，Server 需要重新計算分頁，網絡傳輸數據量可能較大。需要喺 zenQuery 實現呢種特定嘅 Subscription 模式。
 結論:
 
 Pothos 確實可以喺 Subscription 用 Relay Connection，通常用於推送整個更新後嘅分頁。
-喺 TypeQL 嘅 RPC 模型下，處理分頁列表實時更新：
+喺 zenQuery 嘅 RPC 模型下，處理分頁列表實時更新：
 細粒度事件 + Client 端合併: 網絡效率高，但 Client 邏輯極複雜。
 觸發 Refetch Query: Client 邏輯簡單，但有延遲，可能增加 Server 負載。
 推送完整 Connection (類似 Pothos): Client 邏輯簡單，但 Server 計算量同網絡傳輸量可能較大。
-目前 TypeQL 似乎冇內建處理呢種「推送完整 Connection」嘅 Subscription 模式。如果需要呢種功能，可能需要：
+目前 zenQuery 似乎冇內建處理呢種「推送完整 Connection」嘅 Subscription 模式。如果需要呢種功能，可能需要：
 
 手動實現: 定義一個 Subscription procedure，接收分頁參數，喺 Server 端監聽變化、重新計算分頁、推送 Connection object。
 抽象化: 考慮用 Higher-Order Procedure (例如 createPaginatedSubscription) 或者 Builder Wrapper (例如 withRelaySubscription(t.subscription)) 嚟封裝呢種模式嘅 Boilerplate。
 
 Roo has a question:
-了解到 Pothos 喺 Subscription 用 Relay 嘅方式，以及 TypeQL 處理分頁列表實時更新嘅幾種可能方案（各有優劣）之後，你覺得邊種方案比較適合 TypeQL？
+了解到 Pothos 喺 Subscription 用 Relay 嘅方式，以及 zenQuery 處理分頁列表實時更新嘅幾種可能方案（各有優劣）之後，你覺得邊種方案比較適合 zenQuery？
 
 
 我覺得「細粒度事件 + Client 端合併」雖然 Client 複雜，但係最靈活同高效。
@@ -7035,7 +7035,7 @@ Roo has a question:
 我覺得「觸發 Refetch Query」最簡單務實。
 
 
-我覺得應該喺 TypeQL 實現「推送完整 Connection」嘅模式，並用 Higher-Order/Wrapper 抽象化。
+我覺得應該喺 zenQuery 實現「推送完整 Connection」嘅模式，並用 Higher-Order/Wrapper 抽象化。
 
 
 關於 Subscription 嘅討論比較複雜，我想先專注 Query 嘅 Relay 實現。
@@ -7045,7 +7045,7 @@ Roo has a question:
 
 
 
-好的，我哋睇返 TypeQL 目前定義同使用 Subscription 嘅方式。
+好的，我哋睇返 zenQuery 目前定義同使用 Subscription 嘅方式。
 
 1. Server 端定義 Subscription (procedure.ts)
 
@@ -7199,11 +7199,11 @@ consumeSubscription();
 使用 for await...of 循環異步接收 Server 通過 publish 推送嘅數據。
 每個接收到嘅數據都符合 Server 端 .subscriptionOutput() 定義嘅類型。
 React/Preact Hooks (useSubscription) 提供咗更方便嘅方式去處理數據接收、錯誤同完成狀態。
-呢個就係目前 TypeQL 定義同使用 Subscription 嘅基本方式。佢主要係基於事件流 (Stream of Events)，Server 推送獨立嘅消息，Client 逐個接收處理。
+呢個就係目前 zenQuery 定義同使用 Subscription 嘅基本方式。佢主要係基於事件流 (Stream of Events)，Server 推送獨立嘅消息，Client 逐個接收處理。
 
 
 👨‍🏫 Elucidator
-好的，我哋睇返 TypeQL 目前定義同使用 Subscription 嘅方式。
+好的，我哋睇返 zenQuery 目前定義同使用 Subscription 嘅方式。
 
 1. Server 端定義 Subscription (procedure.ts)
 
@@ -7356,7 +7356,7 @@ consumeSubscription();
 使用 for await...of 循環異步接收 Server 通過 publish 推送嘅數據。
 每個接收到嘅數據都符合 Server 端 .subscriptionOutput() 定義嘅類型。
 React/Preact Hooks (useSubscription) 提供咗更方便嘅方式去處理數據接收、錯誤同完成狀態。
-呢個就係目前 TypeQL 定義同使用 Subscription 嘅基本方式。佢主要係基於事件流 (Stream of Events)，Server 推送獨立嘅消息，Client 逐個接收處理。
+呢個就係目前 zenQuery 定義同使用 Subscription 嘅基本方式。佢主要係基於事件流 (Stream of Events)，Server 推送獨立嘅消息，Client 逐個接收處理。
 
 Roo has a question:
 睇完目前 Subscription 嘅定義同使用方式之後，你覺得呢個模式點樣？能唔能夠滿足你對實時更新嘅基本需求？
@@ -7383,7 +7383,7 @@ Roo has a question:
 
 唔洗用publish, 可以yield就得.
 
-你提出咗一個非常好嘅觀察同建議，指出咗目前 TypeQL Subscription 設計同其他框架 (例如 GraphQL Subscription 或者 tRPC Subscription v10 之後嘅設計) 嘅一個重要分別，並且建議咗一種更現代、可能更符合 FP 嘅做法。
+你提出咗一個非常好嘅觀察同建議，指出咗目前 zenQuery Subscription 設計同其他框架 (例如 GraphQL Subscription 或者 tRPC Subscription v10 之後嘅設計) 嘅一個重要分別，並且建議咗一種更現代、可能更符合 FP 嘅做法。
 
 你描述嘅模式 (類似 GraphQL/tRPC v10+):
 
@@ -7430,7 +7430,7 @@ const onItemUpdateGenerator = t.subscription
 自動 Cleanup: Generator 結束時 (例如 Client 取消訂閱導致 for await 終止)，finally block 會自動執行，可以用嚟做 cleanup，唔再需要顯式返回 cleanup function。
 背壓 (Backpressure) 支持 (潛在): Async Iterable 嘅機制可以更好地處理背壓問題 (如果 Client 處理唔切，可以減慢 Server 推送速度)，雖然喺簡單實現中可能唔明顯。
 更 FP 友好: Generator 可以睇成係一種創建數據流嘅方式，相對 callback (publish) 可能感覺更函數式啲。
-目前 TypeQL 嘅做法 (publish callback + return cleanup):
+目前 zenQuery 嘅做法 (publish callback + return cleanup):
 
 呢種做法比較傳統，類似 Node.js EventEmitter 或者 RxJS Observable 嘅 subscribe 方法。
 實現起嚟可能相對直接啲，唔需要處理 Async Generator 嘅複雜性。
@@ -7438,13 +7438,13 @@ const onItemUpdateGenerator = t.subscription
 
 你提出嘅用 Async Generator (async function*) 同 yield 嚟實現 Subscription 係一個非常好嘅建議！佢係一種更現代、更符合 JavaScript 異步流標準嘅做法，並且可能帶嚟更好嘅 DX 同埋潛在嘅 FP 優勢。
 
-目前 TypeQL 用 publish callback + return cleanup function 嘅方式亦都係可行嘅，但可能冇 Async Generator 咁優雅。
+目前 zenQuery 用 publish callback + return cleanup function 嘅方式亦都係可行嘅，但可能冇 Async Generator 咁優雅。
 
 Roo has a question:
-了解到用 Async Generator / yield 實現 Subscription 嘅優點之後，你係咪覺得 TypeQL 應該考慮將 Subscription 嘅實現方式改成呢種模式？
+了解到用 Async Generator / yield 實現 Subscription 嘅優點之後，你係咪覺得 zenQuery 應該考慮將 Subscription 嘅實現方式改成呢種模式？
 
 
-係，Async Generator / `yield` 模式更好，建議 TypeQL 採用。
+係，Async Generator / `yield` 模式更好，建議 zenQuery 採用。
 
 
 我覺得目前 `publish` callback 嘅方式已經夠用，唔需要改。
@@ -7460,7 +7460,7 @@ Roo has a question:
 2. 要支持到resolve (initial state)
 3. 要支持到asynciterator
 
-好的，既然你覺得 Async Generator / yield 模式更好，並且想同時支持 withRelay (應用於 Query) 同埋 Subscription 嘅 resolve (initial state)，我哋可以開始構思點樣修改 TypeQL 嘅核心定義同 Builder。
+好的，既然你覺得 Async Generator / yield 模式更好，並且想同時支持 withRelay (應用於 Query) 同埋 Subscription 嘅 resolve (initial state)，我哋可以開始構思點樣修改 zenQuery 嘅核心定義同 Builder。
 
 注意： 呢個係一個比較大嘅改動，會涉及修改 @sylphlab/typeql-server (或者 core package) 嘅 procedure.ts 同可能 router.ts, requestHandler.ts，以及 @sylphlab/typeql-client 嘅 client.ts 同 Transport 接口。
 
@@ -7528,7 +7528,7 @@ class ProcedureBuilder<TCtx, TInput, TOutput, TStreamOutput> {
     // subscribe(resolver: SubscriptionResolver<...>): AnyProcedure; // REMOVE
 }
 
-// initTypeQL 裡面 t.subscription 需要返回支持新方法嘅 Builder
+// initzenQuery 裡面 t.subscription 需要返回支持新方法嘅 Builder
 class ProcedureBuilderInitializer<TContext> {
     get query(): ProcedureBuilder<TContext, unknown, unknown, never>; // StreamOutput is never for query
     get mutation(): ProcedureBuilder<TContext, unknown, unknown, never>; // StreamOutput is never for mutation
@@ -7542,7 +7542,7 @@ class ProcedureBuilderInitializer<TContext> {
 異步迭代呢個 generator (for await...of)。
 每次 yield 出數據時，將數據通過 Transport 發送俾 Client。
 處理 generator 結束 (Client 取消訂閱) 或者出錯嘅情況，執行 cleanup。
-4. 修改 TypeQLTransport 接口 (Shared Types):
+4. 修改 zenQueryTransport 接口 (Shared Types):
 
 subscribe 方法需要調整。目前佢返回 AsyncIterableIterator。如果 Server 需要先發送一個 initial state，Client 端嘅 subscribe 調用可能需要返回一個包含兩部分嘅結果：一個係 initial state (Promise)，另一個係後續更新嘅 Async Iterator。或者協議層面定義第一條消息係 initial state。呢度需要仔細設計。
 5. 修改 Client (client.ts):
@@ -7563,7 +7563,7 @@ withRelay (獨立): 創建 RelayEnhancedBuilder 包裝 ProcedureBuilder (Query �
 呢個係一個比較大嘅重構，需要小心處理好多細節，尤其係類型定義同埋 Server/Client/Transport 之間嘅交互。
 
 Roo has a question:
-呢個係修改 TypeQL 以支持 Async Generator Subscription 同 Builder Wrapper (withRelay) 嘅初步構思。你覺得呢個方向可行嗎？我哋係咪應該開始嘗試實現其中一部分？
+呢個係修改 zenQuery 以支持 Async Generator Subscription 同 Builder Wrapper (withRelay) 嘅初步構思。你覺得呢個方向可行嗎？我哋係咪應該開始嘗試實現其中一部分？
 
 
 方向可行，我哋先嘗試修改 Subscription (ProcedureDef, Builder, Handler)。
@@ -7651,12 +7651,12 @@ class ProcedureBuilderInitializer<TContext> {
 }
 
 // --- 用法 ---
-const t = initTypeQL<MyContext>();
+const t = initzenQuery<MyContext>();
 const q = t.query.input(...).output(...).resolve(...); // 返回 QueryBuilder
 const s = t.subscription.input(...).subscriptionOutput(...).stream(...); // 返回 SubscriptionBuilder
 結論:
 
-你提出嘅將 Builder 拆分成三個類別係一個非常好嘅設計！佢可以完美解決方法命名衝突嘅問題，令每個 Builder 嘅 API 更清晰、更專注。呢個改動主要係喺 TypeQL Server 庫內部嘅實現層面，對用戶嚟講，用法仍然係 t.query..., t.mutation..., t.subscription...，只係後面可以鏈式調用嘅方法會根據類型而有所不同。
+你提出嘅將 Builder 拆分成三個類別係一個非常好嘅設計！佢可以完美解決方法命名衝突嘅問題，令每個 Builder 嘅 API 更清晰、更專注。呢個改動主要係喺 zenQuery Server 庫內部嘅實現層面，對用戶嚟講，用法仍然係 t.query..., t.mutation..., t.subscription...，只係後面可以鏈式調用嘅方法會根據類型而有所不同。
 
 Roo has a question:
 我哋係咪應該採納呢個將 ProcedureBuilder 拆分成 QueryBuilder, MutationBuilder, SubscriptionBuilder 嘅設計？
@@ -7692,7 +7692,7 @@ function withRelayQuery<Ctx, TInput, TOutput>(
 }
 
 // 用法
-const t = initTypeQL<MyContext>();
+const t = initzenQuery<MyContext>();
 const usersConnection = withRelayQuery(t.query) // <--- 明確只用於 query
     .input(UserFiltersSchema)
     .output(UserNodeSchema)
@@ -7728,7 +7728,7 @@ function withRelay(builder: any): any {
 }
 
 // 用法 (同方案 A 類似，但 TS 會根據傳入嘅 builder 類型選擇正確嘅 overload)
-const t = initTypeQL<MyContext>();
+const t = initzenQuery<MyContext>();
 const usersConnection = withRelay(t.query) // OK
     .input(...)
     .output(...)
@@ -7752,7 +7752,7 @@ class QueryBuilder<Ctx, TInput, TOutput> extends BaseProcedureBuilder<...> {
 }
 
 // 用法
-const t = initTypeQL<MyContext>();
+const t = initzenQuery<MyContext>();
 const usersConnection = t.query // -> QueryBuilder
     .relay() // -> RelayQueryBuilder
     .input(UserFiltersSchema)
@@ -7820,7 +7820,7 @@ function withRelay(builder: any): any {
 點解實現起嚟可能唔簡單？
 
 運行時類型判斷: JavaScript/TypeScript 喺運行時通常冇內建方法去直接判斷一個 object 係屬於邊個泛型 Class (例如 QueryBuilder<Ctx, TInput, TOutput>)。
-如果 QueryBuilder, MutationBuilder, SubscriptionBuilder 係真正嘅 Class，你可以用 instanceof QueryBuilder 嚟判斷。但係 TypeQL 目前嘅 ProcedureBuilder 睇起嚟更似係通過 function 返回 object literal 或者簡單 Class instance，未必適合用 instanceof。
+如果 QueryBuilder, MutationBuilder, SubscriptionBuilder 係真正嘅 Class，你可以用 instanceof QueryBuilder 嚟判斷。但係 zenQuery 目前嘅 ProcedureBuilder 睇起嚟更似係通過 function 返回 object literal 或者簡單 Class instance，未必適合用 instanceof。
 另一種方法係喺每個 Builder object 內部加一個標記屬性 (例如 _type: 'query' 或 _type: 'mutation')，然後喺 withRelay 裡面檢查呢個屬性。呢個可行，但需要修改 Builder 嘅內部結構。
 Overload 簽名維護: 你需要為每種 Builder 類型都寫一個 Overload 簽名，如果將來 Builder 類型增加或者改變，就需要更新所有 Overload。
 類型體操 (仍然存在): 雖然睇起嚟好似將邏輯放入 withRelay 實現裡面，但係 RelayQueryBuilder 本身仍然需要正確嘅泛型設計同類型推斷 (同方案 C 一樣)。Overload 冇減少呢部分嘅複雜性。
@@ -7938,7 +7938,7 @@ Tree-shaking: withRelay function 本身可能會被保留，但佢內部 new Rel
 
 好的，呢個係關於實時更新嘅核心問題：Server 端點樣產生 Delta (增量更新)，以及點樣令 Client (FE) 可以收到呢啲增量更新？
 
-目前 TypeQL 嘅設計 (基於我哋分析):
+目前 zenQuery 嘅設計 (基於我哋分析):
 
 Subscription 輸出: 目前 t.subscription.subscriptionOutput(Schema) 定義嘅係每次 Server publish 出嚟嘅完整消息嘅 Schema。
 Client 接收: Client 端 for await...of subscription.iterator 接收到嘅就係呢啲完整嘅消息。
@@ -7969,23 +7969,23 @@ Immer Patches: 如果 Server 端都用 Immer 管理狀態，可以利用 Immer �
 deltaApplicator 需要識得處理你 Server 端定義嘅 Delta 格式 (例如 JSON Patch 或者自定義格式)。我哋之前睇到 shared/utils.ts 裡面有個 applyStandardDelta 似乎就係處理自定義 Delta 格式嘅。如果用 JSON Patch，就需要用 fast-json-patch 呢類庫。
 衝突處理 & Recomputation: (如之前討論) 應用完 Delta 更新 confirmedState 之後，處理同 pending mutations 嘅衝突，然後重新計算 optimisticState。
 通知 UI: 通知 UI 更新。
-目前 TypeQL 嘅 Delta 支持情況 (推測):
+目前 zenQuery 嘅 Delta 支持情況 (推測):
 
 shared/types.ts 裡面定義咗 StandardDelta (add, update, remove, replace, move, patch) 同埋 StandardOperation。
 shared/utils.ts 裡面有 applyStandardDelta function 去應用呢種格式嘅 Delta。
 client/optimisticStore.ts 嘅 OptimisticStoreOptions 接受一個 deltaApplicator，並且喺 applyServerDelta 裡面調用佢。
-呢啲表明 TypeQL 嘅 Client 端 (OptimisticStore) 已經設計成可以接收同應用 Delta 更新 (特別係 StandardDelta 格式，或者 JSON Patch 如果 applyStandardDelta 支持嘅話)。
+呢啲表明 zenQuery 嘅 Client 端 (OptimisticStore) 已經設計成可以接收同應用 Delta 更新 (特別係 StandardDelta 格式，或者 JSON Patch 如果 applyStandardDelta 支持嘅話)。
 
 Server 端嘅挑戰:
 
-目前 TypeQL Server 端 (procedure.ts, requestHandler.ts) 嘅 Subscription 實現 (publish callback / Async Generator) 似乎冇內建自動計算同發送 Delta 嘅邏輯。
+目前 zenQuery Server 端 (procedure.ts, requestHandler.ts) 嘅 Subscription 實現 (publish callback / Async Generator) 似乎冇內建自動計算同發送 Delta 嘅邏輯。
 你需要喺你自己嘅 Subscription Resolver (.subscribe / .stream) 內部去實現：
 監聽數據源變化。
 計算 Delta (例如比較新舊數據，生成 JSON Patch 或者 StandardDelta)。
 調用 publish(delta) 或者 yield delta 將 Delta 推送出去。
 總結:
 
-Server 端: 需要開發者自己喺 Subscription Resolver 裡面實現計算同推送 Delta 的邏輯。TypeQL 核心目前可能冇提供自動化嘅 Delta 生成。
+Server 端: 需要開發者自己喺 Subscription Resolver 裡面實現計算同推送 Delta 的邏輯。zenQuery 核心目前可能冇提供自動化嘅 Delta 生成。
 Client 端: OptimisticStore 已經設計好可以接收同應用 Delta (通過 deltaApplicator)，並且處理後續嘅狀態同步同 Recomputation。
 所以，要做到增量更新，主要嘅工作量喺 Server 端嘅 Subscription 實現度。
 
@@ -8066,7 +8066,7 @@ Immer 嘅好處:
 簡化 Immutable Updates: 你可以用熟悉嘅、直接修改 object/array 嘅語法去寫更新邏輯，Immer 喺背後幫你處理晒 immutable 嘅複雜性。
 性能: 通過 structural sharing，避免咗不必要嘅 copy，性能通常好好。
 生成 Patches: Immer 仲可以選擇性咁生成描述 state 變化嘅 patches (類似 JSON Patch)，呢個對於實現 undo/redo、網絡同步、或者我哋之前討論嘅 optimistic update rollback 非常有用。
-喺 TypeQL optimisticStore 嘅應用:
+喺 zenQuery optimisticStore 嘅應用:
 
 我哋之前睇到 optimisticStore.ts 裡面用咗 produce 同 applyPatches。
 
@@ -8095,7 +8095,7 @@ Roo has a question:
 咁即係我地依家有無用緊immer?
 
 👨‍🏫 Elucidator
-係，根據我哋之前分析過嘅代碼，TypeQL 項目目前係有用緊 Immer 嘅。
+係，根據我哋之前分析過嘅代碼，zenQuery 項目目前係有用緊 Immer 嘅。
 
 具體嚟講：
 
@@ -8128,7 +8128,7 @@ Roo has a question:
 
 Server 端目前情況 (推測):
 
-根據我哋之前睇過嘅 TypeQL Server 端代碼 (procedure.ts, router.ts)，似乎 TypeQL 核心庫冇強制 Server 端喺 Resolver 內部用 Immer 嚟管理狀態，亦都冇提供自動生成 Delta 嘅機制。
+根據我哋之前睇過嘅 zenQuery Server 端代碼 (procedure.ts, router.ts)，似乎 zenQuery 核心庫冇強制 Server 端喺 Resolver 內部用 Immer 嚟管理狀態，亦都冇提供自動生成 Delta 嘅機制。
 Resolver function (.resolve, .subscribe, .stream) 通常係由開發者編寫，用嚟同數據庫、外部 API 等交互。
 邊個負責產生 Delta?
 
@@ -8141,7 +8141,7 @@ Server 端點樣產生 Delta?
 計算兩者之間嘅差異，產生一個 Client 端 OptimisticStore (通過 deltaApplicator) 能夠理解嘅 Delta 格式。
 方法 A: 手動構建 StandardDelta: 如果變化簡單，可以手動創建 { type: 'update', id: '...', changes: {...} } 呢類 object。
 方法 B: 用 Diff Library 生成 JSON Patch: 可以用例如 fast-json-patch 嘅 compare(oldState, newState) function，自動生成描述變化嘅 JSON Patch array ([{ op: 'replace', path: '/name', value: 'New' }])。
-方法 C: Server 端自己用 Immer: 開發者可以選擇喺自己嘅 Server 端邏輯入面用 Immer 管理相關狀態，然後用 produceWithPatches 嚟自動獲取 patches。但呢個係開發者嘅選擇，唔係 TypeQL 核心強制嘅。
+方法 C: Server 端自己用 Immer: 開發者可以選擇喺自己嘅 Server 端邏輯入面用 Immer 管理相關狀態，然後用 produceWithPatches 嚟自動獲取 patches。但呢個係開發者嘅選擇，唔係 zenQuery 核心強制嘅。
 附加序列號: Server 需要維護一個 serverSeq 計數器，將正確嘅 serverSeq 同 prevServerSeq 加到 Delta 消息度。
 推送 Delta: 調用 publish(deltaMessage) 或者 yield deltaMessage 將包含 Delta 同序列號嘅消息發送俾 Client。
 
@@ -8162,7 +8162,7 @@ Server 端應該提供內建嘅 Delta 生成工具 (例如基於 Immer 或 Diff)
 
 當然要, 我地套件係希望最簡單方法可以做到實時兼樂觀更新, 但仍然可以保留一定彈性.
 
-你講得非常有道理！如果 TypeQL 嘅目標係提供一個簡單易用嘅方式嚟實現實時 + 樂觀更新，咁要求開發者喺 Server 端完全手動處理 Delta 計算同推送，確實會增加好多複雜性同埋潛在嘅錯誤。
+你講得非常有道理！如果 zenQuery 嘅目標係提供一個簡單易用嘅方式嚟實現實時 + 樂觀更新，咁要求開發者喺 Server 端完全手動處理 Delta 計算同推送，確實會增加好多複雜性同埋潛在嘅錯誤。
 
 提供內建 Delta 支持嘅必要性:
 
@@ -8180,7 +8180,7 @@ Server 端應該提供內建嘅 Delta 生成工具 (例如基於 Immer 或 Diff)
 缺點: 可能會限制 Server 端嘅狀態管理選擇，唔係所有場景都適合用 Immer。
 提供 Diff 工具 / Helper:
 
-做法: TypeQL Server 庫提供一個內建嘅 Diff function (例如 diff(oldState, newState) )，可以接收新舊兩個 state object，然後返回標準格式嘅 Delta (例如 StandardDelta[] 或者 JSON Patch)。開發者喺監聽到變化後，調用呢個 function 就可以攞到 Delta。
+做法: zenQuery Server 庫提供一個內建嘅 Diff function (例如 diff(oldState, newState) )，可以接收新舊兩個 state object，然後返回標準格式嘅 Delta (例如 StandardDelta[] 或者 JSON Patch)。開發者喺監聽到變化後，調用呢個 function 就可以攞到 Delta。
 優點: 唔限制 Server 嘅狀態管理方式，只需要提供新舊 state。
 缺點: 開發者仍然需要自己管理舊 state，以便進行比較。
 集成數據庫 CDC / ORM 事件:
@@ -8190,14 +8190,14 @@ Server 端應該提供內建嘅 Delta 生成工具 (例如基於 Immer 或 Diff)
 缺點: 實現複雜度最高，需要同特定嘅數據庫/ORM 深度綁定，通用性可能降低。
 建議方向:
 
-考慮到 TypeQL 想保持一定彈性，方案 2 (提供 Diff 工具 / Helper) 可能係一個比較好嘅平衡點：
+考慮到 zenQuery 想保持一定彈性，方案 2 (提供 Diff 工具 / Helper) 可能係一個比較好嘅平衡點：
 
 佢唔會強制 Server 端用特定嘅狀態管理庫 (例如 Immer)。
 佢提供咗一個標準嘅方法去生成 Client 端可以理解嘅 Delta，減少咗開發者手動計算 Delta 嘅複雜性同出錯機會。
 開發者只需要負責攞到新舊 state，然後調用 diff() function。
 下一步:
 
-我哋可以將「為 TypeQL Server 提供內建嘅 Diff 工具/Helper (diff(oldState, newState) => Delta[])」加入到 future_ideas.md 裡面，作為一個提升易用性嘅重要功能。
+我哋可以將「為 zenQuery Server 提供內建嘅 Diff 工具/Helper (diff(oldState, newState) => Delta[])」加入到 future_ideas.md 裡面，作為一個提升易用性嘅重要功能。
 
 Roo has a question:
 我哋係咪同意 Server 端提供內建 Diff 工具係一個好嘅方向，可以簡化實時 Delta 更新嘅實現？
@@ -8223,7 +8223,7 @@ diff 用json_patch就得啦
 
 Delta 格式: Server 端生成嘅 Delta 可以直接用標準嘅 JSON Patch (RFC 6902) 格式。呢個係一個好主意，因為 JSON Patch 係標準化嘅，而且 Client 端有現成嘅庫 (例如 fast-json-patch) 可以應用佢。
 核心問題: 就算 Server 端可以方便咁生成 JSON Patch，API Usage 應該點樣設計先至可以令開發者喺 Subscription Resolver 裡面輕鬆咁使用呢個功能？
-呢個問題非常好，直接關係到 Server 端 Diff 工具點樣同 TypeQL 嘅 Builder/Resolver 整合。
+呢個問題非常好，直接關係到 Server 端 Diff 工具點樣同 zenQuery 嘅 Builder/Resolver 整合。
 
 設想 API Usage (結合 JSON Patch Diff):
 
@@ -8244,7 +8244,7 @@ const onItemUpdate = t.subscription
     // 監聽數據源變化，每次變化時攞到 newState
     for await (const newState of listenToDataSourceChanges(input)) {
       // 使用內建 Helper 計算 JSON Patch
-      const patch = diff(previousState, newState); // <--- 假設 TypeQL 提供 diff()
+      const patch = diff(previousState, newState); // <--- 假設 zenQuery 提供 diff()
 
       if (patch.length > 0) {
         yield patch; // <--- yield 計算出嚟嘅 patch
@@ -8267,13 +8267,13 @@ const onItemUpdate = t.subscription
     return listenToDataSourceChanges(input); // <--- 返回狀態流
   });
 
-// TypeQL 內部會自動處理：
+// zenQuery 內部會自動處理：
 // 1. 攞到第一個 state 作為 initial state (或者可以加 initialResolver)
 // 2. 每次從 listenToDataSourceChanges 攞到 newState
 // 3. 自動同上一個 state 做 diff(prevState, newState)
 // 4. 自動將 patch yield 出去
 優點: 對開發者最簡單，只需要提供一個產生完整狀態流嘅 Async Iterable。
-缺點: 實現複雜度最高，需要 TypeQL 內部處理 state 管理、diffing 同埋 generator 控制。靈活性可能稍低。
+缺點: 實現複雜度最高，需要 zenQuery 內部處理 state 管理、diffing 同埋 generator 控制。靈活性可能稍低。
 方案 3: 基於事件 + State Snapshot
 
 思路: 唔直接推送 patch，而係推送「數據已變更」嘅通知，Client 收到通知後再重新 query 最新數據。或者 Server 推送完整嘅新 state snapshot。
@@ -8382,7 +8382,7 @@ patchMiddleware 需要處理呢個第一次推送嘅情況，唔做 diff，直�
 用 Middleware 自動計算同推送 JSON Patch 係可行嘅，而且可以令 Resolver 更簡單。但需要：
 
 修改通信協議: 明確區分推送嘅係 Snapshot (Full State) 定係 Patch。
-Client 端需要配置 (或者 TypeQL Client 內建) 一個能夠處理 JSON Patch 嘅 deltaApplicator。
+Client 端需要配置 (或者 zenQuery Client 內建) 一個能夠處理 JSON Patch 嘅 deltaApplicator。
 Middleware 需要正確處理 Initial State 同埋記住上一個 State。
 呢個方案將 Diff 嘅複雜性由 Resolver 轉移到 Middleware 同埋 Client/Server 嘅協議約定上。
 
@@ -8420,7 +8420,7 @@ Client 端 OptimisticStore 必須配置 JSON Patch applicator。
 優點:
 對用戶最簡單: 開發者只需要提供產生完整狀態流嘅邏輯，唔需要關心 Delta。
 保證網絡效率: 自動使用增量更新。
-實現相對簡單: TypeQL 內部只需要實現一種推送模式。
+實現相對簡單: zenQuery 內部只需要實現一種推送模式。
 缺點:
 冇彈性: 如果用戶有啲特殊場景，佢哋想推送完整狀態 (例如狀態好細、變化好大、或者 Client 唔想處理 Patch)，或者想用自定義嘅 Delta 格式，就冇辦法做到。
 強制依賴: 強制用戶接受 JSON Patch 格式同埋 Client 端需要處理 Patch。
@@ -8441,12 +8441,12 @@ Client 端需要知道 Server 推送嘅係乜嘢格式。呢個可能需要喺 p
 彈性: 用戶可以根據場景選擇最高效或者最方便嘅方式。
 兼容性: 可以兼容唔想處理 Patch 嘅 Client。
 缺點:
-實現更複雜: TypeQL 需要支持兩種模式，類型定義、Middleware/Builder 方法、Client 處理都需要更複雜。
+實現更複雜: zenQuery 需要支持兩種模式，類型定義、Middleware/Builder 方法、Client 處理都需要更複雜。
 用戶需要選擇: 開發者需要理解兩種模式嘅分別同埋幾時用邊種。
 Client 需要知道格式: Client 需要有方法知道 Server 實際會推送咩格式，以便用啱嘅 applicator。
 建議:
 
-考慮到 TypeQL 想提供「簡單易用」嘅體驗，同時又想保留一定彈性：
+考慮到 zenQuery 想提供「簡單易用」嘅體驗，同時又想保留一定彈性：
 
 方案 2 - 方法 B (.streamRaw / .streamDiff) 可能係一個比較好嘅平衡點。
 
@@ -8659,7 +8659,7 @@ Urql Exchanges 嘅運作:
 數據流: 數據 (operations 同 results) 喺 exchanges 之間以 stream 嘅形式流動。
 用 Urql Exchanges 類比我哋嘅 Patch 處理:
 
-你嘅想法可能係：可唔可以創建一個 patchExchange 喺 Urql (或者 TypeQL Client 嘅類似機制) 裡面？
+你嘅想法可能係：可唔可以創建一個 patchExchange 喺 Urql (或者 zenQuery Client 嘅類似機制) 裡面？
 
 Server: 仍然推送 JSON Patch。
 Client:
@@ -8671,7 +8671,7 @@ patchExchange 調用 applyPatch(currentState, patch) 更新 cache/store。
 patchExchange 可能需要轉換個 result stream，例如唔再向下傳遞 Patch，而係觸發一個 cache 更新事件，或者根據更新後嘅 cache 返回一個新嘅 Full State result。
 可行性同挑戰:
 
-可行性: 呢個思路係可行嘅。Urql 嘅 Exchanges 設計得非常靈活，確實可以創建自定義 exchange 嚟處理呢種 Patch 應用邏輯。如果 TypeQL Client 想實現類似嘅 pipeline 機制，都可以做到。
+可行性: 呢個思路係可行嘅。Urql 嘅 Exchanges 設計得非常靈活，確實可以創建自定義 exchange 嚟處理呢種 Patch 應用邏輯。如果 zenQuery Client 想實現類似嘅 pipeline 機制，都可以做到。
 挑戰 (同之前類似):
 狀態訪問/耦合: patchExchange 仍然需要有辦法 access 同 modify 核心嘅 cache/store (OptimisticStore)。呢個耦合度問題依然存在。Urql 嘅 cacheExchange 通常係 pipeline 嘅核心部分，其他 exchange 可以同佢交互，但呢個交互機制需要仔細設計。
 Stream 轉換: patchExchange 唔單止要應用 patch，仲要決定點樣處理後續嘅 result stream。係咪要阻止 Patch 向下傳？係咪要根據新 state 產生一個新嘅 Full State result 再向下傳？呢個會影響後面嘅 exchanges 或者最終 hook 收到嘅嘢。
@@ -8690,7 +8690,7 @@ Store 直接處理 Patch: 將 Patch 應用邏輯保留喺 Store (applyServerDelt
 
 
 Roo has a question:
-了解到用 Urql Exchange 概念處理 Patch 嘅可行性同挑戰之後，你覺得呢個方案同「Store 直接處理 Patch」相比，邊個更適合 TypeQL？
+了解到用 Urql Exchange 概念處理 Patch 嘅可行性同挑戰之後，你覺得呢個方案同「Store 直接處理 Patch」相比，邊個更適合 zenQuery？
 
 
 我覺得「Store 直接處理 Patch」更簡單直接，耦合度低。
@@ -9257,12 +9257,12 @@ Store 可能會變得好大 (雖然可以用 Immer 嘅 structural sharing 減輕
 
 對於非常非常大嘅應用，可能會考慮將 Store 按功能領域劃分 (例如 userStore, productStore)。
 但係喺 Optimistic Update 嘅場景下，因為需要統一處理 serverSeq, pendingMutations 隊列同埋 Delta 應用，將 Store 拆分會令呢啲邏輯變得非常複雜，需要跨 Store 協調，通常唔建議。
-TypeQL 目前嘅設計傾向:
+zenQuery 目前嘅設計傾向:
 
 createClient 接受一個 store option。
-React/Preact 嘅 TypeQLProvider 通常用嚟喺頂層提供 client instance (可能同時提供 store)。
+React/Preact 嘅 zenQueryProvider 通常用嚟喺頂層提供 client instance (可能同時提供 store)。
 Hooks (useQuery 等) 從 Provider 獲取 client (同 store)。
-呢啲都指向咗方案 1：單一全局 OptimisticStore 係 TypeQL 預期嘅使用方式。
+呢啲都指向咗方案 1：單一全局 OptimisticStore 係 zenQuery 預期嘅使用方式。
 
 結論:
 
@@ -9279,7 +9279,7 @@ Roo has a question:
 咁 `OptimisticStore` 點樣處理唔同類型嘅數據 (例如 posts, users)？
 
 
-我想睇下 `TypeQLProvider` 嘅代碼。
+我想睇下 `zenQueryProvider` 嘅代碼。
 
 
 我對 Client Store 嘅討論已經足夠。
@@ -9291,53 +9291,53 @@ Roo has a question:
 
 啊！非常抱歉，我完全忽略咗你哋項目本身可能已經有自己嘅狀態管理方案！你提到用緊 Atom Store (例如 Jotai, Recoil, Zustand？) 並且開發咗自己嘅 Zen Store，呢個係非常重要嘅信息。
 
-咁樣嘅話，我之前假設 TypeQL 需要一個獨立嘅、全局嘅 OptimisticStore 嚟管理所有嘢就唔一定啱。我哋需要重新思考 TypeQL 嘅 Optimistic Update 機制點樣同你哋現有嘅 Atom Store / Zen Store 整合。
+咁樣嘅話，我之前假設 zenQuery 需要一個獨立嘅、全局嘅 OptimisticStore 嚟管理所有嘢就唔一定啱。我哋需要重新思考 zenQuery 嘅 Optimistic Update 機制點樣同你哋現有嘅 Atom Store / Zen Store 整合。
 
 整合嘅可能性同挑戰:
 
-TypeQL OptimisticStore 作為底層引擎:
+zenQuery OptimisticStore 作為底層引擎:
 
-做法: 可能仍然需要一個 TypeQL 內部嘅 OptimisticStore 實例去處理核心嘅 serverSeq, pendingMutations, 衝突解決, Recomputation 邏輯。但呢個 Store 嘅 state 可能唔再係包含所有應用數據嘅大 object。
+做法: 可能仍然需要一個 zenQuery 內部嘅 OptimisticStore 實例去處理核心嘅 serverSeq, pendingMutations, 衝突解決, Recomputation 邏輯。但呢個 Store 嘅 state 可能唔再係包含所有應用數據嘅大 object。
 數據同步: 當 OptimisticStore 嘅 confirmedState 或者 optimisticState 更新時，需要有一種機制將呢啲變化同步到你哋嘅 Atom Store / Zen Store 裡面對應嘅 atoms。
 predictedChange: 當觸發 optimistic mutation 時，predictedChange function 需要能夠讀取相關 atoms 嘅當前值 (可能通過一個 snapshot？)，並且描述點樣更新呢啲 atoms。OptimisticStore 可能需要將呢啲 atom 更新操作轉換成內部嘅 patches。
 挑戰: 點樣喺 OptimisticStore 同 Atom Store 之間高效、可靠咁同步狀態？predictedChange 點樣同 atom 互動？
 將 Optimistic 邏輯直接整合到 Atom Store / Zen Store:
 
-做法: 唔再需要 TypeQL 提供嘅 OptimisticStore。而係喺你哋嘅 Zen Store (或者基於 Atom Store 嘅抽象層) 內部直接實現類似嘅邏輯：
+做法: 唔再需要 zenQuery 提供嘅 OptimisticStore。而係喺你哋嘅 Zen Store (或者基於 Atom Store 嘅抽象層) 內部直接實現類似嘅邏輯：
 管理 serverSeq。
 追蹤 pending mutations (可能附加喺相關 atom 嘅 metadata？)。
 接收 Server Delta/Patch，應用到對應嘅 atom。
 處理衝突。
 實現 Recomputation (或者你哋自己嘅 optimistic 更新策略)。
 挑戰: 需要喺你哋嘅 Store 實現裡面複製或者重新實現一套複雜嘅 Optimistic Update 同同步邏輯。
-TypeQL Client 只負責通信，狀態完全由外部 Store 管理:
+zenQuery Client 只負責通信，狀態完全由外部 Store 管理:
 
 做法: createClient 可能唔再需要 store option。Client 只負責發送請求同接收 Server 消息 (Acks, Deltas)。
 外部處理: 你哋喺應用程式層面 (可能係 Zen Store 嘅一部分，或者一個獨立嘅 service) 監聽 Client 嘅事件 (例如 onAck, onDelta)，然後自己實現所有嘅 optimistic update, state management, recomputation 邏輯，直接操作 Zen Store 嘅 atoms。
 挑戰: 需要自己實現成套 Optimistic Update 機制。
 邊種方案比較好？
 
-方案 1 (TypeQL Store + 同步): 可能可以重用 TypeQL OptimisticStore 裡面嘅核心同步邏輯 (seq, pending, conflict, recompute)，但需要解決同 Atom Store 嘅同步問題。
+方案 1 (zenQuery Store + 同步): 可能可以重用 zenQuery OptimisticStore 裡面嘅核心同步邏輯 (seq, pending, conflict, recompute)，但需要解決同 Atom Store 嘅同步問題。
 方案 2 (整合到 Zen Store): 如果 Zen Store 設計得夠靈活，將 Optimistic 邏輯整合入去可能係最無縫嘅，但實現工作量大。
 方案 3 (外部處理): 最靈活，但需要自己由頭實現 Optimistic 機制。
 結論:
 
-既然你哋已經有自己嘅 Atom Store / Zen Store，咁 TypeQL 嘅狀態管理 (尤其係 Optimistic Update) 必須考慮點樣同你哋現有嘅 Store 整合，而唔係假設一個獨立嘅全局 OptimisticStore。
+既然你哋已經有自己嘅 Atom Store / Zen Store，咁 zenQuery 嘅狀態管理 (尤其係 Optimistic Update) 必須考慮點樣同你哋現有嘅 Store 整合，而唔係假設一個獨立嘅全局 OptimisticStore。
 
-最關鍵嘅問題變成：TypeQL Client (或者佢嘅 Hooks) 點樣可以同你哋嘅 Zen Store 合作，去實現 Optimistic Updates 同埋應用 Server Deltas？
+最關鍵嘅問題變成：zenQuery Client (或者佢嘅 Hooks) 點樣可以同你哋嘅 Zen Store 合作，去實現 Optimistic Updates 同埋應用 Server Deltas？
 
 
 Roo has a question:
-了解到需要將 TypeQL 嘅 Optimistic Update 機制同你哋現有嘅 Atom/Zen Store 整合之後，你覺得邊種整合方案比較可行？或者 TypeQL Client/Hooks 需要提供啲咩接口先至方便整合？
+了解到需要將 zenQuery 嘅 Optimistic Update 機制同你哋現有嘅 Atom/Zen Store 整合之後，你覺得邊種整合方案比較可行？或者 zenQuery Client/Hooks 需要提供啲咩接口先至方便整合？
 
 
-方案 1 (TypeQL Store + 同步) 睇起嚟可以重用邏輯，我想了解點同步。
+方案 1 (zenQuery Store + 同步) 睇起嚟可以重用邏輯，我想了解點同步。
 
 
 方案 2 (整合到 Zen Store) 最好，但需要 Zen Store 支持。
 
 
-方案 3 (外部處理) 最靈活，TypeQL Client 只需要提供事件接口。
+方案 3 (外部處理) 最靈活，zenQuery Client 只需要提供事件接口。
 
 
 呢個整合問題比較複雜，我想先暫停討論。
@@ -9353,12 +9353,12 @@ Roo has a question:
 
 你認為：
 
-TypeQL 作為一個通訊套件，唔應該包含一個龐大嘅、管理所有應用狀態嘅 Store (否定方案 1)。
+zenQuery 作為一個通訊套件，唔應該包含一個龐大嘅、管理所有應用狀態嘅 Store (否定方案 1)。
 Zen Store 追求極簡，唔應該將複雜嘅 Optimistic 同步邏輯塞入去 (否定方案 2)。
-TypeQL 應該處理 Optimistic Update 嘅核心邏輯 (例如 Recomputation)，但需要同具體嘅 Store 實現解耦，重點係提供機制將計算結果應用到外部 Store (例如 Zen Store)。
+zenQuery 應該處理 Optimistic Update 嘅核心邏輯 (例如 Recomputation)，但需要同具體嘅 Store 實現解耦，重點係提供機制將計算結果應用到外部 Store (例如 Zen Store)。
 呢個思路非常好，亦都係好多現代數據獲取庫 (例如 TanStack Query, SWR) 嘅做法：佢哋內部管理查詢狀態、緩存、同步邏輯，但最終數據係俾 UI 或者外部 Store 使用。
 
-點樣實現 TypeQL Optimistic + 解耦 Store？
+點樣實現 zenQuery Optimistic + 解耦 Store？
 
 可以設想一個冇狀態 (Stateless) 或者半狀態 (Semi-stateful) 嘅 OptimisticEngine (取代之前嘅 OptimisticStore)：
 
@@ -9381,7 +9381,7 @@ OptimisticEngine 嘅職責:
 訂閱更新: Zen Store 需要提供機制俾 UI 訂閱狀態變化。當 confirmedState 更新，或者 OptimisticEngine 嘅 pendingMutations 列表改變 (導致 getOptimisticState 計算結果唔同) 時，通知 UI 更新。
 呢個方案嘅優點:
 
-解耦: TypeQL 嘅 OptimisticEngine 專注於同步邏輯 (序列號、pending 隊列、衝突、recomputation 計算)，唔關心狀態儲存。Zen Store 專注於狀態儲存同更新。
+解耦: zenQuery 嘅 OptimisticEngine 專注於同步邏輯 (序列號、pending 隊列、衝突、recomputation 計算)，唔關心狀態儲存。Zen Store 專注於狀態儲存同更新。
 靈活: 可以配合任何支持基本讀寫同 Patch 應用嘅外部 Store。
 保留 Recomputation 優勢: 仍然可以利用 Recomputation 嘅健壯性嚟處理多 pending/亂序/衝突。
 挑戰:
@@ -9395,10 +9395,10 @@ OptimisticEngine 嘅職責:
 
 
 Roo has a question:
-呢個「Stateless Optimistic Engine + 外部 Store」嘅整合方案，係咪更符合你對 TypeQL 角色同埋同 Zen Store 配合嘅期望？
+呢個「Stateless Optimistic Engine + 外部 Store」嘅整合方案，係咪更符合你對 zenQuery 角色同埋同 Zen Store 配合嘅期望？
 
 
-係，呢個方案最好，TypeQL 處理同步邏輯，Zen Store 管理狀態。
+係，呢個方案最好，zenQuery 處理同步邏輯，Zen Store 管理狀態。
 
 
 我想睇下 `OptimisticEngine` 嘅接口大概會點設計？
@@ -9447,13 +9447,13 @@ manage(store, {
 })
 
 
-你提出嘅呢個 useMutator (或者類似嘅 Hook / Function) 嘅設計思路非常好，佢嘗試解決點樣將一個 TypeQL Mutation 操作同多個外部 Store (例如 Zen Store 嘅唔同 Atom) 嘅 Optimistic Update 綁定埋一齊。
+你提出嘅呢個 useMutator (或者類似嘅 Hook / Function) 嘅設計思路非常好，佢嘗試解決點樣將一個 zenQuery Mutation 操作同多個外部 Store (例如 Zen Store 嘅唔同 Atom) 嘅 Optimistic Update 綁定埋一齊。
 
 分析你嘅 useMutator 概念:
 
 輸入:
 
-mutation: 指向要執行嘅 TypeQL mutation procedure (例如 client.post.create)。
+mutation: 指向要執行嘅 zenQuery mutation procedure (例如 client.post.create)。
 stores: 一個數組，描述呢個 mutation 會影響邊啲 store (atom) 以及點樣做 optimistic update。
 store: 指向外部 store (atom) 嘅引用。
 optimistic.applyPatch: 一個 function，接收呢個特定 store 嘅當前 state，返回 optimistic update 之後嘅新 state。呢個類似之前 predictedChange 嘅概念，但係針對單個 store。
@@ -9470,14 +9470,14 @@ useMutator 內部會遍歷 stores 數組。
 調用對應嘅 optimistic.applyPatch(currentState) 計算出新嘅 optimistic state。
 更新外部 store 到呢個新嘅 optimistic state。
 (關鍵) 可能需要某種方法記錄低呢次 optimistic update 嘅 "反向操作" (inverse patch) 或者原始 state，以便將來 rollback。
-同時，useMutator 調用 TypeQL Client 嘅 mutation.mutate(input)，但唔再需要傳遞 TypeQL 內部嘅 optimistic 選項，因為 optimistic update 已經喺外部處理咗。
+同時，useMutator 調用 zenQuery Client 嘅 mutation.mutate(input)，但唔再需要傳遞 zenQuery 內部嘅 optimistic 選項，因為 optimistic update 已經喺外部處理咗。
 當收到 Server 嘅 Ack/Error/Delta 時：
 useMutator (或者一個全局嘅管理器) 需要知道呢個回應對應之前邊個 mutation 操作。
 如果成功 (Ack/Delta): 可能需要將之前記錄嘅 optimistic update "確認" (commit)，或者根據 Server Delta 再次更新相關 store。
 如果失敗 (Error): 需要撤銷 (rollback) 之前對 stores 數組裡面所有 store 做嘅 optimistic update (需要用到之前記錄嘅 inverse patch 或者原始 state)。
 呢個方案嘅優點:
 
-解耦: TypeQL Client 只負責通信，Optimistic Update 嘅邏輯同埋同 Store 嘅綁定喺 useMutator (或者類似抽象層) 完成。
+解耦: zenQuery Client 只負責通信，Optimistic Update 嘅邏輯同埋同 Store 嘅綁定喺 useMutator (或者類似抽象層) 完成。
 靈活: 可以將一個 mutation 關聯到多個唔同 store (atom) 嘅更新。
 用戶控制: Optimistic update 嘅邏輯 (applyPatch) 由用戶針對每個 store 提供，非常靈活。
 挑戰同需要考慮嘅地方:
@@ -9491,12 +9491,12 @@ Subscription Delta 應用: 呢個設計主要係針對 Mutation。對於 Subscri
 manage(store, {...}): 你提到嘅 manage function 睇起嚟可能係一個更通用嘅綁定機制？需要更清晰嘅定義。
 結論:
 
-你嘅 useMutator 概念係一個非常好嘅方向，佢嘗試喺 Hook 層面 將 TypeQL 操作同外部 Store (Atom) 嘅 Optimistic Update 綁定起嚟，實現咗良好嘅解耦。
+你嘅 useMutator 概念係一個非常好嘅方向，佢嘗試喺 Hook 層面 將 zenQuery 操作同外部 Store (Atom) 嘅 Optimistic Update 綁定起嚟，實現咗良好嘅解耦。
 
 但係，要令佢變得健壯，仍然需要解決核心嘅同步問題 (Recomputation, 衝突處理, Rollback)。可能嘅做法係：
 
 喺 useMutator 背後引入一個共享嘅 OptimisticEngine 實例，負責處理核心同步邏輯。useMutator 調用 Engine 嘅接口，Engine 計算完之後再通知相關 store 更新。
-或者，如果你哋嘅 Zen Query 已經有處理 optimistic update / revalidation 嘅機制，可以睇下點樣將 TypeQL 嘅 mutation/subscription 同 Zen Query 嘅機制整合。
+或者，如果你哋嘅 Zen Query 已經有處理 optimistic update / revalidation 嘅機制，可以睇下點樣將 zenQuery 嘅 mutation/subscription 同 Zen Query 嘅機制整合。
 
 Roo has a question:
 你覺得喺 useMutator 背後引入一個共享嘅 OptimisticEngine 嚟處理核心同步邏輯，會唔會係一個可行嘅方向？
@@ -9508,7 +9508,7 @@ Roo has a question:
 我想了解 Zen Query 本身點樣處理 optimistic update，睇下點整合。
 
 
-我覺得 Optimistic 邏輯應該完全由 Zen Store/Query 負責，TypeQL 只做通信。
+我覺得 Optimistic 邏輯應該完全由 Zen Store/Query 負責，zenQuery 只做通信。
 
 
 我對 Optimistic Update 嘅討論已經足夠。
@@ -9555,10 +9555,10 @@ manage(store, {
 
 配置:
 
-mutation: 要執行嘅 TypeQL mutation。
+mutation: 要執行嘅 zenQuery mutation。
 stores: 數組，每個元素代表一個受影響嘅 store (atom)。
 store: Store (atom) 引用。
-subscription: (新增) 對應呢個 store 嘅 TypeQL subscription procedure (例如 client.post.onUpdate)。呢個暗示咗 Server 會通過呢個 subscription 推送同 store 相關嘅 Delta/Patch。
+subscription: (新增) 對應呢個 store 嘅 zenQuery subscription procedure (例如 client.post.onUpdate)。呢個暗示咗 Server 會通過呢個 subscription 推送同 store 相關嘅 Delta/Patch。
 optimistic.applyPatch: 用於 Mutation 時嘅 optimistic update 邏輯。
 useMutator 內部運作 (推測):
 
@@ -9567,7 +9567,7 @@ Mutation 時:
 調用 mutation.mutate(input)。
 處理 Ack/Error，執行 commit 或 rollback。
 Subscription 處理 (新增部分):
-useMutator (或者一個相關嘅 Hook/Manager) 需要喺內部自動為 stores 數組裡面配置嘅每個 subscription (例如 subscriptionA) 創建一個 TypeQL 訂閱。
+useMutator (或者一個相關嘅 Hook/Manager) 需要喺內部自動為 stores 數組裡面配置嘅每個 subscription (例如 subscriptionA) 創建一個 zenQuery 訂閱。
 當收到 subscriptionA 推送過嚟嘅 Delta/Patch 時：
 需要將呢個 Patch 應用到對應嘅 storeA 上面。呢度可能需要一個類似 deltaApplicator 嘅概念，或者假設 Server 推送嘅 Patch 格式同 optimistic.applyPatch 處理嘅格式兼容 (或者可以轉換)。
 問題： 呢個 Delta 應用應該由邊個做？係 useMutator 內部做？定係由一個全局嘅 Subscription Manager 做？如果由 useMutator 做，咁每個用到相關 store 嘅地方都要重複訂閱？
@@ -9577,7 +9577,7 @@ manage(store, {...}): 呢個可能係一個獨立嘅 function 或者 hook，用�
 新嘅挑戰同思考點:
 
 Subscription 管理: 由 useMutator 自動管理 subscription 可能唔太合理，因為 subscription 嘅生命週期通常同組件掛鉤，而唔係同單次 mutation 操作。可能需要一個獨立嘅 useSubscriptionManager 或者類似機制，負責根據組件需要去訂閱，接收 Delta，然後調用方法去更新對應嘅 store。
-Delta Applicator 統一: 需要一個統一嘅方式嚟應用 Server Delta 到 store state。呢個 applicator 需要喺創建 store 或者配置 TypeQL client 時提供。
+Delta Applicator 統一: 需要一個統一嘅方式嚟應用 Server Delta 到 store state。呢個 applicator 需要喺創建 store 或者配置 zenQuery client 時提供。
 Optimistic Engine 角色: 之前討論嘅 OptimisticEngine 仍然可以扮演核心角色：
 useMutator 調用 engine.addPendingMutation，傳入每個 store 嘅 applyPatch 計算出嚟嘅 Immer patches。
 一個全局嘅 Subscription Manager 收到 Server Delta 後，調用 engine.applyServerDelta，傳入 Delta 同埋外部嘅 deltaApplicator (例如 Zen Store 提供嘅 apply patch 方法)。
@@ -9586,21 +9586,21 @@ Engine 通知外部 (例如 Zen Store 或者一個綁定層)，話「Store A 嘅
 外部 Store 負責實際更新自己嘅狀態並通知 UI。
 改進後嘅思路:
 
-OptimisticEngine (TypeQL 提供): 處理序列號、pending 隊列、衝突、recomputation 邏輯。佢接收 optimistic patches，接收 server delta，但唔直接修改 state。佢提供 getOptimisticPatches(pendingMutations) 或者 computeOptimisticState(confirmedState, pendingMutations) 呢類 function。
+OptimisticEngine (zenQuery 提供): 處理序列號、pending 隊列、衝突、recomputation 邏輯。佢接收 optimistic patches，接收 server delta，但唔直接修改 state。佢提供 getOptimisticPatches(pendingMutations) 或者 computeOptimisticState(confirmedState, pendingMutations) 呢類 function。
 DeltaApplicator (用戶/Zen Store 提供): 一個 function (state, deltaOrPatch) => newState，知道點樣將 Server Delta 或者 Client Optimistic Patch 應用到 Zen Store Atom。
 Zen Store / Zen Query (用戶層):
 管理實際嘅 confirmedState (atoms)。
-調用 TypeQL client.mutate 時，同時調用 engine.addPendingMutation。
+調用 zenQuery client.mutate 時，同時調用 engine.addPendingMutation。
 設置全局嘅 Subscription 監聽器，收到 Server Delta 後調用 engine.applyServerDelta。
 監聽 engine 嘅事件或者定期調用 engine.computeOptimisticState，獲取計算結果，然後用 DeltaApplicator 更新自己嘅 atoms。
-呢個方案將 TypeQL 定位喺同步邏輯引擎，將狀態儲存同狀態應用 (Patch) 交俾外部 Store (Zen Store)。
+呢個方案將 zenQuery 定位喺同步邏輯引擎，將狀態儲存同狀態應用 (Patch) 交俾外部 Store (Zen Store)。
 
 
 Roo has a question:
-呢個將 TypeQL 作為「同步邏輯引擎」，同外部 Zen Store 配合嘅方案，係咪更接近你嘅諗法？
+呢個將 zenQuery 作為「同步邏輯引擎」，同外部 Zen Store 配合嘅方案，係咪更接近你嘅諗法？
 
 
-係，呢個方向更好，TypeQL 做引擎，Zen Store 管狀態。
+係，呢個方向更好，zenQuery 做引擎，Zen Store 管狀態。
 
 
 我想睇下 `OptimisticEngine` 嘅接口大概會點設計？
@@ -9634,7 +9634,7 @@ function MyComponent() {
 
   // 用 useMutator 綁定 mutation 同相關 store atoms
   const { mutate: createPost, loading } = useMutator({
-    mutation: client.post.create, // TypeQL mutation procedure
+    mutation: client.post.create, // zenQuery mutation procedure
     stores: [
       {
         storeAtom: postListAtom, // <--- 傳入 Atom
@@ -9671,7 +9671,7 @@ function MyComponent() {
 
 優點:
 直觀: 喺組件內部，將一個操作 (mutation) 同佢會影響嘅狀態 (atoms) 直接綁定埋一齊，睇起嚟好清晰。
-解耦: TypeQL Client 只負責通信，狀態更新邏輯喺 Hook 層面處理。
+解耦: zenQuery Client 只負責通信，狀態更新邏輯喺 Hook 層面處理。
 挑戰 (仍然係核心同步問題):
 多個 useMutator 實例: 如果唔同組件都用 useMutator 操作同一個 postListAtom，點樣協調佢哋之間嘅 optimistic updates？
 Server Delta 應用: Server 推送嘅 Delta 點樣應用到正確嘅 atom？邊個負責監聽 subscription 同應用 Delta？如果由 useMutator 做，會唔會有多個實例重複處理同一個 Delta？
@@ -9687,7 +9687,7 @@ useMutator 內部調用全局 engine.addPendingMutation，傳入計算好嘅 pat
 全局 Engine 處理所有同步邏輯。
 Engine 更新完之後，通過某種方式通知相關嘅 atom 更新 (可能 Engine 提供事件，或者 Zen Store 監聽 Engine)。
 Zen Query 整合:
-如果 Zen Query 本身有類似 TanStack Query 嘅 optimistic update 機制，useMutator 可能只係 Zen Query 提供嘅 hook，佢內部會處理 optimistic update 同埋同 TypeQL Client 交互。
+如果 Zen Query 本身有類似 TanStack Query 嘅 optimistic update 機制，useMutator 可能只係 Zen Query 提供嘅 hook，佢內部會處理 optimistic update 同埋同 zenQuery Client 交互。
 你覺得邊種整合方式比較合理？或者 Zen Query 本身有冇類似嘅機制可以利用？
 
 
@@ -9709,7 +9709,7 @@ Roo has a question:
 
 // 用 useMutator 綁定 mutation 同相關 store atoms
   const { mutate: createPost, loading } = useMutator({
-    mutation: client.post.create, // TypeQL mutation procedure
+    mutation: client.post.create, // zenQuery mutation procedure
     stores: [
       {
         storeAtom: postListAtom, // <--- 傳入 Atom
@@ -9750,7 +9750,7 @@ Roo has a question:
 全局 OptimisticEngine: 假設我哋有一個全局 (或者通過 Context 提供) 嘅 OptimisticEngine 實例，叫做 engine。呢個 engine 負責管理 pendingMutations 隊列、serverSeq、衝突解決邏輯等，但唔直接持有 state。
 useMutator 初始化:
 Hook 接收 mutation procedure 同 stores 配置數組。
-(可能) Hook 需要喺內部為 stores 數組裡面配置嘅每個 subscription 創建 TypeQL 訂閱 (呢個仲係有啲疑問，可能由其他地方管理更好)。
+(可能) Hook 需要喺內部為 stores 數組裡面配置嘅每個 subscription 創建 zenQuery 訂閱 (呢個仲係有啲疑問，可能由其他地方管理更好)。
 調用 mutate(input):
 useMutator 生成一個唯一嘅 clientSeq (可以由 engine 提供)。
 遍歷 stores 數組：
@@ -9761,7 +9761,7 @@ useMutator 生成一個唯一嘅 clientSeq (可以由 engine 提供)。
 更新 storeAtom 到 optimisticState (觸發 UI 更新)。
 將計算出嚟嘅 patches 同埋對應嘅 storeAtom 標識符 (或者 rollback 方法) 關聯到呢次 mutation 操作。
 調用 engine.addPendingMutation({ clientSeq, mutation, input, associatedPatches: [...] })，將 mutation 信息同埋所有相關 store 嘅 patches 記錄到 Engine。
-調用 TypeQL Client 嘅 mutation.mutate(input) 發送請求俾 Server。
+調用 zenQuery Client 嘅 mutation.mutate(input) 發送請求俾 Server。
 處理 Server Ack:
 收到 Ack 後，調用 engine.confirmPendingMutation(clientSeq)。Engine 將 mutation 從 pending 移除。呢度唔需要 rollback。
 處理 Server Error:
@@ -9881,13 +9881,13 @@ useMutator (組件層面 Hook):
 遍歷 stores，讀取 atom state，調用 applyPatch 計算 optimistic state，計算 Immer patches。
 更新對應嘅 atom state (觸發 UI 即時更新)。
 調用全局 engine.addPendingMutation({ clientSeq, patchesByStore: {...} })，將 clientSeq 同埋每個 store 對應嘅 patches 記錄到全局隊列。
-調用 TypeQL client.mutate(input)。
+調用 zenQuery client.mutate(input)。
 (可能) 監聽全局 Engine 關於呢個 clientSeq 的 Ack/Error 事件，用嚟更新 loading 狀態或者觸發 onSuccess/onError 回調。Rollback 邏輯可能由 Engine 觸發，useMutator 監聽事件後再執行。
 外部 Store (Zen Store / Atoms):
 負責儲存實際狀態。
 需要提供方法俾 useMutator 更新 optimistic state，以及俾 Engine (或者一個綁定層) 更新 confirmed/optimistic state。
 Subscription Manager (全局):
-負責管理所有 TypeQL subscriptions。
+負責管理所有 zenQuery subscriptions。
 收到 Server Delta 後，調用全局 engine.applyServerDelta(...)。
 總結:
 
@@ -9916,7 +9916,7 @@ Roo has a question:
 
 
 
-你嘅思路轉得好快，而且再次點出咗一個關鍵問題！如果應用程式需要同時連接多個唔同嘅 TypeQL Server (例如 Server A 處理用戶數據，Server B 處理產品數據)，咁一個「全局」嘅 OptimisticEngine 就唔再適用，因為每個 Server 嘅 serverSeq、pendingMutations 都係獨立嘅。
+你嘅思路轉得好快，而且再次點出咗一個關鍵問題！如果應用程式需要同時連接多個唔同嘅 zenQuery Server (例如 Server A 處理用戶數據，Server B 處理產品數據)，咁一個「全局」嘅 OptimisticEngine 就唔再適用，因為每個 Server 嘅 serverSeq、pendingMutations 都係獨立嘅。
 
 你嘅建議：將 Optimistic 邏輯放入 useClient (或者 Client Instance)
 
@@ -10098,7 +10098,7 @@ const client = createClient<AppRouter>({
 });
 
 // Engine 內部就可以用 this.storeInterface.applyDeltaToConfirmedState(...) 等方法
-咁樣就可以保持 TypeQL OptimisticEngine 同 Zen Store 嘅解耦。
+咁樣就可以保持 zenQuery OptimisticEngine 同 Zen Store 嘅解耦。
 
 
 Roo has a question:
@@ -10229,7 +10229,7 @@ Roo has a question:
 你嘅問題非常好，直接挑戰咗我哋之前討論嘅核心假設！你提出：
 
 Optimistic Update 只同 Mutation 有關: 點解需要將 Store (Atom) 同 Subscription 綁定？
-Client 唔需要關心最終狀態: Client (或者 TypeQL 嘅 Engine) 係咪只需要載住所有 Server 發過嚟嘅 Patches 就得？
+Client 唔需要關心最終狀態: Client (或者 zenQuery 嘅 Engine) 係咪只需要載住所有 Server 發過嚟嘅 Patches 就得？
 等我哋重新審視下呢兩個觀點：
 
 1. Optimistic Update 只同 Mutation 有關？
@@ -10267,7 +10267,7 @@ confirmedState 代表咗 Client 已知嘅、經過 Server 確認嘅最新快照 
 
 Optimistic Update 雖然由 Mutation 觸發，但佢嘅正確運作需要同 confirmedState (由 Subscription Delta 更新) 協調。
 Client 維護 confirmedState 快照對於高效、健壯咁應用 Delta 同計算 Optimistic State 非常重要，只儲存 Patch 歷史係唔實際嘅。
-所以，TypeQL Client (或者佢嘅 Engine) 需要某種方式去知道同埋能夠更新 confirmedState，先至可以正確實現 Recomputation 同衝突處理。呢個就係點解需要同外部 Store (Atom) 交互嘅原因。
+所以，zenQuery Client (或者佢嘅 Engine) 需要某種方式去知道同埋能夠更新 confirmedState，先至可以正確實現 Recomputation 同衝突處理。呢個就係點解需要同外部 Store (Atom) 交互嘅原因。
 
 
 Roo has a question:
@@ -10304,7 +10304,7 @@ mutator 要一個 mutation, 要一堆stores同optimitic update patch
 
 呢個 config object 會喺一個獨立嘅地方定義 (例如 src/mutators/notes.ts)。
 佢包含：
-mutation: 對應嘅 TypeQL procedure (e.g., client.notes.add)。
+mutation: 對應嘅 zenQuery procedure (e.g., client.notes.add)。
 stores: 描述呢個 mutation 會影響邊啲 store (atom) 以及點樣 optimistic update。
 // src/mutators/notes.ts
 import { client } from '../clientSetup';
@@ -10368,7 +10368,7 @@ Zen Store (Atoms) 負責實際狀態儲存。
 更接近 Atom 理念: 將狀態更新邏輯同觸發操作封裝埋一齊。
 結論:
 
-你提出嘅將 Mutation 操作封裝成 "Mutator Definition"，再由 useMutator Hook 使用嘅模式，係一個非常好嘅、更進一步嘅抽象！佢完美結合咗 TypeQL 嘅 RPC 調用、你哋嘅 Atom Store，並且可以同我哋之前討論嘅 OptimisticEngine 結合，實現一個職責清晰、可重用、健壯嘅 Optimistic Update 架構。
+你提出嘅將 Mutation 操作封裝成 "Mutator Definition"，再由 useMutator Hook 使用嘅模式，係一個非常好嘅、更進一步嘅抽象！佢完美結合咗 zenQuery 嘅 RPC 調用、你哋嘅 Atom Store，並且可以同我哋之前討論嘅 OptimisticEngine 結合，實現一個職責清晰、可重用、健壯嘅 Optimistic Update 架構。
 
 
 Roo has a question:
@@ -10512,7 +10512,7 @@ useMutator 內部需要實現根據 string path access object property 嘅邏輯
 
 方案 A (Mutator Definition 作為 Function) 係一個比較清晰同類型安全嘅做法，雖然用起嚟多一步。
 方案 B (用 Path String) 使用時簡單，但犧牲咗部分類型安全。
-考慮到 TypeQL 嘅核心價值係類型安全，方案 A 可能係更值得推薦嘅方向。
+考慮到 zenQuery 嘅核心價值係類型安全，方案 A 可能係更值得推薦嘅方向。
 
 
 
@@ -10531,14 +10531,14 @@ Roo has a question:
 
 我對整體架構嘅討論已經足夠，想結束討論。
 
-好的，完全明白。忘記晒之前所有關於 OptimisticStore, useMutator, externalStoreInterface 嘅具體實現細節，我哋由頭開始，根據你嘅核心需求重新設計一次 TypeQL 點樣處理 Optimistic Update 同實時同步，並且要同你嘅 Atom Store (Zen Store) 配合。
+好的，完全明白。忘記晒之前所有關於 OptimisticStore, useMutator, externalStoreInterface 嘅具體實現細節，我哋由頭開始，根據你嘅核心需求重新設計一次 zenQuery 點樣處理 Optimistic Update 同實時同步，並且要同你嘅 Atom Store (Zen Store) 配合。
 
 核心目標:
 
-TypeQL Client (createClient(transport)) 主要負責通信。
+zenQuery Client (createClient(transport)) 主要負責通信。
 需要支持 Mutation 嘅 Optimistic Update。
 需要支持 Subscription 接收 Server Delta/Patch 並更新狀態。
-Optimistic Update 邏輯 (包括 Recomputation, 衝突處理) 應該由 TypeQL 相關機制處理，但唔應該綁定特定嘅 Store 實現。
+Optimistic Update 邏輯 (包括 Recomputation, 衝突處理) 應該由 zenQuery 相關機制處理，但唔應該綁定特定嘅 Store 實現。
 最終嘅狀態更新需要應用到外部嘅 Atom Store (Zen Store)。
 API 使用要盡量簡單、直觀。
 重新設計方案：「Optimistic Sync Coordinator」
@@ -10587,7 +10587,7 @@ createClient:
 綁定層 (Hooks - 例如 useOptimisticMutation, useOptimisticQuery):
 
 useOptimisticMutation:
-接收 TypeQL mutation procedure 同埋一個描述 optimistic update 邏輯嘅 function (類似你之前嘅 applyPatch)。
+接收 zenQuery mutation procedure 同埋一個描述 optimistic update 邏輯嘅 function (類似你之前嘅 applyPatch)。
 用 useClient() 攞到 client 同佢嘅 coordinator。
 返回 mutate(input) function。
 當 mutate(input) 被調用：
@@ -10611,17 +10611,17 @@ useOptimisticQuery / useSubscription:
 處理 Server Delta: 需要一個機制 (可能係全局 listener 或者 hook 內部) 監聽 Coordinator 嘅 "applyDelta" 信號，攞到 resolvedDelta，然後調用 Zen Store 提供嘅方法將 Delta 應用到對應嘅 Atom(s)。
 總結呢個設計:
 
-TypeQL Coordinator: 核心同步引擎，無狀態 (唔儲存應用數據)，管理 pending 隊列、序列號、衝突、計算。
+zenQuery Coordinator: 核心同步引擎，無狀態 (唔儲存應用數據)，管理 pending 隊列、序列號、衝突、計算。
 外部 Store (Zen Store): 儲存 confirmed state (atoms)。
 Hooks (綁定層):
 useOptimisticMutation: 負責觸發 optimistic 更新 (改 Atom) 同埋將 patches 登記到 Coordinator。處理 Rollback。
 useOptimisticQuery/useSubscription: 負責讀取 Atom，監聽 Coordinator，按需計算 optimistic state 俾 UI。
 某個地方負責監聽 Coordinator 嘅 "applyDelta" 信號，更新 Atom 嘅 confirmed state。
-呢個設計將 TypeQL 定位為一個可插拔嘅同步引擎，可以同你嘅 Zen Store 良好配合，同時保留咗 Recomputation 嘅健壯性。
+呢個設計將 zenQuery 定位為一個可插拔嘅同步引擎，可以同你嘅 Zen Store 良好配合，同時保留咗 Recomputation 嘅健壯性。
 
 
 Roo has a question:
-呢個將 TypeQL 作為「同步引擎」，由 Hooks 負責綁定同計算，外部 Atom Store 負責儲存嘅方案，係咪更符合你嘅設想？
+呢個將 zenQuery 作為「同步引擎」，由 Hooks 負責綁定同計算，外部 Atom Store 負責儲存嘅方案，係咪更符合你嘅設想？
 
 
 係，呢個方案最好，職責清晰，同 Atom Store 解耦。
@@ -10821,7 +10821,7 @@ draft 黎, 你再諗諗.
 
 
 
-你嘅思路非常清晰，而且完全切合 Atom Store (例如 Jotai, Zustand, 或者你哋嘅 Zen Store) 嘅設計哲學！你唔係想 TypeQL 提供一個完整嘅 Store，而係想 TypeQL 提供啲工具或者構件 (building blocks)，可以好方便咁喺你哋嘅 Atom Store 架構入面，將 TypeQL 嘅操作 (Query, Mutation, Subscription) 同埋 Optimistic Update 邏輯綁定到唔同嘅 Atom 上面。
+你嘅思路非常清晰，而且完全切合 Atom Store (例如 Jotai, Zustand, 或者你哋嘅 Zen Store) 嘅設計哲學！你唔係想 zenQuery 提供一個完整嘅 Store，而係想 zenQuery 提供啲工具或者構件 (building blocks)，可以好方便咁喺你哋嘅 Atom Store 架構入面，將 zenQuery 嘅操作 (Query, Mutation, Subscription) 同埋 Optimistic Update 邏輯綁定到唔同嘅 Atom 上面。
 
 分析你嘅設計 (query, createStore, createMutator):
 
@@ -10829,14 +10829,14 @@ $client Atom:
 
 const $client = atom(() => createClient({ transport }));
 呢個做法非常好，用一個 Atom 嚟持有 Client instance，其他 Atom 可以通過 get 嚟 access，解決咗 Client 來源同 DI 嘅問題。
-query Function (或者叫 createTypeQLBindings):
+query Function (或者叫 createzenQueryBindings):
 
 const { createStore, createMutator } = query(get => get($client), ...)
 呢個係一個好聰明嘅設計。創建一個高階函數，接收 Client getter，然後返回一啲預先綁定咗呢個 Client 嘅 helper functions (createStore, createMutator)。咁樣之後用 createStore / createMutator 就唔使再理 client 喺邊。
 createStore (用於 Query/Subscription):
 
 const $todoList = createStore(query => query.todoList);
-呢個 function 嘅目標係創建一個 Atom，呢個 Atom 嘅 state 會自動同 TypeQL Query 或者 Subscription 同步。
+呢個 function 嘅目標係創建一個 Atom，呢個 Atom 嘅 state 會自動同 zenQuery Query 或者 Subscription 同步。
 內部實現 (需要考慮):
 需要接收 Query/Subscription procedure 嘅引用 (例如 query => query.todoList)。
 需要接收 Input (可以係靜態值或者另一個 Atom)。
@@ -10870,7 +10870,7 @@ createStore 同 createMutator 呢兩個 helper function 內部會 get($coordinat
 你提出嘅呢個基於 Atom Store 嘅整合方案係非常優秀同埋切實可行嘅！佢嘅優點包括：
 
 完美契合 Atom Store: 用法自然，符合 Jotai/Zustand/Riverpod 嘅理念。
-高度解耦: TypeQL Client/Coordinator 負責同步邏輯，Zen Store (Atoms) 負責狀態儲存，createStore/createMutator 負責綁定。
+高度解耦: zenQuery Client/Coordinator 負責同步邏輯，Zen Store (Atoms) 負責狀態儲存，createStore/createMutator 負責綁定。
 可重用: createStore/createMutator 可以生成可重用嘅 Atom 定義。
 類型安全: 仍然可以通過 createClient<AppRouter> 獲得基礎嘅 API 類型安全，createStore/createMutator 內部需要仔細處理類型推斷。
 下一步:
@@ -10911,7 +10911,7 @@ const { createStore, createMutator } = query($client, ...)  呢度可以進一�
 
 最終決定 & 設計方向:
 
-項目改名: 將 TypeQL 改名為 zenQuery，目標係成為 Zen Store 生態嘅一部分 ("全家桶")。
+項目改名: 將 zenQuery 改名為 zenQuery，目標係成為 Zen Store 生態嘅一部分 ("全家桶")。
 狀態管理: 深度整合 Nanostores (作為目前階段嘅實現，未來會同 Zen Store 整合)。唔需要考慮支持其他 store 類型。
 核心架構: 採用「Optimistic Sync Coordinator (引擎) + Nanostore Atoms (狀態) + 綁定 Helpers (例如 createQueryAtom, createMutationAtom)」嘅模式。
 zenQuery Client 內部包含 OptimisticSyncCoordinator。
@@ -10996,7 +10996,7 @@ Roo wants to edit this file:
 Okay, all relevant memory files (tech_context.md, lessons_learned.md, progress.md, future_ideas.md) have been updated to reflect our detailed discussion and the final architectural decisions.
 
 🧠 Strategos
-Excellent. We've had a very productive and in-depth discussion covering API definition patterns (Builder vs. Config Object vs. Wrappers), Functional Programming principles in resolvers, comparisons with GraphQL/Pothos/Urql, client-side features like optimistic updates, delta handling, batching, and crucially, how to integrate zenQuery (formerly TypeQL) with your Nanostores/Zen Store architecture.
+Excellent. We've had a very productive and in-depth discussion covering API definition patterns (Builder vs. Config Object vs. Wrappers), Functional Programming principles in resolvers, comparisons with GraphQL/Pothos/Urql, client-side features like optimistic updates, delta handling, batching, and crucially, how to integrate zenQuery (formerly zenQuery) with your Nanostores/Zen Store architecture.
 
 Key Outcomes & Decisions:
 
@@ -11009,7 +11009,7 @@ Next Steps Prioritized:
 (High) Design/Implement OptimisticSyncCoordinator and Nanostores binding helpers (createQueryAtom, createMutationAtom).
 (Medium) Explore implementing the Builder Wrapper pattern (e.g., .relay()).
 (Medium) Refactor internal error handling to use Result types.
-This extensive discussion has clarified the architectural direction for zenQuery, focusing on deep integration with your atom-based state management while retaining core TypeQL principles like type safety and RPC.
+This extensive discussion has clarified the architectural direction for zenQuery, focusing on deep integration with your atom-based state management while retaining core zenQuery principles like type safety and RPC.
 
 
 Task Completed
@@ -11031,12 +11031,12 @@ The next priority steps identified are designing the OptimisticSyncCoordinator a
 
 詳細過程總結 (廣東話)
 
-開端 (FP 風格): 你最初提出想將成個 project (當時叫 TypeQL) 改成更加 Functional Programming (FP) 嘅風格。
+開端 (FP 風格): 你最初提出想將成個 project (當時叫 zenQuery) 改成更加 Functional Programming (FP) 嘅風格。
 誤解與澄清: 我一開始誤解咗，以為你想改 Resolver 內部實現 (例如用 Result type 取代 console)。你澄清咗，你主要關心嘅係 Server 同 Client 之間定義同調用 API 嘅方式，特別係目前用緊嘅 Builder Pattern (鏈式調用)，例如 t.query.input(...).resolve(...) 呢種寫法。
 API 定義模式大比拼:
 Builder Pattern (目前): 我哋分析咗呢個模式，優點係類型安全係一步步建立嘅，跟住個鏈條寫，TypeScript 可以好好咁推斷類型，引導性強。缺點係可能寫起嚟比較長。
 Configuration Object Pattern (defineQuery({...})): 你提出呢個方案，將所有嘢放入一個 object，可能睇起嚟簡潔啲。但我哋分析後認為，要喺一個 function 內部完美實現所有類型推斷（例如根據 input schema 推斷 resolver 參數類型，根據 output schema 檢查返回值類型）係非常困難嘅，尤其係參考你用 Pothos 嘅經驗，知道呢種複雜類型推斷容易出錯。
-Pothos 經驗: 你提到用 Pothos (類似 Config Object + Plugin) 成日遇到 typing 問題，我哋分析認為呢個好可能同 Pothos 強大但複雜嘅 Plugin 系統動態改變類型有關。相比之下，TypeQL 目前嘅 Builder 冇 plugin system，類型推斷相對靜態同簡單，可能更穩定。
+Pothos 經驗: 你提到用 Pothos (類似 Config Object + Plugin) 成日遇到 typing 問題，我哋分析認為呢個好可能同 Pothos 強大但複雜嘅 Plugin 系統動態改變類型有關。相比之下，zenQuery 目前嘅 Builder 冇 plugin system，類型推斷相對靜態同簡單，可能更穩定。
 其他模式: 我哋簡單提過 Decorator (例如 NestJS)、Schema-First (例如 GraphQL)、Plain Functions (類型安全差)。
 Chaining 係咪 Bad Pattern?: 我哋討論咗 Chaining 本身唔一定係壞事，好多庫都有用。佢嘅主要優點係類型安全同結構映射。Server Builder Chaining 提供類型逐步建立嘅好處；Client Proxy Chaining 提供端到端類型安全。主要擔心係 Client 端嵌套太深可能影響可讀性，但可以用 helper function 封裝。
 Builder Pattern 點樣拆 File?: 你擔心 Builder chain 難拆 file。我哋澄清咗標準做法係：喺一個中心文件 (builder.ts) 初始化並導出 t instance (Module Singleton)，然後喺唔同嘅 procedure 文件 import { t } 再用佢嚟定義完整嘅 procedure chain (t.query...resolve())，最後喺 router 文件 import 呢啲定義好嘅 procedures 再組合。呢個方法利用咗 Module 系統嚟共享類型，避免咗手動寫複雜類型簽名。
@@ -11044,9 +11044,9 @@ Builder Pattern 點樣拆 File?: 你擔心 Builder chain 難拆 file。我哋澄
 解決共享 t 嘅問題:
 傳遞 t: 可以將 t 作為參數傳俾 procedure 定義 function (defineProcedures(t))。但需要解決點樣獲取 t 嘅類型簽名問題。
 導出類型別名: 可以 export type TBuilder = typeof t，然後喺接收 t 嘅 function 用 TBuilder 做類型。呢個前提係 typeof t 唔會太複雜難寫。
-官方 Type Creator: 最理想係 TypeQL 官方直接導出 BuilderInstance<Ctx> 類型俾你用。
-內部 initTypeQL(): 喺 procedure 文件內部自己 initTypeQL<SpecificContext>()。最靈活，但可能創建多個 instance，全局配置分散。
-結論: 考慮到手動寫類型嘅困難，如果 TypeQL Builder 類型相對簡單，「傳遞 t + 導出類型別名」或者「官方 Type Creator」係最好嘅方案。如果類型複雜，或者想更簡單，「內部 initTypeQL()」或者返璞歸真用返「共享 t」(如果單一 Server 場景) 都係選擇。(呢度我哋冇完全定案，因為你之後轉咗去 Builder Wrapper)
+官方 Type Creator: 最理想係 zenQuery 官方直接導出 BuilderInstance<Ctx> 類型俾你用。
+內部 initzenQuery(): 喺 procedure 文件內部自己 initzenQuery<SpecificContext>()。最靈活，但可能創建多個 instance，全局配置分散。
+結論: 考慮到手動寫類型嘅困難，如果 zenQuery Builder 類型相對簡單，「傳遞 t + 導出類型別名」或者「官方 Type Creator」係最好嘅方案。如果類型複雜，或者想更簡單，「內部 initzenQuery()」或者返璞歸真用返「共享 t」(如果單一 Server 場景) 都係選擇。(呢度我哋冇完全定案，因為你之後轉咗去 Builder Wrapper)
 Builder Pattern 嘅 Composition (組合性):
 你問 Builder 能否組合。
 Middleware (.use(...)): 主要用嚟組合運行時行為 (Caching, Auth, Logging)。我哋睇咗 Caching 例子。但 Middleware 唔適合用嚟改變編譯時嘅類型契約 (Input/Output Schema)，因為類型推斷會極度困難同高風險。
@@ -11057,14 +11057,14 @@ Higher-Order Procedure (createPaginatedQuery({...})): 用 Function 包裝 Builde
 Builder Wrapper (withRelay(builder).input(...)): 用 Function 包裝 Builder，返回一個增強版 Builder。優點係保持鏈式語法一致性；缺點係需要實現 Wrapper Builder 嘅泛型類型體操，確保類型喺鏈式調用中正確傳遞同推斷 (尤其係 .resolve() 要攞返之前 .input/.output 嘅類型信息)。
 釐清與決定: 我哋最終釐清咗，Builder Wrapper 嘅類型實現雖然有挑戰，但應該係可行且風險可控嘅 (同實現基礎 Builder 難度相當，比通用 Middleware 類型推斷簡單)。因此，決定優先探索 Builder Wrapper 方案 (例如喺 QueryBuilder 加入 .relay() 方法)。
 GraphQL 對比 & Field Selection:
-結論: TypeQL 係 RPC，GraphQL 係 Query Language。TypeQL 嘅零 Code Gen 端到端類型安全同 GraphQL 嘅 Client Field Selection 係兩種唔同嘅設計取捨。喺 TypeQL 用純 TS 實現可靠嘅 Field Selection 非常困難。接受 RPC 限制。
+結論: zenQuery 係 RPC，GraphQL 係 Query Language。zenQuery 嘅零 Code Gen 端到端類型安全同 GraphQL 嘅 Client Field Selection 係兩種唔同嘅設計取捨。喺 zenQuery 用純 TS 實現可靠嘅 Field Selection 非常困難。接受 RPC 限制。
 Client/Transport 功能:
 壓縮: 主要由 Transport/Web Server 層負責。
 Batching: 可行，應喺 Transport 層實現。
 Debounce/SWR: 應喺 UI/Hooks 層實現。
 Incremental Data: 需要重大架構改動。
 Optimistic Updates & Delta:
-Recomputation: 確認 TypeQL Client (OptimisticStore) 使用 Recomputation 策略處理 optimistic updates，比簡單 apply patch 更健壯。
+Recomputation: 確認 zenQuery Client (OptimisticStore) 使用 Recomputation 策略處理 optimistic updates，比簡單 apply patch 更健壯。
 Immer: 確認 Client 端用 Immer 做 optimistic patch 生成同應用。
 Server Delta: 確認 Server 端需要開發者自己實現 Delta 計算 (JSON Patch 係好選擇) 同推送邏輯。Client OptimisticStore 通過 deltaApplicator 應用 Server Delta。
 建議: Server 端提供內建 Diff 工具係好方向。
@@ -11075,8 +11075,8 @@ Middleware 自動 Diff: 需要解決 Client 點知收到係 Patch 定 Snapshot (
 對稱 Middleware (Urql Exchange 概念): 討論咗 Client/Server 都用 Middleware 處理 Patch 轉換，可以保持類型定義一致性，但增加 Client 端複雜度同耦合。
 最終結論 (Delta): 「Store 直接處理 Patch」方案職責更清晰、耦合度低。
 整合 Atom Store (Nanostores / Zen Store):
-核心問題: TypeQL 嘅 Optimistic 機制點同外部 Atom Store 整合。
-否定方案: 唔應該用全局 TypeQL Store；唔應該將複雜邏輯放入 Zen Store。
+核心問題: zenQuery 嘅 Optimistic 機制點同外部 Atom Store 整合。
+否定方案: 唔應該用全局 zenQuery Store；唔應該將複雜邏輯放入 Zen Store。
 最終架構:
 OptimisticSyncCoordinator: 無狀態引擎，喺 client 內部，負責同步邏輯計算。
 Nanostore Atoms: 儲存 confirmed state。
@@ -11095,7 +11095,7 @@ Delta: Server Resolver 負責生成 JSON Patch，Client Coordinator 通過 delta
 執行項目改名 (zenQuery)。
 
 Task Completed
-我哋已經詳細討論並總結咗 zenQuery (原 TypeQL) 嘅架構方向同後續步驟。
+我哋已經詳細討論並總結咗 zenQuery (原 zenQuery) 嘅架構方向同後續步驟。
 
 核心結論:
 

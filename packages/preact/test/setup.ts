@@ -8,4 +8,4 @@ afterEach(() => {
 });
 
 // Add any other global test setup here
-console.log('Vitest setup for @sylphlab/typeql-preact running...');
+console.log('Vitest setup for @sylphlab/zen-query-preact running...');

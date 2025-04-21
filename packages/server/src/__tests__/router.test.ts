@@ -1,11 +1,11 @@
 import { describe, it, expect, vi } from 'vitest';
 import { z } from 'zod';
 import { createRouter, Router } from '../router';
-import { initTypeQL } from '../procedure';
-import type { ProcedureContext, AnyProcedure, AnyRouter } from '@sylphlab/typeql-shared';
+import { initzenQuery } from '../procedure';
+import type { ProcedureContext, AnyProcedure, AnyRouter } from '@sylphlab/zen-query-shared';
 
 // Initialize the procedure builder
-const t = initTypeQL<ProcedureContext>(); // Use a generic context for testing
+const t = initzenQuery<ProcedureContext>(); // Use a generic context for testing
 
 describe('createRouter', () => {
   it('should create an empty router instance', () => {
@@ -74,7 +74,7 @@ describe('createRouter', () => {
     // This test remains conceptual as context passing happens during request handling.
     const mockResolver = vi.fn();
     // Define context type when initializing the builder
-    const tWithContext = initTypeQL<{ user?: { id: string } }>();
+    const tWithContext = initzenQuery<{ user?: { id: string } }>();
 
     const router = createRouter<{ user?: { id: string } }>()({ // Pass context type to createRouter as well
       testQuery: tWithContext.query // Use the builder with context

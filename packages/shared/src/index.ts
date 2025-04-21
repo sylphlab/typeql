@@ -7,7 +7,7 @@ export { types, utils, seqManager };
 
 // Also re-export individual named exports if needed by consumers
 export type {
-    TypeQLTransport,
+    zenQueryTransport,
     ProcedureCallMessage,
     ProcedureResultMessage,
     SubscribeMessage,
@@ -40,7 +40,7 @@ export type {
     AnyProcedure,
     AnyRouter,
 } from './types';
-export { TypeQLClientError } from './types'; // Export class separately
+export { zenQueryClientError } from './types'; // Export class separately
 
 export { generateId, getIn, setIn, applyStandardDelta, standardOperationToDelta, standardMatchesPendingOperation, defaultCloneState } from './utils';
 

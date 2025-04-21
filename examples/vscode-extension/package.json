@@ -1,5 +1,5 @@
 {
-  "name": "typeql-vscode-example",
+  "name": "zen-query-example-vscode",
   "displayName": "TypeQL VSCode Example",
   "description": "Example VSCode extension using TypeQL for communication.",
   "version": "0.0.5",
@@ -44,10 +44,10 @@
     "vite": "^5.4.1"
   },
   "dependencies": {
-    "@sylphlab/typeql-shared": "workspace:*",
-    "@sylphlab/typeql-client": "workspace:*",
-    "@sylphlab/typeql-server": "workspace:*",
-    "@sylphlab/typeql-transport-vscode": "workspace:*",
+    "@sylphlab/zen-query-shared": "workspace:*",
+    "@sylphlab/zen-query-client": "workspace:*",
+    "@sylphlab/zen-query-server": "workspace:*",
+    "@sylphlab/zen-query-transport-vscode": "workspace:*",
     "zod": "^3.24.2"
   }
 }

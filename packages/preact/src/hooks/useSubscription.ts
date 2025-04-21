@@ -1,19 +1,19 @@
 import { useEffect, useMemo } from 'preact/hooks';
 import { signal, Signal } from '@preact/signals-core';
-import { useTypeQL } from '../context';
+import { usezenQuery } from '../context';
 import type {
-  TypeQLClientError,
+  zenQueryClientError,
   SubscribeMessage, // Type for input to client.subscribe
   SubscriptionDataMessage,
   SubscriptionErrorMessage,
   UnsubscribeFn,
-} from '@sylphlab/typeql-shared'; // Assuming shared types export
+} from '@sylphlab/zen-query-shared'; // Assuming shared types export
 
 // Define subscription status types
 export type SubscriptionStatus = 'idle' | 'connecting' | 'connected' | 'error' | 'ended';
 
 // Define options for the useSubscription hook
-export interface UseSubscriptionOptions<TData = unknown, TError = TypeQLClientError> {
+export interface UseSubscriptionOptions<TData = unknown, TError = zenQueryClientError> {
   /** If false, the subscription will not execute automatically. Defaults to true. */
   enabled?: boolean;
   /** Callback function invoked when new data is received. */
@@ -25,7 +25,7 @@ export interface UseSubscriptionOptions<TData = unknown, TError = TypeQLClientEr
 }
 
 // Define the return type of the useSubscription hook
-export interface UseSubscriptionResult<TData = unknown, TError = TypeQLClientError> {
+export interface UseSubscriptionResult<TData = unknown, TError = zenQueryClientError> {
   data: Signal<TData | undefined>;
   error: Signal<TError | null>;
   status: Signal<SubscriptionStatus>;
@@ -33,7 +33,7 @@ export interface UseSubscriptionResult<TData = unknown, TError = TypeQLClientErr
 }
 
 /**
- * Hook for managing TypeQL subscriptions.
+ * Hook for managing zenQuery subscriptions.
  *
  * @param subscriptionProcedure The client subscription procedure (e.g., client.post.onUpdate.subscribe)
  * @param input Input parameters for the subscription procedure.
@@ -45,12 +45,12 @@ export function useSubscription<TInput, TOutput>(
   input: TInput,
   options: UseSubscriptionOptions<TOutput> = {},
 ): UseSubscriptionResult<TOutput> {
-  const { client } = useTypeQL(); // Get client from context
+  const { client } = usezenQuery(); // Get client from context
   const { enabled = true, onData, onError, onEnded } = options;
 
   // --- State Signals ---
   const dataSignal = signal<TOutput | undefined>(undefined);
-  const errorSignal = signal<TypeQLClientError | null>(null);
+  const errorSignal = signal<zenQueryClientError | null>(null);
   const statusSignal = signal<SubscriptionStatus>('idle');
 
   // --- Input Memoization ---
@@ -108,8 +108,8 @@ export function useSubscription<TInput, TOutput>(
             dataSignal.value = newData;
             onData?.(newData);
           } else if (message.type === 'subscriptionError') {
-            // Assuming message.error structure matches TypeQLClientError or can be cast
-            const error = message.error as TypeQLClientError;
+            // Assuming message.error structure matches zenQueryClientError or can be cast
+            const error = message.error as zenQueryClientError;
             errorSignal.value = error;
             statusSignal.value = 'error';
             onError?.(error);
@@ -128,7 +128,7 @@ export function useSubscription<TInput, TOutput>(
       } catch (err: unknown) {
         console.error('useSubscription failed:', err);
         if (!isCancelled) {
-          const error = (err instanceof Error ? err : new Error(String(err))) as TypeQLClientError; // Basic casting
+          const error = (err instanceof Error ? err : new Error(String(err))) as zenQueryClientError; // Basic casting
           errorSignal.value = error;
           statusSignal.value = 'error';
           onError?.(error);

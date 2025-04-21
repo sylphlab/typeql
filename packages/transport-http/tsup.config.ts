@@ -9,8 +9,8 @@ export default defineConfig({
   clean: true, // Clean dist folder before build
   external: [
     // Mark workspace dependencies as external
-    '@sylphlab/typeql-client',
-    '@sylphlab/typeql-shared',
+    '@sylphlab/zen-query-client',
+    '@sylphlab/zen-query-shared',
   ],
   // Consider adding 'treeshake: true' if applicable later
 });

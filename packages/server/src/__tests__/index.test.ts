@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { createRouter } from '../router';
-import { initTypeQL } from '../procedure';
+import { initzenQuery } from '../procedure';
 import * as z from 'zod';
 
 // Define a context type for testing, satisfying ProcedureContext
@@ -11,9 +11,9 @@ interface TestContext {
 }
 
 // Initialize procedure builder with the test context
-const t = initTypeQL<TestContext>();
+const t = initzenQuery<TestContext>();
 
-describe('@sylphlab/typeql-server', () => {
+describe('@sylphlab/zen-query-server', () => {
 
   describe('createRouter', () => {
     it('should create a simple router with procedures', () => {
@@ -69,7 +69,7 @@ describe('@sylphlab/typeql-server', () => {
   });
 
   // Placeholder for procedure tests
-  describe('Procedures (initTypeQL)', () => {
+  describe('Procedures (initzenQuery)', () => {
      it('should define a query procedure', () => {
         const proc = t.query.input(z.string()).output(z.number()).resolve(({ input }) => input.length);
         expect(proc._def.type).toBe('query');

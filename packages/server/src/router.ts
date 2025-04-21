@@ -2,7 +2,7 @@
 
 // packages/core/src/server/router.ts
 
-import type { AnyProcedure, ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylphlab/typeql-shared';
+import type { AnyProcedure, ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylphlab/zen-query-shared';
 // Removed re-export
 
 // --- Router Definition ---
@@ -39,7 +39,7 @@ export class Router<TContext extends ProcedureContext, TRecord extends Procedure
 // A simple function to define procedures is sufficient for now.
 
 /**
- * Creates a TypeQL router.
+ * Creates a zenQuery router.
  * Define procedures directly within the passed object.
  *
  * @example
@@ -58,9 +58,9 @@ export class Router<TContext extends ProcedureContext, TRecord extends Procedure
 export function createRouter<TContext extends ProcedureContext>(): <TRecord extends ProcedureRouterRecord>(
     procedures: TRecord
 ) => Router<TContext, TRecord> {
-    console.log("[TypeQL Server] Router factory created.");
+    console.log("[zenQuery Server] Router factory created.");
     return <TRecord extends ProcedureRouterRecord>(procedures: TRecord): Router<TContext, TRecord> => {
-        console.log("[TypeQL Server] Defining router procedures...");
+        console.log("[zenQuery Server] Defining router procedures...");
         // Ensure the definition conforms to the extended RouterDef
         const def: RouterDef<TContext, TRecord> = {
             router: true,
@@ -72,11 +72,11 @@ export function createRouter<TContext extends ProcedureContext>(): <TRecord exte
 
 // Example usage (for illustration)
 /*
-import { initTypeQL } from './procedure';
+import { initzenQuery } from './procedure';
 import * as z from 'zod';
 
 interface MyContext extends ProcedureContext { isAdmin: boolean }
-const t = initTypeQL<MyContext>();
+const t = initzenQuery<MyContext>();
 
 const healthCheckProcedure = t.query.resolve(() => ({ status: 'ok', timestamp: Date.now() }));
 

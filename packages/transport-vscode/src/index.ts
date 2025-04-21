@@ -8,10 +8,10 @@ import type {
     SubscribeMessage,
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
-    TypeQLTransport,
+    zenQueryTransport,
     UnsubscribeFn,
     // UnsubscribeMessage is only used in helpers now
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 import type { PendingRequest, ActiveSubscription } from './types';
 import { createMessageHandler } from './messageHandler';
 import { handleSubscribe } from './subscriptionHandler';
@@ -20,10 +20,10 @@ import { handleRequest, handleRequestMissingDeltas } from './requestHandler';
 // Helpers are imported and used within the specific handlers now
 
 /**
- * A TypeQL transport layer implementation for communication between a VS Code webview
+ * A zenQuery transport layer implementation for communication between a VS Code webview
  * and the extension host.
  */
-export class VSCodeTransport implements TypeQLTransport {
+export class VSCodeTransport implements zenQueryTransport {
     // Public properties required by handlers/helpers
     public readonly pendingRequests = new Map<number | string, PendingRequest>();
     public readonly activeSubscriptions = new Map<number | string, ActiveSubscription>();

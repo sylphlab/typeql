@@ -1,6 +1,6 @@
-import type { AnyRouter, ProcedureContext } from '@sylphlab/typeql-shared';
+import type { AnyRouter, ProcedureContext } from '@sylphlab/zen-query-shared';
 import { SubscriptionManager } from './subscriptionManager';
-import type { TypeQLTransport, ProcedureResultMessage, UnsubscribeMessage } from '@sylphlab/typeql-shared';
+import type { zenQueryTransport, ProcedureResultMessage, UnsubscribeMessage } from '@sylphlab/zen-query-shared';
 /** Represents an incoming procedure call */
 export interface ProcedureCall {
     /** Path to the procedure (e.g., 'user.get' or 'item.list') */
@@ -28,7 +28,7 @@ export interface RequestHandlerOptions<TContext extends ProcedureContext> {
     subscriptionManager: SubscriptionManager;
     /** Function to create context for each request */
     createContext: (opts: {
-        transport: TypeQLTransport;
+        transport: zenQueryTransport;
     }) => Promise<TContext> | TContext;
     /** Optional: Unique identifier for this specific client connection (e.g., from WebSocket server). */
     clientId?: string;
@@ -49,5 +49,5 @@ export interface RequestHandler {
     /** Cleans up all resources associated with this handler (e.g., subscriptions). */
     cleanup: () => void;
 }
-export declare function createRequestHandler<TContext extends ProcedureContext>(opts: RequestHandlerOptions<TContext>, transport: TypeQLTransport): RequestHandler;
+export declare function createRequestHandler<TContext extends ProcedureContext>(opts: RequestHandlerOptions<TContext>, transport: zenQueryTransport): RequestHandler;
 //# sourceMappingURL=requestHandler.d.ts.map

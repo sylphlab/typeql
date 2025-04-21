@@ -1,22 +1,22 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react'; // Use React Testing Library
 import React, { ReactNode } from 'react'; // Import React
-import { TypeQLProvider } from '../context'; // Import React context
+import { zenQueryProvider } from '../context'; // Import React context
 import { useMutation } from '../hooks/useMutation'; // Import React hook
-import type { createClient, TypeQLClientError, MutationCallOptions } from '@sylphlab/typeql-client'; // Import createClient for ReturnType
+import type { createClient, zenQueryClientError, MutationCallOptions } from '@sylphlab/zen-query-client'; // Import createClient for ReturnType
 
 // Use ReturnType to get the actual client type
-type TypeQLClientInstance = ReturnType<typeof createClient>;
+type zenQueryClientInstance = ReturnType<typeof createClient>;
 
 // Mock client
 const mockMutate = vi.fn();
 const mockClient = {
   mutate: mockMutate,
-} as unknown as TypeQLClientInstance; // Use the inferred type
+} as unknown as zenQueryClientInstance; // Use the inferred type
 
 // Wrapper component providing the context (using React JSX)
 const wrapper = ({ children }: { children: ReactNode }) => ( // Use ReactNode
-  <TypeQLProvider client={mockClient}>{children}</TypeQLProvider>
+  <zenQueryProvider client={mockClient}>{children}</zenQueryProvider>
 );
 
 describe('useMutation (React)', () => {
@@ -68,7 +68,7 @@ describe('useMutation (React)', () => {
   });
 
   it('should update error state on failed mutateAsync', async () => {
-    const errorResponse: TypeQLClientError = new Error('Mutation Failed');
+    const errorResponse: zenQueryClientError = new Error('Mutation Failed');
     mockMutate.mockRejectedValue(errorResponse); // Mock rejection
 
     // Pass the mock function directly

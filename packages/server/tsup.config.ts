@@ -9,5 +9,5 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   tsconfig: 'tsconfig.json',
-  external: ['@sylphlab/typeql-shared'] // Mark internal workspace deps as external
+  external: ['@sylphlab/zen-query-shared'] // Mark internal workspace deps as external
 })

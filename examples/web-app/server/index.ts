@@ -1,14 +1,14 @@
 import {
     ProcedureContext, // Import base context type
     ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage, SubscriptionEndMessage, AckMessage, ProcedureCallMessage, SubscribeMessage, UnsubscribeMessage,
-    TypeQLTransport // Import TypeQLTransport type
-} from '@sylphlab/typeql-shared'; // Shared types
+    zenQueryTransport // Import zenQueryTransport type
+} from '@sylphlab/zen-query-shared'; // Shared types
 import {
     createRouter,
-    initTypeQL, // Import procedure builder initializer
+    initzenQuery, // Import procedure builder initializer
     createRequestHandler,
     SubscriptionManager // Import SubscriptionManager class
-} from '@sylphlab/typeql-server'; // Server functions
+} from '@sylphlab/zen-query-server'; // Server functions
 import { z } from 'zod';
 
 // --- Debugging: Catch unhandled errors ---
@@ -43,7 +43,7 @@ const counterObservable = (() => {
 })();
 
 // Initialize procedure builder (using a basic context for this example)
-const t = initTypeQL<ProcedureContext>();
+const t = initzenQuery<ProcedureContext>();
 
 const counterRouter = createRouter<ProcedureContext>()({ // Pass context type to createRouter
     getCount: t.query.resolve(() => currentCount), // Use t.query.resolve
@@ -111,8 +111,8 @@ wss.on('connection', (ws: WebSocket) => { // Add type for ws
         }
     };
 
-    // Create the transport-like object for the handler, satisfying TypeQLTransport
-    const transportForHandler: TypeQLTransport = {
+    // Create the transport-like object for the handler, satisfying zenQueryTransport
+    const transportForHandler: zenQueryTransport = {
         send: sendToClient,
         onDisconnect: (cleanupFn: () => void): (() => void) => { // Correct implementation
             const closeListener = () => {
@@ -154,7 +154,7 @@ wss.on('connection', (ws: WebSocket) => { // Add type for ws
         // onConnectionChange: undefined,
     };
 
-    // Create a TypeQL request handler function for this specific client connection
+    // Create a zenQuery request handler function for this specific client connection
     const handler = createRequestHandler<ProcedureContext>( // Assign the returned function directly
         { // Options object
             router: counterRouter,
@@ -199,4 +199,4 @@ wss.on('connection', (ws: WebSocket) => { // Add type for ws
      });
 });
 
-console.log('TypeQL WebSocket server setup complete.');
+console.log('zenQuery WebSocket server setup complete.');

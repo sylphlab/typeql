@@ -1,5 +1,5 @@
 {
-  "name": "reqdelta-monorepo",
+  "name": "zen-query",
   "version": "0.0.0",
   "private": true,
   "description": "Monorepo for TypeQL - TypeScript-first realtime API framework (@sylphlab/typeql)",

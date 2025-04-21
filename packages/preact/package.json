@@ -1,5 +1,5 @@
 {
-  "name": "@sylphlab/typeql-preact",
+  "name": "@sylphlab/zen-query-preact",
   "version": "0.1.3",
   "description": "Preact hooks for TypeQL",
   "type": "module",
@@ -35,8 +35,8 @@
     "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test"
   },
   "dependencies": {
-    "@sylphlab/typeql-client": "workspace:*",
-    "@sylphlab/typeql-shared": "workspace:*"
+    "@sylphlab/zen-query-client": "workspace:*",
+    "@sylphlab/zen-query-shared": "workspace:*"
   },
   "peerDependencies": {
     "preact": "^10.5.0"

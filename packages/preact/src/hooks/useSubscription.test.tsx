@@ -2,17 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/preact';
 import { h } from 'preact';
 import { signal } from '@preact/signals-core';
-import { TypeQLProvider } from '../context';
+import { zenQueryProvider } from '../context';
 import { useSubscription } from './useSubscription';
-import type { createClient, TypeQLClientError } from '@sylphlab/typeql-client';
+import type { createClient } from '@sylphlab/zen-query-client';
+import type { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Import error from shared
 // Use ReturnType to get the type of the client instance for mocking
-type TypeQLClientInstance = ReturnType<typeof createClient>;
+type zenQueryClientInstance = ReturnType<typeof createClient>;
 import type {
   SubscribeMessage,
   SubscriptionDataMessage,
   SubscriptionErrorMessage,
   UnsubscribeFn,
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 
 // --- Mock Async Iterator Setup ---
 // Helper to create a controllable async iterator
@@ -99,15 +100,26 @@ function createMockAsyncIterator<T>() {
 // Mock client
 const mockSubscribe = vi.fn();
 const mockUnsubscribe = vi.fn();
-const mockClient = {
-  subscribe: mockSubscribe,
-  // Add other methods if needed
-} as unknown as TypeQLClientInstance; // Correct type alias used
+const mockQuery = vi.fn(); // Add mocks for other methods
+const mockMutation = vi.fn();
+const mockGetCoordinator = vi.fn(() => ({ on: vi.fn(), getPendingPatches: vi.fn(() => new Map()) })); // Basic coordinator mock
+
+const mockClient: zenQueryClientInstance = {
+  query: { // Mock query structure
+      // Add specific procedures if needed
+  } as any,
+  mutation: { // Mock mutation structure
+      // Add specific procedures if needed
+  } as any,
+  subscribe: mockSubscribe, // Keep existing mock for this test file
+  getCoordinator: mockGetCoordinator,
+  close: vi.fn(),
+};
 
 // Wrapper component providing the context
 // Use JSX for wrapper
 const wrapper = ({ children }: { children: any }) => (
-  <TypeQLProvider client={mockClient}>{children}</TypeQLProvider>
+  <zenQueryProvider client={mockClient}>{children}</zenQueryProvider>
 );
 
 describe('useSubscription', () => {

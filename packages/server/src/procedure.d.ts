@@ -1,5 +1,5 @@
 import * as z from 'zod';
-import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylphlab/typeql-shared';
+import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylphlab/zen-query-shared';
 /** Options passed to resolver/subscription functions */
 export interface ProcedureOptions<TContext = ProcedureContext, TInput = unknown> {
     ctx: TContext;
@@ -73,13 +73,13 @@ declare class ProcedureBuilderInitializer<TContext = ProcedureContext> {
  * Pass the context type expected by your procedures.
  *
  * @example
- * const t = initTypeQL<AppContext>();
+ * const t = initzenQuery<AppContext>();
  * const appRouter = createRouter({
  *   getUser: t.query // Use the getter here
  *     .input(...)
  *     .resolve(...)
  * });
  */
-export declare function initTypeQL<TContext = ProcedureContext>(): ProcedureBuilderInitializer<TContext>;
+export declare function initzenQuery<TContext = ProcedureContext>(): ProcedureBuilderInitializer<TContext>;
 export {};
 //# sourceMappingURL=procedure.d.ts.map

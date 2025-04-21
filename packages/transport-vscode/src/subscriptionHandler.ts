@@ -3,7 +3,7 @@ import type {
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     UnsubscribeFn,
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 import type { ActiveSubscription } from './types';
 import { generateIdHelper, createUnsubscribeFn, cleanupSubscriptionHelper } from './helpers'; // Import helpers
 

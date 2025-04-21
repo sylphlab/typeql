@@ -9,8 +9,8 @@ export default defineConfig({
   clean: true, // Clean output directory before build
   external: [
     'react', // Mark react as external (peer dependency)
-    '@sylphlab/typeql-client', // Mark workspace packages as external
-    '@sylphlab/typeql-shared', // Mark workspace packages as external (if used)
+    '@sylphlab/zen-query-client', // Mark workspace packages as external
+    '@sylphlab/zen-query-shared', // Mark workspace packages as external (if used)
   ],
   // Add banner to specify 'use client' for React Server Components compatibility
   banner: {

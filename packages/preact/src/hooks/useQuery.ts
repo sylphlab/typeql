@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'preact/hooks';
 import { signal, Signal, computed } from '@preact/signals-core';
-import { useTypeQL } from '../context';
-import type { TypeQLClientError } from '@sylphlab/typeql-client'; // Assuming error type export
+import { usezenQuery } from '../context';
+import type { zenQueryClientError } from '@sylphlab/zen-query-client'; // Assuming error type export
 
 // Define options for the useQuery hook
 export interface UseQueryOptions {
@@ -11,7 +11,7 @@ export interface UseQueryOptions {
 }
 
 // Define the return type of the useQuery hook
-export interface UseQueryResult<TData = unknown, TError = TypeQLClientError> {
+export interface UseQueryResult<TData = unknown, TError = zenQueryClientError> {
   data: Signal<TData | undefined>;
   error: Signal<TError | null>;
   isFetching: Signal<boolean>;
@@ -21,7 +21,7 @@ export interface UseQueryResult<TData = unknown, TError = TypeQLClientError> {
 }
 
 /**
- * Hook for fetching data using a TypeQL query.
+ * Hook for fetching data using a zenQuery query.
  *
  * @param queryProcedure The client query procedure (e.g., client.post.get)
  * @param input Input parameters for the query procedure.
@@ -34,12 +34,12 @@ export function useQuery<TInput, TOutput>(
   input: TInput,
   options: UseQueryOptions = {},
 ): UseQueryResult<TOutput> {
-  const { client } = useTypeQL(); // Get client from context
+  const { client } = usezenQuery(); // Get client from context
   const { enabled = true } = options;
 
   // --- State Signals ---
   const dataSignal = signal<TOutput | undefined>(undefined);
-  const errorSignal = signal<TypeQLClientError | null>(null);
+  const errorSignal = signal<zenQueryClientError | null>(null);
   const isFetchingSignal = signal<boolean>(false);
 
   // --- Input Memoization ---
@@ -95,9 +95,9 @@ export function useQuery<TInput, TOutput>(
       } catch (err: unknown) {
         console.error('useQuery failed:', err);
         if (!isCancelled) {
-          // Assuming the error is or can be cast to TypeQLClientError
+          // Assuming the error is or can be cast to zenQueryClientError
           // TODO: Improve error type handling/casting
-          errorSignal.value = err as TypeQLClientError;
+          errorSignal.value = err as zenQueryClientError;
           dataSignal.value = undefined; // Clear data on error
         }
       } finally {

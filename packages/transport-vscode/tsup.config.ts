@@ -8,7 +8,7 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   external: [
-    '@sylphlab/typeql-shared',
+    '@sylphlab/zen-query-shared',
     'vscode',
   ],
   target: 'es2020',

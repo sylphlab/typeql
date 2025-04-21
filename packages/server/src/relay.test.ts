@@ -7,7 +7,7 @@ import {
     createConnectionSchema,
     // buildConnection is not exported, test via RelayQueryBuilder or export it for testing
 } from './relay';
-import { initTypeQL } from './procedure'; // To test the builder chain
+import { initzenQuery } from './procedure'; // To test the builder chain
 
 // --- Mock buildConnection for builder tests ---
 // We need to access the internal function for direct testing or mock it.
@@ -182,7 +182,7 @@ describe('buildConnection Logic', () => {
 // --- Test RelayQueryBuilder Chain ---
 
 describe('RelayQueryBuilder Chain', () => {
-    const t = initTypeQL<{ user?: string }>(); // Example context
+    const t = initzenQuery<{ user?: string }>(); // Example context
 
     const FilterSchema = z.object({ search: z.string().optional() });
     type FilterType = z.infer<typeof FilterSchema>;

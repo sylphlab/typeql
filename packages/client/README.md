@@ -1,6 +1,6 @@
-# TypeQL Client (`@sylphlab/typeql-client`)
+# zenQuery Client (`@sylphlab/typeql-client`)
 
-This package provides the core client-side logic for interacting with a TypeQL server. It allows you to create a fully typesafe client based on your server's router definition.
+This package provides the core client-side logic for interacting with a zenQuery server. It allows you to create a fully typesafe client based on your server's router definition.
 
 ## Installation
 

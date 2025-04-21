@@ -1,12 +1,12 @@
 import { useMemo, useCallback } from 'preact/hooks';
 import { signal, Signal } from '@preact/signals-core';
-import { useTypeQL } from '../context';
-import type { TypeQLClientError, MutationCallOptions } from '@sylphlab/typeql-client'; // Assuming exports
+import { usezenQuery } from '../context';
+import type { zenQueryClientError, MutationCallOptions } from '@sylphlab/zen-query-client'; // Assuming exports
 
 // Define options for the useMutation hook
 export interface UseMutationOptions<
   TData = unknown,
-  TError = TypeQLClientError,
+  TError = zenQueryClientError,
   TVariables = unknown, // Input variables type
   TContext = unknown, // Context for optimistic updates/callbacks
 > {
@@ -19,7 +19,7 @@ export interface UseMutationOptions<
 // Define the return type of the useMutation hook
 export interface UseMutationResult<
   TData = unknown,
-  TError = TypeQLClientError,
+  TError = zenQueryClientError,
   TVariables = unknown, // Input variables type including optimistic options
   TContext = unknown,
 > {
@@ -32,7 +32,7 @@ export interface UseMutationResult<
 }
 
 /**
- * Hook for executing TypeQL mutations.
+ * Hook for executing zenQuery mutations.
  *
  * @param mutationProcedure The client mutation procedure (e.g., client.post.create.mutate)
  * @param options Configuration options like callbacks (onSuccess, onError).
@@ -40,7 +40,7 @@ export interface UseMutationResult<
 export function useMutation<
   TInput, // Input type for the procedure itself
   TOutput, // Output type of the procedure
-  TError = TypeQLClientError,
+  TError = zenQueryClientError,
   TState = any, // State type for optimistic updates
   TContext = unknown, // Context type for callbacks
 >(
@@ -48,7 +48,7 @@ export function useMutation<
   mutationProcedure: (opts: MutationCallOptions<TInput, TState>) => Promise<TOutput>,
   options: UseMutationOptions<TOutput, TError, MutationCallOptions<TInput, TState>, TContext> = {},
 ): UseMutationResult<TOutput, TError, MutationCallOptions<TInput, TState>, TContext> {
-  const { client, store } = useTypeQL<TState>(); // Get client and store from context
+  const { client, store } = usezenQuery<TState>(); // Get client and store from context
 
   // --- State Signals ---
   const dataSignal = signal<TOutput | undefined>(undefined);

@@ -1,5 +1,5 @@
 {
-  "name": "@sylphlab/typeql-client",
+  "name": "@sylphlab/zen-query-client",
   "version": "0.0.4",
   "description": "Client library for TypeQL - TypeScript-first realtime API framework.",
   "type": "module",
@@ -47,7 +47,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@sylphlab/typeql-shared": "workspace:*",
+    "@sylphlab/zen-query-shared": "workspace:*",
     "fast-json-patch": "^3.1.1",
     "immer": "^10.1.1",
     "nanoevents": "^9.1.0",

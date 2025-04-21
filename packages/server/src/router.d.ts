@@ -1,4 +1,4 @@
-import type { ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylphlab/typeql-shared';
+import type { ProcedureContext, AnyRouter, ProcedureRouterRecord, BaseRouterDef } from '@sylphlab/zen-query-shared';
 /** Internal definition of a router, extending the base */
 export interface RouterDef<TContext extends ProcedureContext, TRecord extends ProcedureRouterRecord> extends BaseRouterDef {
     procedures: TRecord;
@@ -12,7 +12,7 @@ declare class Router<TContext extends ProcedureContext, TRecord extends Procedur
     constructor(def: RouterDef<TContext, TRecord>);
 }
 /**
- * Creates a TypeQL router.
+ * Creates a zenQuery router.
  * Define procedures directly within the passed object.
  *
  * @example

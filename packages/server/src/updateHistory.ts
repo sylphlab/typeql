@@ -1,7 +1,7 @@
-import type { SubscriptionDataMessage } from '@sylphlab/typeql-shared';
+import type { SubscriptionDataMessage } from '@sylphlab/zen-query-shared';
 
-// NOTE: This history mechanism is based on the OLD ReqDelta model (topics, serverSeq).
-// It might need significant rework or replacement depending on how TypeQL handles
+// NOTE: This history mechanism is based on the OLD zenQuery model (topics, serverSeq).
+// It might need significant rework or replacement depending on how zenQuery handles
 // subscription consistency and recovery (e.g., if sequence numbers are optional or handled differently).
 
 /** Interface for storing and retrieving historical update messages. */
@@ -59,7 +59,7 @@ export function createInMemoryUpdateHistory(
     const addUpdate = (topic: string, message: SubscriptionDataMessage) => {
         // Use message.serverSeq instead of message.seq
         if (message.serverSeq === undefined || message.serverSeq <= 0) {
-             console.warn(`[TypeQL History] Ignoring message for topic "${topic}" without a valid positive serverSeq:`, message);
+             console.warn(`[zenQuery History] Ignoring message for topic "${topic}" without a valid positive serverSeq:`, message); // Fixed Prefix
              return;
         }
 
@@ -72,7 +72,7 @@ export function createInMemoryUpdateHistory(
         const lastMessage = topicHistory.length > 0 ? topicHistory[topicHistory.length - 1] : undefined;
         // Use message.serverSeq
         if (lastMessage && lastMessage.serverSeq !== undefined && message.serverSeq <= lastMessage.serverSeq) {
-             console.warn(`[TypeQL History] Received out-of-order or duplicate message for topic "${topic}" (serverSeq: ${message.serverSeq}, Last serverSeq: ${lastMessage.serverSeq}). Ignoring.`);
+             console.warn(`[zenQuery History] Received out-of-order or duplicate message for topic "${topic}" (serverSeq: ${message.serverSeq}, Last serverSeq: ${lastMessage.serverSeq}). Ignoring.`); // Fixed Prefix
              // Or handle insertion/replacement if needed.
              return;
         }

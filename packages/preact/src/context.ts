@@ -1,60 +1,60 @@
 import { createContext, h, ComponentChildren } from 'preact';
 import { useContext } from 'preact/hooks';
-import type { createClient, OptimisticStore } from '@sylphlab/typeql-client';
+import type { createClient, OptimisticStore } from '@sylphlab/zen-query-client';
 // Use ReturnType to get the type of the client instance
-type TypeQLClientInstance = ReturnType<typeof createClient>;
+type zenQueryClientInstance = ReturnType<typeof createClient>;
 
 // Define the shape of the context value
-export interface TypeQLContextValue<TState = any> {
-  client: TypeQLClientInstance;
+export interface zenQueryContextValue<TState = any> {
+  client: zenQueryClientInstance;
   store?: OptimisticStore<TState>;
 }
 
 // Create the context with a default value (null or undefined)
 // Using undefined and checking in the hook is common practice
-const TypeQLContext = createContext<TypeQLContextValue | undefined>(undefined);
+const zenQueryContext = createContext<zenQueryContextValue | undefined>(undefined);
 
 // Define props for the provider component
-export interface TypeQLProviderProps<TState = any> {
-  client: TypeQLClientInstance; // Client is mandatory
+export interface zenQueryProviderProps<TState = any> {
+  client: zenQueryClientInstance; // Client is mandatory
   store?: OptimisticStore<TState>; // Store is optional
   children: ComponentChildren;
 }
 
 /**
- * Provides the TypeQL client and optional optimistic store to the component tree.
+ * Provides the zenQuery client and optional optimistic store to the component tree.
  */
-export function TypeQLProvider<TState = any>({
+export function zenQueryProvider<TState = any>({
   client,
   store,
   children,
-}: TypeQLProviderProps<TState>) {
+}: zenQueryProviderProps<TState>) {
   // Memoize the context value if client/store could change, though typically they are stable
   // const contextValue = useMemo(() => ({ client, store }), [client, store]);
   // For simplicity now, assume client/store are stable for the provider's lifetime
-  const contextValue: TypeQLContextValue<TState> = { client, store };
+  const contextValue: zenQueryContextValue<TState> = { client, store };
 
   // Correct usage: h(Component, props, children)
-  return h(TypeQLContext.Provider, { value: contextValue }, children);
+  return h(zenQueryContext.Provider, { value: contextValue }, children);
   // Or using JSX:
   // return (
-  //   <TypeQLContext.Provider value={contextValue}>
+  //   <zenQueryContext.Provider value={contextValue}>
   //     {children}
-  //   </TypeQLContext.Provider>
+  //   </zenQueryContext.Provider>
   // );
 }
 
 /**
- * Hook to access the TypeQL client and optional optimistic store from the context.
- * Throws an error if used outside of a TypeQLProvider.
+ * Hook to access the zenQuery client and optional optimistic store from the context.
+ * Throws an error if used outside of a zenQueryProvider.
  */
-export function useTypeQL<TState = any>(): TypeQLContextValue<TState> {
-  const context = useContext(TypeQLContext);
+export function usezenQuery<TState = any>(): zenQueryContextValue<TState> {
+  const context = useContext(zenQueryContext);
 
   if (context === undefined) {
-    throw new Error('useTypeQL must be used within a TypeQLProvider');
+    throw new Error('usezenQuery must be used within a zenQueryProvider');
   }
 
   // Cast needed as useContext's default type might include undefined
-  return context as TypeQLContextValue<TState>;
+  return context as zenQueryContextValue<TState>;
 }

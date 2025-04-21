@@ -6,11 +6,16 @@ export default defineConfig({
   // plugins: [], // Remove tsconfigPaths plugin
   resolve: {
     alias: {
-      '@sylphlab/typeql-shared': path.resolve(__dirname, './packages/shared/src/index.ts'),
-      '@sylphlab/typeql-client': path.resolve(__dirname, './packages/client/src/index.ts'),
-      '@sylphlab/typeql-server': path.resolve(__dirname, './packages/server/src/index.ts'),
-      '@sylphlab/transport-websocket': path.resolve(__dirname, './packages/transport-websocket/src/index.ts'), // Revert: Point back to index.ts
-      // Add other aliases if needed
+      // Update aliases to use new package names
+      '@sylphlab/zen-query-shared': path.resolve(__dirname, './packages/shared/src/index.ts'),
+      '@sylphlab/zen-query-client': path.resolve(__dirname, './packages/client/src/index.ts'),
+      '@sylphlab/zen-query-server': path.resolve(__dirname, './packages/server/src/index.ts'),
+      '@sylphlab/zen-query-transport-websocket': path.resolve(__dirname, './packages/transport-websocket/src/index.ts'),
+      // Add aliases for other renamed packages used in tests
+      '@sylphlab/zen-query-react': path.resolve(__dirname, './packages/react/src/index.ts'),
+      '@sylphlab/zen-query-preact': path.resolve(__dirname, './packages/preact/src/index.ts'),
+      '@sylphlab/zen-query-transport-http': path.resolve(__dirname, './packages/transport-http/src/index.ts'),
+      '@sylphlab/zen-query-transport-vscode': path.resolve(__dirname, './packages/transport-vscode/src/index.ts'),
     }
   },
   test: {

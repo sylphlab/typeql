@@ -53,7 +53,7 @@ export function resolveConflict<Delta>(
     serverDelta: Delta, // Changed parameter name for clarity
     config: ConflictResolverConfig<Delta>
 ): ConflictResolutionResult<Delta> { // Changed return type
-    console.warn(`[ReqDelta Client] Conflict detected between client delta and server delta. Strategy: ${config.strategy}`);
+    console.warn(`[zenQuery Client] Conflict detected between client delta and server delta. Strategy: ${config.strategy}`);
 
     // Handle empty deltas first - assumes JSON Patch array format for Delta
     if (isDeltaEmpty(clientDelta)) {
@@ -81,17 +81,17 @@ export function resolveConflict<Delta>(
                     // Outcome indicates a merge or custom resolution occurred
                     return { resolvedDelta: mergedDelta, outcome: 'merged' };
                 } catch (err) {
-                    console.error('[ReqDelta Client] Custom conflict resolver failed:', err);
+                    console.error('[zenQuery Client] Custom conflict resolver failed:', err);
                     // Fallback to server-wins if custom logic fails, outcome indicates error
                     return { resolvedDelta: serverDelta, outcome: 'error' };
                 }
             } else {
-                console.error('[ReqDelta Client] Conflict strategy set to "custom" but no customResolver provided. Falling back to "server-wins".');
+                console.error('[zenQuery Client] Conflict strategy set to "custom" but no customResolver provided. Falling back to "server-wins".');
                  // Fallback to server-wins if custom resolver is missing, outcome indicates error
                 return { resolvedDelta: serverDelta, outcome: 'error' };
             }
         default:
-            console.warn(`[ReqDelta Client] Unknown conflict strategy "${config.strategy}". Falling back to "server-wins".`);
+            console.warn(`[zenQuery Client] Unknown conflict strategy "${config.strategy}". Falling back to "server-wins".`);
              // Fallback for unknown strategy, outcome indicates error
             return { resolvedDelta: serverDelta, outcome: 'error' };
     }

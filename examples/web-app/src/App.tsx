@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { useTypeQL, useMutation, useSubscription } from '@sylphlab/typeql-react'; // Use correct package name
-import { TypeQLClientError } from '@sylphlab/typeql-shared'; // Use shared package
+import { usezenQuery, useMutation, useSubscription } from '@sylphlab/zen-query-react'; // Use correct package name
+import { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Use shared package
 import type { AppRouter } from '../server/index.js'; // Ensure extension is present
 import './App.css';
 
@@ -11,10 +11,10 @@ type CounterError = { message: string; code?: string };
 type MutationContext = { previousCount?: number };
 
 // Define the type for the client prop explicitly
-type TypeQLClient = NonNullable<ReturnType<typeof useTypeQL>['client']>;
+type zenQueryClient = NonNullable<ReturnType<typeof usezenQuery>['client']>;
 
 // New component that receives the guaranteed client
-function Counter({ client }: { client: TypeQLClient }) {
+function Counter({ client }: { client: zenQueryClient }) {
   const [currentCount, setCurrentCount] = useState<number | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -27,7 +27,7 @@ function Counter({ client }: { client: TypeQLClient }) {
       const context: MutationContext = { previousCount: currentCount };
       return context;
     },
-    onError: (err: Error | TypeQLClientError, _variables: CounterInput, context?: MutationContext) => {
+    onError: (err: Error | zenQueryClientError, _variables: CounterInput, context?: MutationContext) => {
       console.error("Increment failed:", err);
       setCurrentCount(context?.previousCount);
       setError(`Increment failed: ${err.message}`);
@@ -42,7 +42,7 @@ function Counter({ client }: { client: TypeQLClient }) {
       const context: MutationContext = { previousCount: currentCount };
       return context;
     },
-    onError: (err: Error | TypeQLClientError, _variables: CounterInput, context?: MutationContext) => {
+    onError: (err: Error | zenQueryClientError, _variables: CounterInput, context?: MutationContext) => {
       console.error("Decrement failed:", err);
       setCurrentCount(context?.previousCount);
       setError(`Decrement failed: ${err.message}`);
@@ -97,12 +97,12 @@ function Counter({ client }: { client: TypeQLClient }) {
 
 
 function App() {
-  // Get the typed TypeQL client instance using the specific AppRouter type
-  const typeql = useTypeQL<AppRouter>(); // Specify AppRouter generic
+  // Get the typed zenQuery client instance using the specific AppRouter type
+  const typeql = usezenQuery<AppRouter>(); // Specify AppRouter generic
 
   return (
     <>
-      <h1>TypeQL Counter Example</h1>
+      <h1>zenQuery Counter Example</h1>
       {/* Conditionally render the Counter component only when the client is available */}
       {typeql.client ? (
         <Counter client={typeql.client} />

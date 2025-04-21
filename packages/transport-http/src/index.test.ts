@@ -4,7 +4,7 @@ import type {
   ProcedureCallMessage,
   ProcedureResultMessage,
   SubscribeMessage,
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 
 // Mock the global fetch API
 const mockFetch = vi.fn();
@@ -154,7 +154,7 @@ describe('createHttpTransport', () => {
       mockFetch.mockRejectedValueOnce(networkError);
 
       await expect(transport.request(requestPayload)).rejects.toThrow(
-        `TypeQL HTTP Request Failed: ${networkError.message}`
+        `zenQuery HTTP Request Failed: ${networkError.message}`
       );
        // Check it's not an HttpError instance
        try {

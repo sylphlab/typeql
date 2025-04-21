@@ -1,12 +1,12 @@
-# TypeQL Web App Example
+# zenQuery Web App Example
 
-This example demonstrates using TypeQL in a React application built with Vite, communicating with a backend server via WebSockets.
+This example demonstrates using zenQuery in a React application built with Vite, communicating with a backend server via WebSockets.
 
 ## Features Demonstrated
 
-*   **TypeQL Server:** Basic router setup with queries, mutations, and subscriptions (`server/index.ts`).
-*   **TypeQL Client:** Connecting to the server using `@sylphlab/typeql-transport-websocket`.
-*   **React Integration:** Using `@sylphlab/typeql-react` hooks (`useQuery`, `useMutation`, `useSubscription`) to interact with the TypeQL API.
+*   **zenQuery Server:** Basic router setup with queries, mutations, and subscriptions (`server/index.ts`).
+*   **zenQuery Client:** Connecting to the server using `@sylphlab/typeql-transport-websocket`.
+*   **React Integration:** Using `@sylphlab/typeql-react` hooks (`useQuery`, `useMutation`, `useSubscription`) to interact with the zenQuery API.
 *   **Realtime Updates:** Subscribing to backend changes and applying delta updates to the UI.
 *   **Optimistic Updates:** Basic example of optimistic UI updates for mutations.
 

@@ -1,56 +1,56 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, render } from '@testing-library/react'; // Use React Testing Library
 import React, { ReactNode } from 'react'; // Import React
-import { TypeQLProvider, useTypeQL } from './context'; // Corrected relative import path
-import type { createClient, OptimisticStore } from '@sylphlab/typeql-client';
+import { zenQueryProvider, usezenQuery } from './context'; // Corrected relative import path
+import type { createClient, OptimisticStore } from '@sylphlab/zen-query-client';
 
 // Use ReturnType to get the type of the client instance for mocking
-type TypeQLClientInstance = ReturnType<typeof createClient>;
+type zenQueryClientInstance = ReturnType<typeof createClient>;
 
-// Mock the TypeQLClient and OptimisticStore (same mocks should work)
+// Mock the zenQueryClient and OptimisticStore (same mocks should work)
 const mockClient = {
   query: vi.fn(),
   mutate: vi.fn(),
   subscribe: vi.fn(),
-} as unknown as TypeQLClientInstance;
+} as unknown as zenQueryClientInstance;
 
 const mockStore = {
   getState: vi.fn(() => ({})),
 } as unknown as OptimisticStore<any>;
 
-describe('TypeQLProvider and useTypeQL (React)', () => {
-  it('should provide the client instance via useTypeQL', () => {
+describe('zenQueryProvider and usezenQuery (React)', () => {
+  it('should provide the client instance via usezenQuery', () => {
     // Wrapper using React JSX
     const wrapper = ({ children }: { children: ReactNode }) => ( // Use ReactNode
-      <TypeQLProvider client={mockClient}>{children}</TypeQLProvider>
+      <zenQueryProvider client={mockClient}>{children}</zenQueryProvider>
     );
 
     // Use renderHook from @testing-library/react
-    const { result } = renderHook(() => useTypeQL(), { wrapper });
+    const { result } = renderHook(() => usezenQuery(), { wrapper });
 
     expect(result.current.client).toBe(mockClient);
     expect(result.current.store).toBeUndefined();
   });
 
-  it('should provide the client and store instances via useTypeQL', () => {
+  it('should provide the client and store instances via usezenQuery', () => {
     // Wrapper using React JSX
     const wrapper = ({ children }: { children: ReactNode }) => ( // Use ReactNode
-      <TypeQLProvider client={mockClient} store={mockStore}>{children}</TypeQLProvider>
+      <zenQueryProvider client={mockClient} store={mockStore}>{children}</zenQueryProvider>
     );
 
-    const { result } = renderHook(() => useTypeQL(), { wrapper });
+    const { result } = renderHook(() => usezenQuery(), { wrapper });
 
     expect(result.current.client).toBe(mockClient);
     expect(result.current.store).toBe(mockStore);
   });
 
-  it('should throw an error if useTypeQL is used outside a TypeQLProvider', () => {
+  it('should throw an error if usezenQuery is used outside a zenQueryProvider', () => {
     // Suppress console.error output during this expected error test
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     // Expect renderHook itself to throw when the hook throws during initial render
-    expect(() => renderHook(() => useTypeQL())).toThrow(
-      'useTypeQL must be used within a TypeQLProvider'
+    expect(() => renderHook(() => usezenQuery())).toThrow(
+      'usezenQuery must be used within a zenQueryProvider'
     );
 
     // Restore console.error
@@ -62,9 +62,9 @@ describe('TypeQLProvider and useTypeQL (React)', () => {
     const TestChild = () => <div>Test Child Content</div>; // Use React JSX
     // Use render from @testing-library/react
     const { getByText } = render(
-      <TypeQLProvider client={mockClient}>
+      <zenQueryProvider client={mockClient}>
         <TestChild />
-      </TypeQLProvider>
+      </zenQueryProvider>
     );
     expect(getByText('Test Child Content')).toBeDefined();
   });

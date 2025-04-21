@@ -1,4 +1,4 @@
-// Entry point for @sylphlab/typeql-preact
+// Entry point for @sylphlab/zen-query-preact
 // Implementation will follow.
 
 export {}; // Placeholder

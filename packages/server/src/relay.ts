@@ -2,7 +2,7 @@ import * as z from 'zod';
 // ProcedureBuilder class is not exported, it will be accessed via `this` in the .relay() method added to it.
 // We import types needed for the builder's methods and generics.
 import type { ProcedureOptions, Resolver } from './procedure'; // Import necessary types
-import type { ProcedureContext, BaseProcedureDef } from '@sylphlab/typeql-shared'; // Import shared types
+import type { ProcedureContext, BaseProcedureDef } from '@sylphlab/zen-query-shared'; // Import shared types
 
 // --- Relay Specific Schemas ---
 
@@ -104,7 +104,7 @@ export class RelayQueryBuilder<
     input<ZodFilterSchema extends z.AnyZodObject>( // Constraint added: must be an object
         schema: ZodFilterSchema
     ): RelayQueryBuilder<TContext, ZodFilterSchema, TNodeOutputSchema> {
-        console.log(`[TypeQL Relay] Defining input filter schema...`);
+        console.log(`[zenQuery Relay] Defining input filter schema...`);
 
         // Combine the user's filter schema with the *base* Relay arguments object
         const combinedObjectSchema = RelayArgsObjectSchema.merge(schema);
@@ -135,7 +135,7 @@ export class RelayQueryBuilder<
     output<ZodNodeSchema extends z.ZodTypeAny>(
         schema: ZodNodeSchema
     ): RelayQueryBuilder<TContext, TFilterInputSchema, ZodNodeSchema> {
-        console.log(`[TypeQL Relay] Defining output node schema...`);
+        console.log(`[zenQuery Relay] Defining output node schema...`);
 
         // Create the connection schema based on the node schema
         const connectionSchema = createConnectionSchema(schema);
@@ -159,14 +159,14 @@ export class RelayQueryBuilder<
         // User provides a function to fetch nodes based on filters and relay args
         fetchNodesFn: FetchNodesFn<TContext, _TFilterInput, _TNodeOutput>
     ): { _def: BaseProcedureDef } { // Return type matches base builder's resolve
-        console.log(`[TypeQL Relay] Defining relay resolver...`);
+        console.log(`[zenQuery Relay] Defining relay resolver...`);
 
         if (!this.nodeSchema) {
             throw new Error("Output node schema must be defined using .output() before calling .relayResolve()");
         }
         if (!this.baseBuilder._def.inputSchema) {
              // Should not happen if .input() was called or if no filterSchema was provided
-             console.warn("[TypeQL Relay] Input schema not found on base builder. Assuming only RelayArgs.");
+             console.warn("[zenQuery Relay] Input schema not found on base builder. Assuming only RelayArgs.");
         }
 
         // Define the final resolver that the base builder will use

@@ -3,8 +3,8 @@
   "compilerOptions": {
     "outDir": "./dist",
     "rootDir": "./src",
-    "baseUrl": ".",
-    "jsx": "react-jsx", // Use react-jsx for modern JSX transform
+    // "baseUrl": ".", // Keep removed
+    "jsx": "preserve", // Preserve JSX for build tool (Vite/tsup) to handle with Preact plugin
     "jsxImportSource": "preact" // Specify Preact as the source
   },
   "include": ["src/**/*"],

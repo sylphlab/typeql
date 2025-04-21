@@ -1,4 +1,4 @@
-import type { ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage } from '@sylphlab/typeql-shared';
+import type { ProcedureResultMessage, SubscriptionDataMessage, SubscriptionErrorMessage } from '@sylphlab/zen-query-shared';
 
 // Helper type for pending requests
 export type PendingRequest = {

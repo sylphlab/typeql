@@ -1,5 +1,5 @@
 {
-  "name": "@sylphlab/typeql-shared",
+  "name": "@sylphlab/zen-query-shared",
   "version": "0.0.4",
   "description": "Shared types and utilities for TypeQL.",
   "type": "module",

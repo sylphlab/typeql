@@ -1,20 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'; // Removed Mocked type import
-import { createClient, TypeQLClientError, ClientOptions } from './client'; // Adjusted path
+import { createClient, zenQueryClientError, ClientOptions } from './client'; // Adjusted path
 import { OptimisticStore, PredictedChange } from './optimisticStore'; // Adjusted path, added PredictedChange
 import type {
     AnyRouter,
-    TypeQLTransport,
+    zenQueryTransport,
     ProcedureCallMessage,
     ProcedureResultMessage,
     SubscribeMessage,
     SubscriptionDataMessage,
     SubscriptionErrorMessage,
     UnsubscribeFn
-} from '@sylphlab/typeql-shared'; // Import TypeQLTransport and message types from shared
+} from '@sylphlab/zen-query-shared'; // Import zenQueryTransport and message types from shared
 import { z } from 'zod';
 
 // Mock Transport - Use 'any' to bypass TS type checking for mock methods
-const mockTransport: any = { // Changed TypeQLTransport to any
+const mockTransport: any = { // Changed zenQueryTransport to any
   request: vi.fn(),
   subscribe: vi.fn(),
   onAckReceived: undefined, // Start as undefined
@@ -123,7 +123,7 @@ describe('createClient', () => {
         expect(result).toEqual(expectedResult);
     });
 
-    it('should throw TypeQLClientError on transport.request query error', async () => {
+    it('should throw zenQueryClientError on transport.request query error', async () => {
       const input = { id: '123' };
       const error = new Error('Network failed');
       mockTransport.request.mockRejectedValueOnce(error);
@@ -133,7 +133,7 @@ describe('createClient', () => {
         // Should not reach here
         expect.fail('Expected query to throw');
       } catch (e: any) {
-        expect(e).toBeInstanceOf(TypeQLClientError);
+        expect(e).toBeInstanceOf(zenQueryClientError);
         expect(e.message).toContain('Network failed');
         expect(e.code).toBe('QUERY_FAILED'); // Expect specific code for query failure
       }
@@ -141,7 +141,7 @@ describe('createClient', () => {
       expect(mockTransport.request).toHaveBeenCalledTimes(1); // Ensure mock was called once per try
     });
 
-    it('should throw TypeQLClientError on server error result for query', async () => {
+    it('should throw zenQueryClientError on server error result for query', async () => {
       const input = { id: '123' };
       const errorResult = { message: 'User not found', code: 'NOT_FOUND' };
       mockTransport.request.mockResolvedValueOnce({
@@ -153,28 +153,28 @@ describe('createClient', () => {
         await client.user.get.query(input);
         expect.fail('Expected query to throw');
       } catch (e: any) {
-        expect(e).toBeInstanceOf(TypeQLClientError);
+        expect(e).toBeInstanceOf(zenQueryClientError);
         expect(e.message).toBe('User not found');
         expect(e.code).toBe('NOT_FOUND');
       }
        expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw TypeQLClientError on unexpected query response format', async () => {
+    it('should throw zenQueryClientError on unexpected query response format', async () => {
       const input = { id: 'bad-format' };
       mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'unexpected' } }); // Malformed
 
       await expect(client.user.get.query(input))
-        .rejects.toThrow(new TypeQLClientError('Invalid response format received from transport.'));
+        .rejects.toThrow(new zenQueryClientError('Invalid response format received from transport.'));
       expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw TypeQLClientError when transport throws non-Error for query', async () => {
+    it('should throw zenQueryClientError when transport throws non-Error for query', async () => {
       const input = { id: 'non-error' };
       mockTransport.request.mockRejectedValueOnce('just a string error'); // Non-Error rejection
 
       await expect(client.user.get.query(input))
-        .rejects.toThrow(new TypeQLClientError('Query failed: just a string error', 'QUERY_FAILED'));
+        .rejects.toThrow(new zenQueryClientError('Query failed: just a string error', 'QUERY_FAILED'));
       expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
   });
@@ -203,7 +203,7 @@ describe('createClient', () => {
       expect(result).toEqual(expectedResult);
     });
 
-    it('should throw TypeQLClientError on transport.request mutation error', async () => {
+    it('should throw zenQueryClientError on transport.request mutation error', async () => {
       const input = { id: '123', name: 'New Name' };
       const error = new Error('Mutation transport failed');
       mockTransport.request.mockRejectedValueOnce(error);
@@ -212,14 +212,14 @@ describe('createClient', () => {
         await client.user.update.mutate({ input });
         expect.fail('Expected mutation to throw');
       } catch (e: any) {
-        expect(e).toBeInstanceOf(TypeQLClientError);
+        expect(e).toBeInstanceOf(zenQueryClientError);
         expect(e.message).toContain('Mutation transport failed');
         expect(e.code).toBe('MUTATION_FAILED'); // Expect specific code for mutation failure
       }
        expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw TypeQLClientError on server error result for mutation', async () => {
+    it('should throw zenQueryClientError on server error result for mutation', async () => {
       const input = { id: '123', name: 'New Name' };
       const errorResult = { message: 'Update failed', code: 'INTERNAL_SERVER_ERROR' };
       mockTransport.request.mockResolvedValueOnce({
@@ -231,28 +231,28 @@ describe('createClient', () => {
         await client.user.update.mutate({ input });
         expect.fail('Expected mutation to throw');
       } catch (e: any) {
-        expect(e).toBeInstanceOf(TypeQLClientError);
+        expect(e).toBeInstanceOf(zenQueryClientError);
         expect(e.message).toBe('Update failed');
         expect(e.code).toBe('INTERNAL_SERVER_ERROR');
       }
        expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw TypeQLClientError on unexpected mutation response format', async () => {
+    it('should throw zenQueryClientError on unexpected mutation response format', async () => {
       const input = { id: 'bad-format-mut' };
       mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'weird' } }); // Malformed
 
       await expect(client.user.update.mutate({ input }))
-        .rejects.toThrow(new TypeQLClientError('Invalid response format received from transport.'));
+        .rejects.toThrow(new zenQueryClientError('Invalid response format received from transport.'));
       expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw TypeQLClientError when transport throws non-Error for mutation', async () => {
+    it('should throw zenQueryClientError when transport throws non-Error for mutation', async () => {
       const input = { id: 'non-error-mut' };
       mockTransport.request.mockRejectedValueOnce(12345); // Non-Error rejection
 
       await expect(client.user.update.mutate({ input }))
-        .rejects.toThrow(new TypeQLClientError('Mutation failed: 12345', 'MUTATION_FAILED'));
+        .rejects.toThrow(new zenQueryClientError('Mutation failed: 12345', 'MUTATION_FAILED'));
       expect(mockTransport.request).toHaveBeenCalledTimes(1);
     });
   });
@@ -279,7 +279,7 @@ describe('createClient', () => {
       expect(result.unsubscribe).toBe(mockUnsubscribe);
     });
 
-    it('should throw TypeQLClientError if transport.subscribe fails', () => {
+    it('should throw zenQueryClientError if transport.subscribe fails', () => {
        const error = new Error('Subscription failed');
        mockTransport.subscribe.mockImplementationOnce(() => { throw error; });
 
@@ -287,18 +287,18 @@ describe('createClient', () => {
          client.post.onNew.subscribe(undefined as never);
          expect.fail('Expected subscribe to throw');
        } catch (e: any) {
-         expect(e).toBeInstanceOf(TypeQLClientError);
+         expect(e).toBeInstanceOf(zenQueryClientError);
          expect(e.message).toContain('Subscription failed');
          expect(e.code).toBe('SUBSCRIPTION_ERROR');
        }
        expect(mockTransport.subscribe).toHaveBeenCalledTimes(1);
     });
 
-    it('should throw TypeQLClientError when transport throws non-Error for subscribe', () => {
+    it('should throw zenQueryClientError when transport throws non-Error for subscribe', () => {
       mockTransport.subscribe.mockImplementationOnce(() => { throw { message: 'plain object error' }; }); // Non-Error rejection
 
       expect(() => client.post.onNew.subscribe(undefined as never))
-        .toThrow(new TypeQLClientError('Subscription initiation failed: [object Object]', 'SUBSCRIPTION_ERROR'));
+        .toThrow(new zenQueryClientError('Subscription initiation failed: [object Object]', 'SUBSCRIPTION_ERROR'));
       expect(mockTransport.subscribe).toHaveBeenCalledTimes(1);
     });
   });
@@ -352,7 +352,7 @@ describe('createClient', () => {
         mockTransport.request.mockResolvedValueOnce({ id: 1, result: { type: 'error', error: errorResult } });
 
         await expect(clientWithStore.user.update.mutate({ input, optimistic: { predictedChange } }))
-            .rejects.toThrow(TypeQLClientError); // Expect specific error type
+            .rejects.toThrow(zenQueryClientError); // Expect specific error type
 
         expect(mockStore.addPendingMutation).toHaveBeenCalledOnce(); // Still added initially
         // rejectPendingMutation should be called once (now happens in the server error block)
@@ -400,12 +400,12 @@ describe('createClient', () => {
         const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}); // Spy on console.error
 
         await expect(clientWithStore.user.update.mutate({ input, optimistic: { predictedChange } }))
-          .rejects.toThrow(new TypeQLClientError(transportError.message, 'MUTATION_FAILED')); // Expect wrapped error
+          .rejects.toThrow(new zenQueryClientError(transportError.message, 'MUTATION_FAILED')); // Expect wrapped error
 
         expect(mockStore.addPendingMutation).toHaveBeenCalledOnce();
         expect(mockStore.rejectPendingMutation).toHaveBeenCalledOnce();
         expect(consoleErrorSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[TypeQL Client] Error rejecting pending mutation'),
+          expect.stringContaining('[zenQuery Client] Error rejecting pending mutation'),
           rejectError
         );
         consoleErrorSpy.mockRestore();
@@ -421,12 +421,12 @@ describe('createClient', () => {
         const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}); // Spy on console.error
 
         await expect(clientWithStore.user.update.mutate({ input, optimistic: { predictedChange } }))
-          .rejects.toThrow(new TypeQLClientError(serverErrorResult.message, serverErrorResult.code)); // Original server error should still be thrown
+          .rejects.toThrow(new zenQueryClientError(serverErrorResult.message, serverErrorResult.code)); // Original server error should still be thrown
 
         expect(mockStore.addPendingMutation).toHaveBeenCalledOnce();
         expect(mockStore.rejectPendingMutation).toHaveBeenCalledOnce();
         expect(consoleErrorSpy).toHaveBeenCalledWith(
-          expect.stringContaining('[TypeQL Client] Error rejecting pending mutation'),
+          expect.stringContaining('[zenQuery Client] Error rejecting pending mutation'),
           rejectError
         );
         consoleErrorSpy.mockRestore();
@@ -456,7 +456,7 @@ describe('Client Creation Edge Cases', () => {
      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
      createClient<MockRouter>({ store: mockStore } as any); // Force missing transport
      expect(consoleErrorSpy).toHaveBeenCalledWith(
-       '[TypeQL Client] OptimisticStore provided but no transport found in options.'
+       '[zenQuery Client] OptimisticStore provided but no transport found in options.'
      );
      consoleErrorSpy.mockRestore();
   });
@@ -468,7 +468,7 @@ describe('Client Creation Edge Cases', () => {
      // Cast mockStore to any here as well
      createClient<MockRouter>({ transport: mockTransport, store: mockStore as any });
      expect(consoleWarnSpy).toHaveBeenCalledWith(
-       '[TypeQL Client] Transport already has an onAckReceived handler. Overwriting with store.confirmPendingMutation.'
+       '[zenQuery Client] Transport already has an onAckReceived handler. Overwriting with store.confirmPendingMutation.'
      );
      // Verify the handler was indeed overwritten
      expect(mockTransport.onAckReceived).not.toBe(existingHandler);

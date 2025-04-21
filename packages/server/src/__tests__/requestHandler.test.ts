@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, beforeEach, Mock } from 'vitest';
 import { createRouter } from '../router';
-import { initTypeQL } from '../procedure';
+import { initzenQuery } from '../procedure';
 import { createRequestHandler, RequestHandlerOptions } from '../requestHandler';
 import { SubscriptionManager } from '../subscriptionManager';
 import { createInMemoryUpdateHistory } from '../updateHistory';
 // Import ProcedureCallMessage instead of ProcedureCall
-import type { TypeQLTransport, ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, UnsubscribeMessage, AnyRouter, SubscriptionErrorMessage } from '@sylphlab/typeql-shared';
-import { TypeQLClientError } from '@sylphlab/typeql-shared';
+import type { zenQueryTransport, ProcedureCallMessage, ProcedureResultMessage, SubscribeMessage, UnsubscribeMessage, AnyRouter, SubscriptionErrorMessage } from '@sylphlab/zen-query-shared';
+import { zenQueryClientError } from '@sylphlab/zen-query-shared';
 import * as z from 'zod';
 
 // --- Mocks ---
@@ -42,7 +42,7 @@ const createContext = vi.fn(async ({ transport }): Promise<TestContext> => ({
   transport, // Pass transport for potential use in context
 }));
 
-const t = initTypeQL<TestContext>();
+const t = initzenQuery<TestContext>();
 
 // --- Test Router ---
 const testRouter = createRouter<TestContext>()({
@@ -52,7 +52,7 @@ const testRouter = createRouter<TestContext>()({
   updateUser: t.mutation.input(z.object({ id: z.string(), name: z.string() })).output(z.object({ success: z.boolean() })).resolve(({ input }) => ({ success: true })),
   adminOnly: t.mutation.resolve(({ ctx }) => {
     if (!ctx.isAdmin) {
-      throw new TypeQLClientError('Forbidden', 'FORBIDDEN');
+      throw new zenQueryClientError('Forbidden', 'FORBIDDEN');
     }
     return { secret: 'data' };
   }),

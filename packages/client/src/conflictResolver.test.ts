@@ -7,7 +7,7 @@ import {
     CustomConflictResolver,
     ConflictResolutionOutcome
 } from './conflictResolver'; // Adjust path as needed
-import type { ProcedureCallMessage, SubscriptionDataMessage } from '@sylphlab/typeql-shared';
+import type { ProcedureCallMessage, SubscriptionDataMessage } from '@sylphlab/zen-query-shared';
 import { Operation as JsonPatchOperation } from 'fast-json-patch';
 import { produceWithPatches, enablePatches, Patch as ImmerPatch } from 'immer';
 

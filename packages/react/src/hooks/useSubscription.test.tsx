@@ -2,18 +2,18 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react'; // Use React Testing Library
 import React, { ReactNode } from 'react'; // Import React
 // Removed signal import
-import { TypeQLProvider } from '../context'; // Import React context
+import { zenQueryProvider } from '../context'; // Import React context
 import { useSubscription } from '../hooks/useSubscription'; // Import React hook
-import type { createClient, TypeQLClientError } from '@sylphlab/typeql-client'; // Import createClient for ReturnType
+import type { createClient, zenQueryClientError } from '@sylphlab/zen-query-client'; // Import createClient for ReturnType
 import type {
   SubscribeMessage,
   SubscriptionDataMessage,
   SubscriptionErrorMessage,
   UnsubscribeFn,
-} from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
 
 // Use ReturnType to get the actual client type
-type TypeQLClientInstance = ReturnType<typeof createClient>;
+type zenQueryClientInstance = ReturnType<typeof createClient>;
 
 // --- Mock Async Iterator Setup (Same as Preact test) ---
 function createMockAsyncIterator<T>() {
@@ -95,11 +95,11 @@ const mockSubscribe = vi.fn();
 const mockUnsubscribe = vi.fn();
 const mockClient = {
   subscribe: mockSubscribe,
-} as unknown as TypeQLClientInstance;
+} as unknown as zenQueryClientInstance;
 
 // Wrapper component providing the context (using React JSX)
 const wrapper = ({ children }: { children: ReactNode }) => ( // Use ReactNode
-  <TypeQLProvider client={mockClient}>{children}</TypeQLProvider>
+  <zenQueryProvider client={mockClient}>{children}</zenQueryProvider>
 );
 
 describe('useSubscription (React)', () => {

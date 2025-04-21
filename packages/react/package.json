@@ -1,5 +1,5 @@
 {
-  "name": "@sylphlab/typeql-react",
+  "name": "@sylphlab/zen-query-react",
   "version": "0.1.3",
   "description": "React hooks for TypeQL",
   "type": "module",
@@ -29,8 +29,8 @@
     "clean": "rm -rf dist .turbo node_modules"
   },
   "dependencies": {
-    "@sylphlab/typeql-client": "workspace:*",
-    "@sylphlab/typeql-shared": "workspace:*"
+    "@sylphlab/zen-query-client": "workspace:*",
+    "@sylphlab/zen-query-shared": "workspace:*"
   },
   "peerDependencies": {
     "react": "^18.0.0"

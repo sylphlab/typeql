@@ -1,4 +1,4 @@
-import type { ProcedureCallMessage, ProcedureResultMessage, RequestMissingMessage } from '@sylphlab/typeql-shared';
+import type { ProcedureCallMessage, ProcedureResultMessage, RequestMissingMessage } from '@sylphlab/zen-query-shared';
 import type { PendingRequest } from './types';
 import { generateIdHelper } from './helpers'; // Import helper
 

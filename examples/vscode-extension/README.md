@@ -1,12 +1,12 @@
-# TypeQL VSCode Extension Example
+# zenQuery VSCode Extension Example
 
-This example demonstrates using TypeQL to facilitate communication between a VSCode extension's main process (extension host) and a webview panel, using the `@sylphlab/typeql-transport-vscode` package.
+This example demonstrates using zenQuery to facilitate communication between a VSCode extension's main process (extension host) and a webview panel, using the `@sylphlab/typeql-transport-vscode` package.
 
 ## Features Demonstrated
 
-*   **VSCode Extension Backend:** A simple TypeQL server running within the extension host (`src/extension.ts`).
+*   **VSCode Extension Backend:** A simple zenQuery server running within the extension host (`src/extension.ts`).
 *   **Webview Panel Frontend:** A React application running inside a VSCode webview (`src/webview/main.tsx`).
-*   **TypeQL Communication:** Using TypeQL queries, mutations, and potentially subscriptions to interact between the extension host and the webview via the dedicated VSCode transport.
+*   **zenQuery Communication:** Using zenQuery queries, mutations, and potentially subscriptions to interact between the extension host and the webview via the dedicated VSCode transport.
 *   **`@sylphlab/typeql-transport-vscode`:** Usage of the transport adapter designed for VSCode extension messaging.
 
 ## Setup
@@ -38,7 +38,7 @@ This command runs `tsc` to compile the extension's TypeScript code (output to `d
     *   Select "Run Extension" from the dropdown menu.
     *   Press F5 or click the green play button.
 4.  **New VSCode Window:** This will open a new VSCode window ([Extension Development Host]) with the example extension running.
-5.  **Show Panel:** Open the command palette (Ctrl+Shift+P or Cmd+Shift+P) in the *new* window and run the command: `Show TypeQL Example Panel`.
-6.  **Interact:** The webview panel should open, demonstrating the communication powered by TypeQL. You can set breakpoints in both the extension code (`src/extension.ts`, `src/server.ts`) and the webview code (`src/webview/*`) for debugging.
+5.  **Show Panel:** Open the command palette (Ctrl+Shift+P or Cmd+Shift+P) in the *new* window and run the command: `Show zenQuery Example Panel`.
+6.  **Interact:** The webview panel should open, demonstrating the communication powered by zenQuery. You can set breakpoints in both the extension code (`src/extension.ts`, `src/server.ts`) and the webview code (`src/webview/*`) for debugging.
 
 *(Note: If you make changes to the code, you'll need to re-run `pnpm run compile` and then restart the debugging session (Ctrl+Shift+F5 or Cmd+Shift+F5).)*

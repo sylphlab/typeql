@@ -11,7 +11,7 @@ import {
     JsonPatch
 } from './optimisticStore'; // Adjusted path
 import type { Patch } from 'immer'; // Keep Immer Patch import separate
-import type { ProcedureCallMessage, AckMessage, SubscriptionDataMessage } from '@sylphlab/typeql-shared'; // Corrected import path
+import type { ProcedureCallMessage, AckMessage, SubscriptionDataMessage } from '@sylphlab/zen-query-shared'; // Corrected import path
 import { applyPatch as applyJsonPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // For applying client delta in tests
 
 // Enable Immer patches for testing optimistic updates

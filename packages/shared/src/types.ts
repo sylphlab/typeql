@@ -4,7 +4,7 @@ export interface AnyProcedure extends BaseProcedure {} // Placeholder
 export interface AnyRouter extends BaseRouter {} // Placeholder
 
 /**
-// --- TypeQL Transport & Message Types ---
+// --- zenQuery Transport & Message Types ---
 
 /** Common structure for request/response correlation */
 interface CorrelatedMessage {
@@ -141,10 +141,10 @@ export type UnsubscribeFn = () => void;
 
 
 /**
- * Interface defining the contract for transport layer adapters in TypeQL.
+ * Interface defining the contract for transport layer adapters in zenQuery.
  * Transport adapters handle the low-level communication.
  */
-export interface TypeQLTransport {
+export interface zenQueryTransport {
     /**
      * Sends a query or mutation request and returns the result.
      * Handles serialization, sending, correlation, and deserialization.
@@ -352,8 +352,10 @@ export interface BaseProcedureDef {
     inputSchema?: any; // Use any for base type, specific procedures will refine
     outputSchema?: any;
     subscriptionOutputSchema?: any;
-    resolver?: (...args: any[]) => any;
-    subscriptionResolver?: (...args: any[]) => any;
+    resolver?: (...args: any[]) => any; // For query/mutation AND initial subscription state
+    /** @deprecated Use subscriptionStreamer instead */
+    legacySubscriptionResolver?: (...args: any[]) => any; // Renamed from subscriptionResolver
+    subscriptionStreamer?: (...args: any[]) => any; // New field for async generator
 }
 
 /** Marker type for any procedure */
@@ -378,16 +380,16 @@ export interface BaseRouter {
 
 // --- Custom Error Type ---
 
-/** Custom error class for TypeQL client-side errors. */
-export class TypeQLClientError extends Error {
+/** Custom error class for zenQuery client-side errors. */
+export class zenQueryClientError extends Error {
   // Explicitly include undefined for exactOptionalPropertyTypes compatibility
   public readonly code?: string | undefined;
 
   constructor(message: string, code?: string | undefined) {
     super(message);
-    this.name = 'TypeQLClientError';
+    this.name = 'zenQueryClientError';
     this.code = code;
     // Ensure prototype chain is correct
-    Object.setPrototypeOf(this, TypeQLClientError.prototype);
+    Object.setPrototypeOf(this, zenQueryClientError.prototype);
   }
 }

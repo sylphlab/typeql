@@ -1,4 +1,4 @@
-import type { UnsubscribeFn, UnsubscribeMessage } from '@sylphlab/typeql-shared';
+import type { UnsubscribeFn, UnsubscribeMessage } from '@sylphlab/zen-query-shared';
 import type { ActiveSubscription } from './types';
 
 // Minimal interface for the transport context needed by helpers

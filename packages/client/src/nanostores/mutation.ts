@@ -1,11 +1,21 @@
 import { map, onMount, task, type ReadableAtom, type Atom, type MapStore } from 'nanostores'; // Import MapStore
 import type { Patch, Draft } from 'immer'; // Immer patches for optimistic updates
-import { type Operation as PatchOperation } from 'fast-json-patch'; // JSON Patch for deltas
+import type { default as PatchOperation } from 'fast-json-patch'; // Use default import with alias
 
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator } from '../coordinator';
 import { generateAtomKey, registerAtom, unregisterAtom, getAtom, type AtomKey } from '../utils/atomRegistry';
 import { applyImmerPatches, produceImmerPatches } from './patchUtils'; // Use Immer utils
+
+// --- Utility Functions ---
+
+// Helper to access nested properties using a dot-separated path string
+function getNestedProperty(obj: any, path: string): any {
+  return path.split('.').reduce((current, key) => {
+    return current?.[key];
+  }, obj);
+}
+
 
 // --- Effect Helper ---
 
@@ -232,7 +242,7 @@ export function mutation<
                 unsubError?.();
             };
 
-            unsubAck = coordinator.onAck((seq, result) => {
+            unsubAck = coordinator.on('onAck', (seq, result) => {
                 if (seq === clientSeq) {
                     if (mutationMapAtom.get().status === 'loading' && mutationMapAtom.get().variables === variables) {
                         mutationMapAtom.set({
@@ -245,7 +255,7 @@ export function mutation<
                 }
             });
 
-            unsubError = coordinator.onError((seq, error) => {
+            unsubError = coordinator.on('onError', (seq, error) => {
                 if (seq === clientSeq) {
                      if (mutationMapAtom.get().status === 'loading' && mutationMapAtom.get().variables === variables) {
                         mutationMapAtom.set({
@@ -260,11 +270,13 @@ export function mutation<
             });
 
             try {
-                const procedure = (client.mutation as any)[normalizedPath];
-                if (typeof procedure?.mutate !== 'function') {
+                // Use helper to access potentially nested procedure object
+                const procedureObject = getNestedProperty(client.mutation, normalizedPath);
+                if (typeof procedureObject?.mutate !== 'function') {
                     throw new Error(`[zenQuery] Procedure 'mutation.${normalizedPath}' not found or is not a function.`);
                 }
-                procedure.mutate({ input: variables, clientSeq });
+                // Call mutate on the resolved procedure object
+                procedureObject.mutate({ input: variables, clientSeq });
             } catch (invocationError) {
                  console.error(`[mutation][${clientSeq}] Error invoking procedure proxy:`, invocationError);
                  mutationMapAtom.set({

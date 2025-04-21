@@ -1,5 +1,5 @@
 import type {
-    TypeQLTransport,
+    zenQueryTransport,
     ProcedureCallMessage,
     ProcedureResultMessage,
     SubscribeMessage,
@@ -9,8 +9,8 @@ import type {
     AckMessage,
     RequestMissingMessage,
     UnsubscribeFn,
-} from '@sylphlab/typeql-shared';
-import { TypeQLClientError, generateId } from '@sylphlab/typeql-shared';
+} from '@sylphlab/zen-query-shared';
+import { zenQueryClientError, generateId } from '@sylphlab/zen-query-shared';
 
 // --- Types ---
 
@@ -53,7 +53,7 @@ type ActiveSubscription = {
 
 // --- Implementation ---
 
-export function createWebSocketTransport(options: WebSocketTransportOptions): TypeQLTransport {
+export function createWebSocketTransport(options: WebSocketTransportOptions): zenQueryTransport {
     const {
         url,
         protocols,
@@ -90,8 +90,8 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): Ty
         if (!isConnected && wasConnected) {
             disconnectListeners.forEach(handler => handler());
             // Reject pending requests on disconnect
-            pendingRequests.forEach((req, id) => {
-                req.reject(new TypeQLClientError('Connection closed', 'CONNECTION_CLOSED'));
+            pendingRequests.forEach((req) => {
+                req.reject(new zenQueryClientError('Connection closed', 'CONNECTION_CLOSED'));
             });
             pendingRequests.clear();
             // Notify active subscriptions of error/end? Depends on desired behavior.
@@ -247,13 +247,13 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): Ty
         }
     }
 
-    // --- TypeQLTransport Implementation ---
+    // --- zenQueryTransport Implementation ---
 
-    const transport: TypeQLTransport = {
+    const transport: zenQueryTransport = {
         request: (message: ProcedureCallMessage): Promise<ProcedureResultMessage> => {
             return new Promise((resolve, reject) => {
                 if (status !== 'open') {
-                    return reject(new TypeQLClientError('Connection not open', 'CONNECTION_CLOSED'));
+                    return reject(new zenQueryClientError('Connection not open', 'CONNECTION_CLOSED'));
                 }
                 // Assign ID if not present (though client should usually add it)
                 if (!message.id) {
@@ -262,7 +262,7 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): Ty
                 pendingRequests.set(message.id, { resolve, reject });
                 if (!sendMessage(message)) {
                     pendingRequests.delete(message.id);
-                    reject(new TypeQLClientError('Failed to send request', 'SEND_ERROR'));
+                    reject(new zenQueryClientError('Failed to send request', 'SEND_ERROR'));
                 }
                 // TODO: Add timeout for requests?
             });

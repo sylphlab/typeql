@@ -5,7 +5,7 @@ function App() {
 
   // TODO: Implement communication logic specific to VS Code extension webviews
   // This might involve using acquireVsCodeApi() and postMessage/onDidReceiveMessage
-  // instead of TypeQL React hooks.
+  // instead of zenQuery React hooks.
 
   return (
     <div>

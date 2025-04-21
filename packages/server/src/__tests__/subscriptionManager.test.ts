@@ -36,13 +36,13 @@ describe('SubscriptionManager', () => {
     it('should add a new subscription with a synchronous cleanup function', () => {
       manager.addSubscription('sub1', cleanupFnSync);
       expect(manager.hasSubscription('sub1')).toBe(true);
-      expect(consoleLogSpy).toHaveBeenCalledWith('[TypeQL SubManager] Added cleanup for subscription sub1');
+      expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Added cleanup for subscription sub1');
     });
 
     it('should add a new subscription with an asynchronous cleanup function', () => {
       manager.addSubscription('subAsync', cleanupFnAsync);
       expect(manager.hasSubscription('subAsync')).toBe(true);
-       expect(consoleLogSpy).toHaveBeenCalledWith('[TypeQL SubManager] Added cleanup for subscription subAsync');
+       expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Added cleanup for subscription subAsync');
     });
 
     it('should warn and call old cleanup when adding a subscription with an existing ID', async () => {
@@ -57,10 +57,10 @@ describe('SubscriptionManager', () => {
       await vi.waitFor(() => {
           expect(oldCleanupFn).toHaveBeenCalledTimes(1); // Old cleanup should have been called
       });
-      expect(consoleWarnSpy).toHaveBeenCalledWith('[TypeQL SubManager] Subscription cleanup with ID sub1 already exists. Overwriting.');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('[zenQuery SubManager] Subscription cleanup with ID sub1 already exists. Overwriting.');
       expect(manager.hasSubscription('sub1')).toBe(true); // Still exists with new cleanup
-      expect(consoleLogSpy).toHaveBeenCalledWith('[TypeQL SubManager] Removed subscription sub1. Executing cleanup.'); // Log from remove
-      expect(consoleLogSpy).toHaveBeenCalledWith('[TypeQL SubManager] Added cleanup for subscription sub1'); // Log from add
+      expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Removed subscription sub1. Executing cleanup.'); // Log from remove
+      expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Added cleanup for subscription sub1'); // Log from add
 
     });
   });
@@ -68,14 +68,16 @@ describe('SubscriptionManager', () => {
   describe('removeSubscription', () => {
     it('should remove an existing subscription and call its synchronous cleanup function', () => {
       manager.addSubscription('sub1', cleanupFnSync);
+      consoleLogSpy.mockClear(); // Clear logs from addSubscription
       manager.removeSubscription('sub1');
       expect(manager.hasSubscription('sub1')).toBe(false);
       expect(cleanupFnSync).toHaveBeenCalledTimes(1);
-      expect(consoleLogSpy).toHaveBeenCalledWith('[TypeQL SubManager] Removed subscription sub1. Executing cleanup.');
+      expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Removed subscription sub1. Executing cleanup.');
     });
 
     it('should remove an existing subscription and call its asynchronous cleanup function after promise resolves', async () => {
       manager.addSubscription('subAsync', cleanupFnAsync);
+      consoleLogSpy.mockClear(); // Clear logs from addSubscription
       manager.removeSubscription('subAsync');
       expect(manager.hasSubscription('subAsync')).toBe(false);
       expect(cleanupFnAsyncResolved).not.toHaveBeenCalled(); // Not called immediately
@@ -84,12 +86,13 @@ describe('SubscriptionManager', () => {
       await vi.waitFor(() => {
         expect(cleanupFnAsyncResolved).toHaveBeenCalledTimes(1);
       });
-       expect(consoleLogSpy).toHaveBeenCalledWith('[TypeQL SubManager] Removed subscription subAsync. Executing cleanup.');
+       expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Removed subscription subAsync. Executing cleanup.');
     });
 
     it('should warn when trying to remove a non-existent subscription', () => {
+      consoleWarnSpy.mockClear(); // Clear potential previous warnings
       manager.removeSubscription('nonExistent');
-      expect(consoleWarnSpy).toHaveBeenCalledWith('[TypeQL SubManager] Attempted to remove non-existent subscription ID: nonExistent');
+      expect(consoleWarnSpy).toHaveBeenCalledWith('[zenQuery SubManager] Attempted to remove non-existent subscription ID: nonExistent');
       expect(cleanupFnSync).not.toHaveBeenCalled();
       expect(cleanupFnAsyncResolved).not.toHaveBeenCalled();
     });
@@ -97,11 +100,12 @@ describe('SubscriptionManager', () => {
     it('should catch and log error if synchronous cleanup function throws', () => {
       const erroringCleanup = vi.fn(() => { throw new Error('Cleanup failed'); });
       manager.addSubscription('subError', erroringCleanup);
+      consoleErrorSpy.mockClear(); // Clear potential previous errors
       manager.removeSubscription('subError');
 
       expect(manager.hasSubscription('subError')).toBe(false); // Should still be removed
       expect(erroringCleanup).toHaveBeenCalledTimes(1);
-      expect(consoleErrorSpy).toHaveBeenCalledWith('[TypeQL SubManager] Error during cleanup execution for subscription subError:', expect.any(Error));
+      expect(consoleErrorSpy).toHaveBeenCalledWith('[zenQuery SubManager] Error during cleanup execution for subscription subError:', expect.any(Error));
       expect((consoleErrorSpy.mock.calls[0][1] as Error).message).toBe('Cleanup failed'); // Add type assertion
     });
 
@@ -109,13 +113,14 @@ describe('SubscriptionManager', () => {
         const rejectionError = new Error('Async cleanup rejected');
         const rejectingCleanup = Promise.reject(rejectionError);
         manager.addSubscription('subAsyncError', rejectingCleanup);
+        consoleErrorSpy.mockClear(); // Clear potential previous errors
         manager.removeSubscription('subAsyncError');
 
         expect(manager.hasSubscription('subAsyncError')).toBe(false); // Should still be removed
 
         // Wait for the promise rejection to be handled
         await vi.waitFor(() => {
-             expect(consoleErrorSpy).toHaveBeenCalledWith('[TypeQL SubManager] Async cleanup promise error for subscription subAsyncError:', rejectionError);
+             expect(consoleErrorSpy).toHaveBeenCalledWith('[zenQuery SubManager] Async cleanup promise error for subscription subAsyncError:', rejectionError);
         });
     });
 
@@ -125,6 +130,7 @@ describe('SubscriptionManager', () => {
         const erroringResolvedCleanup = vi.fn(() => { throw resolvedError; });
         const resolvingCleanupWithError = Promise.resolve(erroringResolvedCleanup);
         manager.addSubscription('subAsyncResolvedError', resolvingCleanupWithError);
+        consoleErrorSpy.mockClear(); // Clear potential previous errors
         manager.removeSubscription('subAsyncResolvedError');
 
         expect(manager.hasSubscription('subAsyncResolvedError')).toBe(false); // Should still be removed
@@ -134,7 +140,7 @@ describe('SubscriptionManager', () => {
             expect(erroringResolvedCleanup).toHaveBeenCalledTimes(1); // Ensure the function was called
             // The error from the *resolved function* seems to be caught by the outer catch block in the test env,
             // matching the 'Async cleanup promise error...' message. Reverting expectation.
-            expect(consoleErrorSpy).toHaveBeenCalledWith('[TypeQL SubManager] Async cleanup promise error for subscription subAsyncResolvedError:', resolvedError);
+            expect(consoleErrorSpy).toHaveBeenCalledWith('[zenQuery SubManager] Async cleanup promise error for subscription subAsyncResolvedError:', resolvedError);
         });
     });
 

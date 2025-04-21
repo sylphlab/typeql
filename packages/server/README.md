@@ -1,6 +1,6 @@
-# TypeQL Server (`@sylphlab/typeql-server`)
+# zenQuery Server (`@sylphlab/typeql-server`)
 
-This package provides the core building blocks for creating TypeQL servers. Define your API procedures (queries, mutations, subscriptions) using simple TypeScript functions and get end-to-end typesafety automatically.
+This package provides the core building blocks for creating zenQuery servers. Define your API procedures (queries, mutations, subscriptions) using simple TypeScript functions and get end-to-end typesafety automatically.
 
 ## Installation
 
@@ -113,7 +113,7 @@ pnpm add @sylphlab/typeql-server zod
 
     wss.on('connection', (ws, req) => {
       console.log('Client connected');
-      handler(ws, req); // Attach TypeQL handler to the WebSocket connection
+      handler(ws, req); // Attach zenQuery handler to the WebSocket connection
       ws.on('close', () => console.log('Client disconnected'));
     });
 

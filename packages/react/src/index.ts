@@ -1,7 +1,7 @@
-// Main entry point for @sylphlab/typeql-react
+// Main entry point for @sylphlab/zen-query-react
 
-export { TypeQLProvider, useTypeQL } from './context.js'; // Updated extension
-export type { TypeQLProviderProps, TypeQLContextValue } from './context.js'; // Updated extension
+export { zenQueryProvider, usezenQuery } from './context.js'; // Updated extension
+export type { zenQueryProviderProps, zenQueryContextValue } from './context.js'; // Updated extension
 
 export { useQuery } from './hooks/useQuery';
 export type { UseQueryOptions, UseQueryResult } from './hooks/useQuery';
@@ -12,5 +12,5 @@ export type { UseMutationOptions, UseMutationResult } from './hooks/useMutation'
 export { useSubscription } from './hooks/useSubscription';
 export type { UseSubscriptionOptions, UseSubscriptionResult, SubscriptionStatus } from './hooks/useSubscription';
 
-// Re-export client types if needed, or let users import from @sylphlab/typeql-client directly
-// export type { OptimisticStore, MutationCallOptions, TypeQLClientError } from '@sylphlab/typeql-client';
+// Re-export client types if needed, or let users import from @sylphlab/zen-query-client directly
+// export type { OptimisticStore, MutationCallOptions, zenQueryClientError } from '@sylphlab/zen-query-client';

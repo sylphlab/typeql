@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { useTypeQL } from '../context';
-import type { TypeQLClientError } from '@sylphlab/typeql-client'; // Assuming error type export
+import { usezenQuery } from '../context';
+import type { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Import error from shared
 
 // Define options for the useQuery hook
 export interface UseQueryOptions {
@@ -10,7 +10,7 @@ export interface UseQueryOptions {
 }
 
 // Define the return type of the useQuery hook using standard React state
-export interface UseQueryResult<TData = unknown, TError = TypeQLClientError> {
+export interface UseQueryResult<TData = unknown, TError = zenQueryClientError> {
   data: TData | undefined;
   error: TError | null;
   isFetching: boolean;
@@ -20,7 +20,7 @@ export interface UseQueryResult<TData = unknown, TError = TypeQLClientError> {
 }
 
 /**
- * Hook for fetching data using a TypeQL query.
+ * Hook for fetching data using a zenQuery query.
  *
  * @param queryProcedure The client query procedure (e.g., client.post.get)
  * @param input Input parameters for the query procedure.
@@ -32,12 +32,12 @@ export function useQuery<TInput, TOutput>(
   input: TInput,
   options: UseQueryOptions = {},
 ): UseQueryResult<TOutput> {
-  const { client } = useTypeQL(); // Get client from context
+  const { client } = usezenQuery(); // Get client from context
   const { enabled = true } = options;
 
   // --- State using useState ---
   const [data, setData] = useState<TOutput | undefined>(undefined);
-  const [error, setError] = useState<TypeQLClientError | null>(null);
+  const [error, setError] = useState<zenQueryClientError | null>(null);
   const [isFetching, setIsFetching] = useState<boolean>(false);
 
   // Ref to track mounted state to prevent state updates after unmount
@@ -97,8 +97,8 @@ export function useQuery<TInput, TOutput>(
       } catch (err: unknown) {
         // console.error('useQuery failed:', err); // Removed log
         if (mountedRef.current) {
-          // Assuming the error is or can be cast to TypeQLClientError
-          setError(err as TypeQLClientError);
+          // Assuming the error is or can be cast to zenQueryClientError
+          setError(err as zenQueryClientError);
           setData(undefined); // Clear data on error
         }
       } finally {

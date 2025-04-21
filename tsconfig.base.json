@@ -1,7 +1,13 @@
 {
   "compilerOptions": {
-    // "baseUrl": ".", // Not strictly needed if not using paths
-    // "paths": {}, // Rely on project references
+    "baseUrl": ".", // Needed for paths to work correctly
+    "paths": {
+      // Add explicit paths first for potentially better IDE resolution
+      "@sylphlab/zen-query-client": ["./packages/client/src"],
+      "@sylphlab/zen-query-shared": ["./packages/shared/src"],
+      // Keep wildcard as fallback
+      "@sylphlab/*": ["./packages/*/src"]
+    },
     /* Base Options: */
     "esModuleInterop": true,
     "skipLibCheck": true,

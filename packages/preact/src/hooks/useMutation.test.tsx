@@ -1,29 +1,75 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/preact';
 import { h } from 'preact';
-import { TypeQLProvider } from '../context';
+import { zenQueryProvider } from '../context';
 import { useMutation } from './useMutation';
-import type { TypeQLClient, TypeQLClientError, MutationCallOptions } from '@sylphlab/typeql-client';
+// Import types correctly
+import type { ZenQueryClient, OptimisticSyncCoordinator } from '@sylphlab/zen-query-client';
+import type { zenQueryClientError } from '@sylphlab/zen-query-shared';
+// Removed MutationCallOptions import
 
-// Mock client
-const mockMutate = vi.fn();
-const mockClient = {
-  mutate: mockMutate,
-  // Add other methods if needed
-} as unknown as TypeQLClient<any>;
+// Mock client (complete structure)
+const mockQuery = vi.fn();
+const mockMutate = vi.fn(); // Specific mock for mutation procedures
+const mockSubscription = vi.fn();
+
+const mockEmitter = {
+    on: vi.fn(),
+    emit: vi.fn(),
+};
+
+const mockGetCoordinator = vi.fn(() => ({
+    // Methods
+    on: mockEmitter.on,
+    generateClientSeq: vi.fn(() => 12345), // Return a consistent mock seq
+    registerPendingMutation: vi.fn(),
+    confirmMutation: vi.fn(),
+    rejectMutation: vi.fn(),
+    processServerDelta: vi.fn(),
+    getPendingPatches: vi.fn(() => new Map()),
+    getConfirmedServerSeq: vi.fn(() => 0),
+    hasPendingMutations: vi.fn(() => false),
+    // Properties required by type
+    confirmedServerSeq: 0,
+    clientSeqCounter: 0,
+    pendingMutations: [],
+    emitter: mockEmitter,
+} as unknown as OptimisticSyncCoordinator));
+
+// Define type for the mutation part of the mock
+type MockMutationProcedures = {
+    [key: string]: Mock; // Use simple Mock type
+};
+
+const mockClient: ZenQueryClient = {
+  query: { } as any,
+  mutation: { // Use flattened path as key
+      'test.create': mockMutate,
+      'test.callback': mockMutate,
+      'test.errorback': mockMutate,
+      'test.reset': mockMutate,
+  } as MockMutationProcedures,
+  subscription: { } as any,
+  getCoordinator: mockGetCoordinator,
+  close: vi.fn(),
+};
 
 // Wrapper component providing the context
 const wrapper = ({ children }: { children: any }) =>
-  h(TypeQLProvider, { client: mockClient }, children);
+  h(zenQueryProvider, { client: mockClient, children }); // Correct h usage
 
 describe('useMutation', () => {
   beforeEach(() => {
     // Reset mocks before each test
     mockMutate.mockClear();
+    vi.mocked(mockGetCoordinator().emitter.on).mockClear();
+    vi.mocked(mockGetCoordinator().on).mockClear();
+    vi.mocked(mockGetCoordinator().registerPendingMutation).mockClear();
   });
 
   it('should initialize with idle state and undefined data/error', () => {
-    const mockProcedure = (opts: MutationCallOptions<{ name: string }, any>) => mockClient.mutate({ path: 'test.create', ...opts });
+    // Access mock procedure correctly
+    const mockProcedure = (input: { name: string }) => mockClient.mutation['test.create']!(input);
     const { result } = renderHook(() => useMutation(mockProcedure), { wrapper });
 
     expect(result.current.isLoading.value).toBe(false);
@@ -35,10 +81,11 @@ describe('useMutation', () => {
     const responseData = { id: '123', name: 'Test Item' };
     mockMutate.mockResolvedValue(responseData); // Mock successful resolution
 
-    const mockProcedure = (opts: MutationCallOptions<{ name: string }, any>) => mockClient.mutate({ path: 'test.create', ...opts });
+    // Access mock procedure correctly
+    const mockProcedure = (input: { name: string }) => mockClient.mutation['test.create']!(input);
     const { result } = renderHook(() => useMutation(mockProcedure), { wrapper });
 
-    const variables: MutationCallOptions<{ name: string }, any> = { input: { name: 'Test Item' } };
+    const variables = { name: 'Test Item' }; // Use TInput directly
 
     // Use act for triggering the async mutation
     let mutationPromise: Promise<any>;
@@ -57,17 +104,19 @@ describe('useMutation', () => {
     expect(result.current.data.value).toEqual(responseData);
     expect(result.current.error.value).toBeNull();
     expect(mockMutate).toHaveBeenCalledOnce();
-    expect(mockMutate).toHaveBeenCalledWith({ path: 'test.create', input: variables.input });
+    // The hook now passes the raw input to the procedure mock
+    expect(mockMutate).toHaveBeenCalledWith(variables);
   });
 
   it('should update error state on failed mutateAsync', async () => {
-    const errorResponse: TypeQLClientError = new Error('Mutation Failed');
+    const errorResponse: zenQueryClientError = new Error('Mutation Failed');
     mockMutate.mockRejectedValue(errorResponse); // Mock rejection
 
-    const mockProcedure = (opts: MutationCallOptions<{ name: string }, any>) => mockClient.mutate({ path: 'test.create', ...opts });
+    // Access mock procedure correctly
+    const mockProcedure = (input: { name: string }) => mockClient.mutation['test.create']!(input);
     const { result } = renderHook(() => useMutation(mockProcedure), { wrapper });
 
-    const variables: MutationCallOptions<{ name: string }, any> = { input: { name: 'Fail Item' } };
+    const variables = { name: 'Fail Item' }; // Use TInput directly
 
     // Use act and catch the expected rejection
     await act(async () => {
@@ -80,35 +129,36 @@ describe('useMutation', () => {
     expect(result.current.error.value).toEqual(errorResponse);
     expect(result.current.data.value).toBeUndefined();
     expect(mockMutate).toHaveBeenCalledOnce();
-    expect(mockMutate).toHaveBeenCalledWith({ path: 'test.create', input: variables.input });
+    expect(mockMutate).toHaveBeenCalledWith(variables);
   });
 
   it('should call callbacks correctly on success', async () => {
     const responseData = { id: '456' };
     mockMutate.mockResolvedValue(responseData);
     const options = {
-      onMutate: vi.fn(async (vars) => {
-        expect(vars.input).toEqual({ name: 'Callback Item' });
+      onMutate: vi.fn(async (vars) => { // vars is TInput
+        expect(vars).toEqual({ name: 'Callback Item' });
         return { contextValue: 'fromOnMutate' }; // Return context
       }),
-      onSuccess: vi.fn(async (data, vars, context) => {
+      onSuccess: vi.fn(async (data, vars, context) => { // vars is TInput
         expect(data).toEqual(responseData);
-        expect(vars.input).toEqual({ name: 'Callback Item' });
+        expect(vars).toEqual({ name: 'Callback Item' });
         expect(context).toEqual({ contextValue: 'fromOnMutate' });
       }),
       onError: vi.fn(),
-      onSettled: vi.fn(async (data, error, vars, context) => {
+      onSettled: vi.fn(async (data, error, vars, context) => { // vars is TInput
          expect(data).toEqual(responseData);
          expect(error).toBeNull();
-         expect(vars.input).toEqual({ name: 'Callback Item' });
+         expect(vars).toEqual({ name: 'Callback Item' });
          expect(context).toEqual({ contextValue: 'fromOnMutate' });
       }),
     };
 
-    const mockProcedure = (opts: MutationCallOptions<{ name: string }, any>) => mockClient.mutate({ path: 'test.callback', ...opts });
+    // Access mock procedure correctly
+    const mockProcedure = (input: { name: string }) => mockClient.mutation['test.callback']!(input);
     const { result } = renderHook(() => useMutation(mockProcedure, options), { wrapper });
 
-    const variables: MutationCallOptions<{ name: string }, any> = { input: { name: 'Callback Item' } };
+    const variables = { name: 'Callback Item' }; // Use TInput directly
 
     await act(async () => {
         await result.current.mutateAsync(variables);
@@ -125,28 +175,29 @@ describe('useMutation', () => {
       const errorResponse = new Error('Callback Error');
       mockMutate.mockRejectedValue(errorResponse);
       const options = {
-          onMutate: vi.fn(async (vars) => {
-              expect(vars.input).toEqual({ name: 'Error Callback' });
+          onMutate: vi.fn(async (vars) => { // vars is TInput
+              expect(vars).toEqual({ name: 'Error Callback' });
               return { contextValue: 'errorMutate' };
           }),
           onSuccess: vi.fn(),
-          onError: vi.fn(async (error, vars, context) => {
+          onError: vi.fn(async (error, vars, context) => { // vars is TInput
               expect(error).toEqual(errorResponse);
-              expect(vars.input).toEqual({ name: 'Error Callback' });
+              expect(vars).toEqual({ name: 'Error Callback' });
               expect(context).toEqual({ contextValue: 'errorMutate' });
           }),
-          onSettled: vi.fn(async (data, error, vars, context) => {
+          onSettled: vi.fn(async (data, error, vars, context) => { // vars is TInput
               expect(data).toBeUndefined();
               expect(error).toEqual(errorResponse);
-              expect(vars.input).toEqual({ name: 'Error Callback' });
+              expect(vars).toEqual({ name: 'Error Callback' });
               expect(context).toEqual({ contextValue: 'errorMutate' });
           }),
       };
 
-      const mockProcedure = (opts: MutationCallOptions<{ name: string }, any>) => mockClient.mutate({ path: 'test.errorback', ...opts });
+      // Access mock procedure correctly
+      const mockProcedure = (input: { name: string }) => mockClient.mutation['test.errorback']!(input);
       const { result } = renderHook(() => useMutation(mockProcedure, options), { wrapper });
 
-      const variables: MutationCallOptions<{ name: string }, any> = { input: { name: 'Error Callback' } };
+      const variables = { name: 'Error Callback' }; // Use TInput directly
 
       await act(async () => {
           await expect(result.current.mutateAsync(variables)).rejects.toThrow('Callback Error');
@@ -163,10 +214,11 @@ describe('useMutation', () => {
     const responseData = { id: '789' };
     mockMutate.mockResolvedValue(responseData);
 
-    const mockProcedure = (opts: MutationCallOptions<{ name: string }, any>) => mockClient.mutate({ path: 'test.reset', ...opts });
+    // Access mock procedure correctly
+    const mockProcedure = (input: { name: string }) => mockClient.mutation['test.reset']!(input);
     const { result } = renderHook(() => useMutation(mockProcedure), { wrapper });
 
-    const variables: MutationCallOptions<{ name: string }, any> = { input: { name: 'Reset Item' } };
+    const variables = { name: 'Reset Item' }; // Use TInput directly
 
     // Mutate successfully
     await act(async () => {

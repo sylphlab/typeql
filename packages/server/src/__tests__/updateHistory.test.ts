@@ -1,7 +1,7 @@
 // packages/server/src/__tests__/updateHistory.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createInMemoryUpdateHistory, UpdateHistory } from '../updateHistory';
-import type { SubscriptionDataMessage } from '@sylphlab/typeql-shared';
+import type { SubscriptionDataMessage } from '@sylphlab/zen-query-shared';
 
 // Helper to create messages
 const createMsg = (id: string | number, serverSeq: number, data: any = {}): SubscriptionDataMessage => ({
@@ -43,16 +43,18 @@ describe('createInMemoryUpdateHistory', () => {
         });
 
         it('should ignore messages with undefined serverSeq and warn', () => {
+            consoleWarnSpy.mockClear(); // Clear previous
             const msg = { type: 'subscriptionData', id: 'sub1', data: {} } as SubscriptionDataMessage; // Missing serverSeq
             history.addUpdate('topicA', msg);
             expect(history.getUpdates('topicA', 0, 1)).toEqual([]);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[TypeQL History] Ignoring message for topic "topicA" without a valid positive serverSeq'),
+                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'), // Fixed Prefix
                 expect.objectContaining({ id: 'sub1' })
             );
         });
 
         it('should ignore messages with serverSeq <= 0 and warn', () => {
+            consoleWarnSpy.mockClear(); // Clear previous
             const msg0 = createMsg('sub1', 0);
             const msgNeg = createMsg('sub1', -1);
             history.addUpdate('topicA', msg0);
@@ -60,35 +62,37 @@ describe('createInMemoryUpdateHistory', () => {
             expect(history.getUpdates('topicA', -2, 0)).toEqual([]);
             expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[TypeQL History] Ignoring message for topic "topicA" without a valid positive serverSeq'),
+                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'), // Fixed Prefix
                 expect.objectContaining({ serverSeq: 0 })
             );
              expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[TypeQL History] Ignoring message for topic "topicA" without a valid positive serverSeq'),
+                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'), // Fixed Prefix
                 expect.objectContaining({ serverSeq: -1 })
             );
         });
 
         it('should ignore out-of-order messages and warn', () => {
+            consoleWarnSpy.mockClear(); // Clear previous
             const msg1 = createMsg('sub1', 2);
             const msg2 = createMsg('sub1', 1); // Out of order
             history.addUpdate('topicA', msg1);
             history.addUpdate('topicA', msg2);
             expect(history.getUpdates('topicA', 0, 2)).toEqual([msg1]);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[TypeQL History] Received out-of-order or duplicate message for topic "topicA"')
+                expect.stringContaining('[zenQuery History] Received out-of-order or duplicate message for topic "topicA"') // Fixed Prefix
                 // expect.stringContaining('serverSeq: 1, Last serverSeq: 2') // Message check removed as it's part of the string now
             );
         });
 
          it('should ignore duplicate messages (same serverSeq) and warn', () => {
+            consoleWarnSpy.mockClear(); // Clear previous
             const msg1 = createMsg('sub1', 1);
             const msg2 = createMsg('sub1', 1); // Duplicate
             history.addUpdate('topicA', msg1);
             history.addUpdate('topicA', msg2);
             expect(history.getUpdates('topicA', 0, 1)).toEqual([msg1]);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[TypeQL History] Received out-of-order or duplicate message for topic "topicA"')
+                expect.stringContaining('[zenQuery History] Received out-of-order or duplicate message for topic "topicA"') // Fixed Prefix
                 // expect.stringContaining('serverSeq: 1, Last serverSeq: 1') // Message check removed
             );
         });
