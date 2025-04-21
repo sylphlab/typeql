@@ -39,8 +39,8 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "typescript": "^5.8.3",
     "terser": "^5.39.0",
+    "typescript": "^5.8.3",
     "vitest": "^3.1.1"
   },
   "publishConfig": {
@@ -48,7 +48,11 @@
   },
   "dependencies": {
     "@sylphlab/typeql-shared": "workspace:*",
+    "fast-json-patch": "^3.1.1",
     "immer": "^10.1.1",
+    "nanoevents": "^9.1.0",
+    "nanoid": "^5.1.5",
+    "nanostores": "^1.0.1",
     "zod": "^3.24.2"
   }
 }

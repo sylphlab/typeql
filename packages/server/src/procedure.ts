@@ -5,7 +5,7 @@
 
 import * as z from 'zod';
 import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylphlab/typeql-shared';
-// Removed re-export
+import { RelayQueryBuilder } from './relay'; // Import RelayQueryBuilder
 
 // --- Core Types ---
 // ProcedureContext is now imported from shared
@@ -24,6 +24,7 @@ export interface SubscriptionOptions<TContext = ProcedureContext, TInput = unkno
 
 /** Function signature for query/mutation resolvers */
 export type Resolver<TInput = any, TOutput = any, TContext = ProcedureContext> = (opts: ProcedureOptions<TContext, TInput>) => Promise<TOutput> | TOutput; // Default TContext
+// ProcedureOptions is implicitly exported via Resolver
 
 /**
  * Function signature for subscription resolvers.
@@ -74,7 +75,8 @@ export interface ProcedureDef<
  * Base class/interface for the procedure builder chain.
  * Uses generics to track Context, Input, Output types.
  */
-class ProcedureBuilder<
+// Export the class
+export class ProcedureBuilder<
     TContext = ProcedureContext, // Default context
     TInput = unknown,
     TOutput = unknown, // Output for query/mutation
@@ -173,6 +175,19 @@ class ProcedureBuilder<
          };
         // Return the final procedure definition, cast to AnyProcedure for storage in router
         return { _def: finalDef } as AnyProcedure;
+    }
+
+    /**
+     * Switch to the Relay-specific builder for defining connections.
+     * Only applicable to queries.
+     */
+    relay(): RelayQueryBuilder<TContext, undefined, undefined> {
+        if (this._def.type !== 'query') {
+            throw new Error("'.relay()' can only be used for query procedures.");
+        }
+        console.log(`[TypeQL Procedure] Switching to Relay builder...`);
+        // Pass the current builder instance ('this') to the RelayQueryBuilder constructor
+        return new RelayQueryBuilder<TContext, undefined, undefined>(this);
     }
 }
 

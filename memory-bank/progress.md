@@ -105,3 +105,17 @@
 *   **Remaining Blockers (Ignoring Lint):**
     1.  22 'todo' tests need implementation.
     2.  23 TODO/FIXME comments need addressing.
+
+## 2025-04-21: Core Architecture Implementation
+
+*   **Goal:** Implement the core components of the zenQuery architecture based on technical guidelines v1.9.
+*   **Progress:**
+    *   [X] **`OptimisticSyncCoordinator`:** Core logic implemented (`packages/client/src/coordinator.ts`), including state, methods, and event emitter. Placeholders for conflict resolution/inverse patches remain.
+    *   [X] **Nanostores Binding Helpers:** Initial implementation completed (`packages/client/src/nanostores/`), including interaction with Coordinator, placeholder Nanostores API calls, and basic Atom Registry.
+    *   [X] **`createClient`:** Core structure implemented (`packages/client/src/client.ts`), including Coordinator instantiation, transport message routing setup, and proxy/interface exposure.
+    *   [X] **HTTP Transport Batching:** Implemented (`packages/transport-http/src/index.ts`) with tests.
+    *   [X] **Server Relay Wrapper:** Implemented (`.relay()` on `QueryBuilder` in `packages/server/src/procedure.ts` and `RelayQueryBuilder` in `packages/server/src/relay.ts`) with tests.
+    *   [X] **Server Diff Helper:** Implemented (`diffStatesToJsonPatch` in `packages/server/src/utils/diff.ts`) with tests.
+    *   [X] **SWR Logic:** Implemented core Stale-While-Revalidate logic in `query` helper (`packages/client/src/nanostores/query.ts`).
+*   **Current Status:** Core client and server architecture components have been implemented based on the design. Placeholders exist for Nanostores integration details and some complex logic (conflict resolution, inverse patches).
+*   **Next Step:** Implement comprehensive test cases for the newly implemented components.
