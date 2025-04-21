@@ -124,18 +124,31 @@ export type AppRouter = typeof appRouter;
  );
  
  // 2. Create Query Atom using the 'query' helper
- const $todos = query($client, {
-   query: (client) => client.todos.list.query, // Select the query procedure
+ // 2. Create Query Atom using the 'query' helper
+ // Define selector function
+ const todosSelector = (get: any) => { // Use 'any' for get type in example
+   const client = get($client); // Get client from atom
+   return { client, procedure: client.todos.list, path: 'todos.list' }; // Return client, procedure object, path
+ };
+ const $todos = query(todosSelector, { // Pass selector, then options
+   // input: undefined, // No input for list query
    initialData: [] as Todo[], // Optional initial data
  });
  
  // 3. Create Mutation Atom using the 'mutation' helper
- const $addTodo = mutation($client, {
-   mutation: (client) => client.todos.add.mutate, // Select the mutation procedure
-   effects: [ // Define optimistic updates
+ // 3. Create Mutation Atom using the 'mutation' helper
+ // Define selector function
+ const addTodoSelector = (get: any) => {
+   const client = get($client);
+   return { client, procedure: client.todos.add, path: 'todos.add' };
+ };
+ const $addTodo = mutation(addTodoSelector, { // Pass selector, then options
+   effects: [ // Define optimistic updates in options
      effect($todos, (currentTodos, input: { text: string }) => { // Target atom, recipe
        const tempId = `temp-${Date.now()}`;
-       return [...currentTodos, { ...input, id: tempId, completed: false, status: 'pending' }];
+       // Ensure currentTodos is treated as array, even if initially undefined
+       const current = currentTodos ?? [];
+       return [...current, { ...input, id: tempId, completed: false, status: 'pending' }];
      })
    ]
  });

@@ -6,7 +6,8 @@ export type AtomKey = string;
 
 // Define the structure of the stored atom entry if needed (e.g., for metadata)
 // For now, just storing the atom itself
-type AtomRegistryEntry = WritableAtom<any>; // Use a more specific type if possible
+// EXPORT this type
+export type AtomRegistryEntry = WritableAtom<any>; // Use a more specific type if possible
 
 const atomRegistry = new Map<AtomKey, AtomRegistryEntry>();
 

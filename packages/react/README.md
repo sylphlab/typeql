@@ -39,18 +39,26 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
     import { atom } from 'nanostores'; // Import base atom if needed
 
     // Query Atom
-    export const $posts = query($client, {
-      query: (client) => client.posts.list.query,
+    const postsSelector = (get: any) => {
+      const client = get($client);
+      return { client, procedure: client.posts.list, path: 'posts.list' };
+    };
+    export const $posts = query(postsSelector, {
+      // input: undefined,
       initialData: [],
     });
 
     // Mutation Atom
-    export const $addPost = mutation($client, {
-      mutation: (client) => client.posts.add.mutate,
+    const addPostSelector = (get: any) => {
+      const client = get($client);
+      return { client, procedure: client.posts.add, path: 'posts.add' };
+    };
+    export const $addPost = mutation(addPostSelector, {
       effects: [
         effect($posts, (currentPosts, input) => { // Target atom, apply patch recipe
           const tempId = `temp-${Date.now()}`;
-          return [...currentPosts, { ...input, id: tempId, status: 'pending' }];
+          const current = currentPosts ?? [];
+          return [...current, { ...input, id: tempId, status: 'pending' }];
         }),
       ],
     });

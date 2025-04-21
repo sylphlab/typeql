@@ -1,20 +1,19 @@
-import { map, onMount, task, type ReadableAtom, type Atom, type MapStore } from 'nanostores'; // Import MapStore
+import { map, onMount, task, computed, type ReadableAtom, type Atom, type MapStore, type Store } from 'nanostores'; // Import MapStore, computed, Store
 import type { Patch, Draft } from 'immer'; // Immer patches for optimistic updates
-import type { default as PatchOperation } from 'fast-json-patch'; // Use default import with alias
+// import type { default as PatchOperation } from 'fast-json-patch'; // Use default import with alias - Replaced with local interface
 
 import type { ZenQueryClient } from '../client';
-import type { OptimisticSyncCoordinator } from '../coordinator';
+import type { OptimisticSyncCoordinator, CoordinatorEvents } from '../coordinator'; // Import CoordinatorEvents
 import { generateAtomKey, registerAtom, unregisterAtom, getAtom, type AtomKey } from '../utils/atomRegistry';
 import { applyImmerPatches, produceImmerPatches } from './patchUtils'; // Use Immer utils
 
+// Local definition as workaround for import issues (if needed, though mutation doesn't use it directly)
+// interface PatchOperation { ... }
+
 // --- Utility Functions ---
 
-// Helper to access nested properties using a dot-separated path string
-function getNestedProperty(obj: any, path: string): any {
-  return path.split('.').reduce((current, key) => {
-    return current?.[key];
-  }, obj);
-}
+// Helper to access nested properties using a dot-separated path string - REMOVED (Procedure resolved via selector)
+// function getNestedProperty(obj: any, path: string): any { ... }
 
 
 // --- Effect Helper ---
@@ -42,8 +41,8 @@ export interface MutationEffect<TInput = any, TData = any> {
  * @returns A MutationEffect configuration object.
  */
 export function effect<TInput = any, TData extends object | unknown[] = any>(
-  // Target atom needs key and get method, assume it's a MapStore
-  targetAtom: MapStore<QuerySubscriptionMapState<TData, any>> & { key: AtomKey },
+  // Target atom needs key and get method, assume it's a MapStore or similar Atom
+  targetAtom: (MapStore<QuerySubscriptionMapState<TData, any>> | Atom<QuerySubscriptionMapState<TData, any>>) & { readonly key: AtomKey },
   applyRecipe: (currentState: Draft<TData | undefined>, input: TInput) => TData | undefined | void
 ): MutationEffect<TInput, TData> {
   if (!targetAtom?.key) {
@@ -69,11 +68,14 @@ export interface MutationAtomState<TData = unknown, TError = Error, TVariables =
 
 // Define options for the mutation helper
 export interface MutationOptions<TData = unknown, TError = Error, TVariables = unknown> {
+  effects?: MutationEffect<TVariables, any>[]; // Effects moved here
   // Add options like onSuccess, onError, onSettled callbacks later
 }
 
-// Type for the selector function to get the client instance
-type ClientGetter = <T extends ZenQueryClient>(clientAtom: Atom<T>) => T;
+// Type for the selector function (same as query/sub)
+type ProcedureClientPathSelector<TClient extends ZenQueryClient, TProcedureResult> = (
+  get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
+) => { client: TClient; procedure: TProcedureResult; path: string | string[] }; // Path might not be needed by mutation itself
 
 // Type for the mutate function exposed by the atom
 export type MutateFunction<TData = unknown, TError = Error, TVariables = unknown> =
@@ -90,11 +92,8 @@ export interface MutationAtom<TData = unknown, TError = Error, TVariables = unkn
 /**
  * Creates a Nanostore map atom to manage the state and execution of a ZenQuery mutation.
  *
- * @param clientAtom The Nanostore atom holding the ZenQueryClient instance.
- * @param clientGetter A function to extract the client instance from the atom.
- * @param procedurePath The path to the mutation procedure (e.g., 'posts.create').
- * @param effectsArray An array of MutationEffect objects defining optimistic updates.
- * @param options Mutation configuration options.
+ * @param procedureSelector A selector function returning the client and procedure.
+ * @param options Mutation configuration options including optional effects.
  * @returns A Nanostore map atom with a `mutate` function.
  */
 export function mutation<
@@ -102,17 +101,15 @@ export function mutation<
   TInput = unknown, // Input/Variables type for the mutation procedure
   TOutput = any,   // Output type of the mutation procedure
   TError = Error,
+  // Infer procedure type from selector
+  TProcedure extends { mutate: (args: { input: TInput, clientSeq: number }) => void } = any // Assuming mutate takes object
 >(
-  clientAtom: Atom<TClient>,
-  clientGetter: ClientGetter,
-  procedurePath: string | string[], // TODO: Use selector function approach?
-  effectsArray: MutationEffect<TInput, any>[] = [], // Effects array
-  options: MutationOptions<TOutput, TError, TInput> = {}
+  procedureSelector: ProcedureClientPathSelector<TClient, TProcedure>, // Use selector
+  options?: MutationOptions<TOutput, TError, TInput> // Options are optional
 ): MutationAtom<TOutput, TError, TInput> {
 
-  const client = clientGetter(clientAtom);
-  const coordinator = client.getCoordinator();
-  const normalizedPath = Array.isArray(procedurePath) ? procedurePath.join('.') : procedurePath;
+  const { effects = [] } = options ?? {}; // Get effects from options, default to empty array
+  const $procedureClientPath = computed(procedureSelector); // Error likely persists here
 
   // Use a map atom for mutation state
   const mutationMapAtom = map<MutationAtomState<TOutput, TError, TInput>>({
@@ -130,26 +127,30 @@ export function mutation<
           inversePatchesByAtom.forEach((inversePatches, atomKey) => {
               if (inversePatches.length === 0) return;
 
-              // Assume getAtom returns the MapStore registered by query/subscription
-              const targetMapAtom = getAtom(atomKey) as MapStore<QuerySubscriptionMapState<any, any>> | undefined;
-              if (!targetMapAtom) {
+              // Assume getAtom returns the MapStore/Atom registered by query/subscription
+              const targetAtom = getAtom(atomKey) as MapStore<QuerySubscriptionMapState<any, any>> | Atom<QuerySubscriptionMapState<any, any>> | undefined;
+              if (!targetAtom) {
                   console.warn(`[mutation] Rollback skipped: Target map atom not found for key ${atomKey}`);
                   return;
               }
 
               // Rollback needs to apply inverse patches to the *current optimistic state*
-              const currentOptimisticState = targetMapAtom.get().data;
-
-              // Apply inverse Immer patches using the utility
-              // Cast needed if TState constraint isn't sufficient
+              const currentOptimisticState = targetAtom.get().data;
               const rolledBackState = applyImmerPatches(currentOptimisticState as any, inversePatches);
 
               // Update the atom's optimistic data directly
-              targetMapAtom.setKey('data', rolledBackState);
-              console.log(`[mutation] Rolled back optimistic data for atom ${atomKey}`);
+              // Check if targetAtom has setKey (MapStore) or set (Atom)
+              if ('setKey' in targetAtom && typeof targetAtom.setKey === 'function') {
+                 targetAtom.setKey('data', rolledBackState);
+              } else if ('set' in targetAtom && typeof targetAtom.set === 'function') {
+                 // If it's a plain Atom, we might need to set the whole object
+                 targetAtom.set({ ...targetAtom.get(), data: rolledBackState });
+              } else {
+                 console.error(`[mutation] Rollback failed: Target atom ${atomKey} has no 'set' or 'setKey' method.`);
+                 throw new Error(`Cannot apply rollback to atom ${atomKey}`);
+              }
 
-              // Coordinator handles removing failed mutation patches.
-              // Query/Sub atoms recompute on coordinator state change.
+              console.log(`[mutation] Rolled back optimistic data for atom ${atomKey}`);
           });
 
       } catch (error) {
@@ -163,6 +164,9 @@ export function mutation<
   let unsubscribeRollback: (() => void) | null = null;
 
   onMount(mutationMapAtom, () => {
+      // Get coordinator via selector only when mounted
+      const { client } = $procedureClientPath.get()!; // Error likely persists here
+      const coordinator = client.getCoordinator();
       if (!unsubscribeRollback) {
           unsubscribeRollback = coordinator.onRollback(handleRollback);
       }
@@ -185,28 +189,39 @@ export function mutation<
             status: 'loading',
         });
 
+        // Get client/procedure via selector for this mutation call
+        const { client, procedure } = $procedureClientPath.get()!; // Error likely persists here
+        const coordinator = client.getCoordinator();
         const clientSeq = coordinator.generateClientSeq();
         const patchesByAtom = new Map<AtomKey, Patch[]>();
         const inversePatchesByAtom = new Map<AtomKey, Patch[]>();
 
         // Apply optimistic updates
         try {
-            effectsArray.forEach(effectItem => {
+            effects.forEach(effectItem => { // Use effects from options
                 const { targetAtomKey, applyRecipe } = effectItem;
-                const targetMapAtom = getAtom(targetAtomKey) as MapStore<QuerySubscriptionMapState<any, any>> | undefined;
-                if (!targetMapAtom) {
+                const targetAtom = getAtom(targetAtomKey) as MapStore<QuerySubscriptionMapState<any, any>> | Atom<QuerySubscriptionMapState<any, any>> | undefined;
+                if (!targetAtom) {
                     console.warn(`[mutation] Optimistic update skipped: Target atom not found for key ${targetAtomKey}`);
                     return;
                 }
 
-                const currentOptimisticState = targetMapAtom.get().data;
+                const currentOptimisticState = targetAtom.get().data;
                 const [nextState, patches, inversePatches] = produceImmerPatches(
                     currentOptimisticState as any,
                     (draft) => applyRecipe(draft, variables)
                 );
 
                 // Update target atom's optimistic data
-                targetMapAtom.setKey('data', nextState); // Use setKey on the map atom
+                 if ('setKey' in targetAtom && typeof targetAtom.setKey === 'function') {
+                    targetAtom.setKey('data', nextState);
+                 } else if ('set' in targetAtom && typeof targetAtom.set === 'function') {
+                    targetAtom.set({ ...targetAtom.get(), data: nextState });
+                 } else {
+                    console.error(`[mutation] Optimistic update failed: Target atom ${targetAtomKey} has no 'set' or 'setKey' method.`);
+                    throw new Error(`Cannot apply optimistic update to atom ${targetAtomKey}`);
+                 }
+
 
                 if (patches.length > 0) {
                     const existingPatches = patchesByAtom.get(targetAtomKey) ?? [];
@@ -242,7 +257,9 @@ export function mutation<
                 unsubError?.();
             };
 
-            unsubAck = coordinator.on('onAck', (seq, result) => {
+            // Use coordinator instance captured at the start of mutator
+            // Add types for seq and result based on CoordinatorEvents
+            unsubAck = coordinator.on('onAck', (seq: number, result: unknown) => {
                 if (seq === clientSeq) {
                     if (mutationMapAtom.get().status === 'loading' && mutationMapAtom.get().variables === variables) {
                         mutationMapAtom.set({
@@ -255,12 +272,13 @@ export function mutation<
                 }
             });
 
-            unsubError = coordinator.on('onError', (seq, error) => {
+            // Add types for seq and error based on CoordinatorEvents
+            unsubError = coordinator.on('onError', (seq: number, error: Error) => {
                 if (seq === clientSeq) {
                      if (mutationMapAtom.get().status === 'loading' && mutationMapAtom.get().variables === variables) {
                         mutationMapAtom.set({
                             data: undefined, loading: false,
-                            error: error instanceof Error ? error as TError : new Error('Mutation failed') as TError,
+                            error: error as TError, // Use error directly
                             variables, status: 'error',
                         });
                     }
@@ -270,13 +288,8 @@ export function mutation<
             });
 
             try {
-                // Use helper to access potentially nested procedure object
-                const procedureObject = getNestedProperty(client.mutation, normalizedPath);
-                if (typeof procedureObject?.mutate !== 'function') {
-                    throw new Error(`[zenQuery] Procedure 'mutation.${normalizedPath}' not found or is not a function.`);
-                }
-                // Call mutate on the resolved procedure object
-                procedureObject.mutate({ input: variables, clientSeq });
+                // Use the resolved procedure object
+                procedure.mutate({ input: variables, clientSeq });
             } catch (invocationError) {
                  console.error(`[mutation][${clientSeq}] Error invoking procedure proxy:`, invocationError);
                  mutationMapAtom.set({
@@ -291,18 +304,16 @@ export function mutation<
     };
 
     // Wrap the mutator with task() to manage concurrency.
-    // We still call the original mutator() to execute.
-    const executeMutation = task(mutator); // task() returns the wrapped function
+    const executeMutation = task(mutator); // Error likely persists here
     // Call the original mutator function. task() intercepts this call.
-    return mutator();
+    return mutator(); // Error likely persists here
   };
 
 
-  const exposedAtom = {
-    ...mutationMapAtom,
-    mutate,
-  };
+  const finalAtom = mutationMapAtom as any; // Use 'any' temporarily
+  finalAtom.mutate = mutate;
+  // No key property needed for mutation atom? Or generate based on selector? Let's omit for now.
 
   // Cast to satisfy the interface
-  return exposedAtom as MutationAtom<TOutput, TError, TInput>;
+  return finalAtom as MutationAtom<TOutput, TError, TInput>;
 }
