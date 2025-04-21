@@ -42,7 +42,7 @@ describe('SubscriptionManager', () => {
     it('should add a new subscription with an asynchronous cleanup function', () => {
       manager.addSubscription('subAsync', cleanupFnAsync);
       expect(manager.hasSubscription('subAsync')).toBe(true);
-       expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Added cleanup for subscription subAsync');
+      expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Added cleanup for subscription subAsync');
     });
 
     it('should warn and call old cleanup when adding a subscription with an existing ID', async () => {
@@ -86,7 +86,7 @@ describe('SubscriptionManager', () => {
       await vi.waitFor(() => {
         expect(cleanupFnAsyncResolved).toHaveBeenCalledTimes(1);
       });
-       expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Removed subscription subAsync. Executing cleanup.');
+      expect(consoleLogSpy).toHaveBeenCalledWith('[zenQuery SubManager] Removed subscription subAsync. Executing cleanup.');
     });
 
     it('should warn when trying to remove a non-existent subscription', () => {
@@ -120,7 +120,7 @@ describe('SubscriptionManager', () => {
 
         // Wait for the promise rejection to be handled
         await vi.waitFor(() => {
-             expect(consoleErrorSpy).toHaveBeenCalledWith('[zenQuery SubManager] Async cleanup promise error for subscription subAsyncError:', rejectionError);
+            expect(consoleErrorSpy).toHaveBeenCalledWith('[zenQuery SubManager] Async cleanup promise error for subscription subAsyncError:', rejectionError);
         });
     });
 

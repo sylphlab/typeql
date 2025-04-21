@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": "src",
+    // "rootDir": "src", // Removed rootDir to allow imports from shared
     "lib": ["ESNext", "WebWorker", "DOM"], // Added DOM
     "module": "NodeNext", // Changed to NodeNext
     "moduleResolution": "NodeNext", // Added NodeNext

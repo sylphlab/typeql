@@ -1,7 +1,7 @@
 // packages/server/src/__tests__/updateHistory.test.ts
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createInMemoryUpdateHistory, UpdateHistory } from '../updateHistory';
-import type { SubscriptionDataMessage } from '@sylphlab/zen-query-shared';
+import type { SubscriptionDataMessage } from '@sylphlab/zen-query-shared'; // Revert to package name import
 
 // Helper to create messages
 const createMsg = (id: string | number, serverSeq: number, data: any = {}): SubscriptionDataMessage => ({
@@ -48,7 +48,7 @@ describe('createInMemoryUpdateHistory', () => {
             history.addUpdate('topicA', msg);
             expect(history.getUpdates('topicA', 0, 1)).toEqual([]);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'), // Fixed Prefix
+                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'),
                 expect.objectContaining({ id: 'sub1' })
             );
         });
@@ -62,11 +62,11 @@ describe('createInMemoryUpdateHistory', () => {
             expect(history.getUpdates('topicA', -2, 0)).toEqual([]);
             expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'), // Fixed Prefix
+                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'),
                 expect.objectContaining({ serverSeq: 0 })
             );
              expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'), // Fixed Prefix
+                expect.stringContaining('[zenQuery History] Ignoring message for topic "topicA" without a valid positive serverSeq'),
                 expect.objectContaining({ serverSeq: -1 })
             );
         });
@@ -79,7 +79,7 @@ describe('createInMemoryUpdateHistory', () => {
             history.addUpdate('topicA', msg2);
             expect(history.getUpdates('topicA', 0, 2)).toEqual([msg1]);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[zenQuery History] Received out-of-order or duplicate message for topic "topicA"') // Fixed Prefix
+                expect.stringContaining('[zenQuery History] Received out-of-order or duplicate message for topic "topicA"')
                 // expect.stringContaining('serverSeq: 1, Last serverSeq: 2') // Message check removed as it's part of the string now
             );
         });
@@ -92,7 +92,7 @@ describe('createInMemoryUpdateHistory', () => {
             history.addUpdate('topicA', msg2);
             expect(history.getUpdates('topicA', 0, 1)).toEqual([msg1]);
             expect(consoleWarnSpy).toHaveBeenCalledWith(
-                expect.stringContaining('[zenQuery History] Received out-of-order or duplicate message for topic "topicA"') // Fixed Prefix
+                expect.stringContaining('[zenQuery History] Received out-of-order or duplicate message for topic "topicA"')
                 // expect.stringContaining('serverSeq: 1, Last serverSeq: 1') // Message check removed
             );
         });

@@ -2,7 +2,7 @@
   "extends": "../../tsconfig.base.json", // Extend the root base config
   "compilerOptions": {
     "outDir": "./dist",
-    "rootDir": "./src",
+    // "rootDir": "./src", // Removed rootDir to allow imports from client/shared
     "jsx": "react-jsx", // Use the modern JSX transform
     "lib": ["DOM", "DOM.Iterable", "ESNext"], // Include DOM types for React
     // No 'composite' or 'references' as tsup handles the build
