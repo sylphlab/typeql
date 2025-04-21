@@ -110,9 +110,9 @@ vi.mock('fast-json-patch', async (importOriginal) => {
 // --- Test Suite ---
 
 describe('Nanostores query() helper', () => {
-    // Remove clientAtom and clientGetter
     let mockCoordinatorInstance: OptimisticSyncCoordinator;
     let capturedUnmount: (() => void) | void | undefined;
+    let mockClientAtom: ReadableAtom<ZenQueryClient>; // Add mock client atom
 
     // Helper to simulate mounting (Keep as is)
     const simulateMount = (atomInstance: Atom<any>) => {
@@ -146,10 +146,10 @@ describe('Nanostores query() helper', () => {
         (mockCoordinatorInstance as any).__mockClearListeners?.();
         vi.mocked(mockClient.getCoordinator).mockReturnValue(mockCoordinatorInstance as any);
 
-        // Register mock client atom using the *actual* (but mocked) registerAtom
-        // This ensures it uses the mock's internal store
-        const { registerAtom: mockRegisterAtom } = await import('../utils/atomRegistry');
-        mockRegisterAtom('zenQueryClient', atom(mockClient));
+        // Create and store the mock client atom
+        mockClientAtom = atom(mockClient);
+
+        // No need to register 'zenQueryClient' globally anymore
 
         mockQueryProcedure.mockReset();
         // vi.resetAllMocks() should handle resetting these. Remove specific .mockClear() calls.
@@ -177,12 +177,11 @@ describe('Nanostores query() helper', () => {
 
     // Define mock procedure selector
     // Add type for 'get' parameter and explicitly type the procedure return
-    // Use 'as any' assertion to bypass incorrect type inference on posts
-    // Update type usage: Remove TClient generic argument
+    // Update mock selector to accept client instance
     const mockProcedureSelector: ProcedureClientPathSelector<{ query: Mock }> = (
-        get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
+        client: ZenQueryClient // Accept client
     ) => {
-        // Ensure the mock returns the exact structure expected by the refactored query helper
+        // Use the passed client (or mock directly if simpler)
         const procedure = {
             query: mockQueryProcedure
         };
@@ -197,8 +196,8 @@ describe('Nanostores query() helper', () => {
     // --- Test Cases ---
 
     it('should initialize with correct default state (enabled: true)', () => {
-        // Update query call
-        const queryAtom = query(mockProcedureSelector, defaultOptions);
+        // Update query call: Pass mockClientAtom
+        const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
         const initialState = queryAtom.get();
 
         expect(initialState.data).toBeUndefined();
@@ -211,8 +210,8 @@ describe('Nanostores query() helper', () => {
     });
 
     it('should initialize with correct default state (enabled: false)', () => {
-        // Update query call
-        const queryAtom = query(mockProcedureSelector, { ...defaultOptions, enabled: false });
+        // Update query call: Pass mockClientAtom
+        const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, enabled: false });
         const initialState = queryAtom.get();
 
         expect(initialState.data).toBeUndefined();
@@ -223,8 +222,8 @@ describe('Nanostores query() helper', () => {
 
      it('should initialize with initialData', () => {
         const initialData = { id: '123', title: 'Initial Title' };
-        // Update query call
-        const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+        // Update query call: Pass mockClientAtom
+        const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
         const initialState = queryAtom.get();
 
         expect(initialState.data).toEqual(initialData);
@@ -235,17 +234,17 @@ describe('Nanostores query() helper', () => {
 
     describe('onMount', () => {
         it('should register the atom with the registry', () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom);
 
-            expect(vi.mocked(registerAtom)).toHaveBeenCalledTimes(1);
+            expect(vi.mocked(registerAtom)).toHaveBeenCalledTimes(1); // Only the query atom itself
             expect(vi.mocked(registerAtom)).toHaveBeenCalledWith(defaultAtomKey, queryAtom);
         });
 
         it('should subscribe to coordinator events (onStateChange, onApplyDelta)', () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom);
 
             expect(vi.mocked(mockCoordinatorInstance.on)).toHaveBeenCalledWith('onStateChange', expect.any(Function));
@@ -254,8 +253,8 @@ describe('Nanostores query() helper', () => {
 
         it('should call fetcher immediately if enabled and no initialData', async () => {
             mockQueryProcedure.mockResolvedValue({ id: '123', title: 'Fetched Title' });
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
 
             expect(queryAtom.get().status).toBe('loading');
             expect(queryAtom.get().loading).toBe(true);
@@ -279,8 +278,8 @@ describe('Nanostores query() helper', () => {
         it('should call fetcher immediately if enabled and has initialData (SWR)', async () => {
             const initialData = { id: '123', title: 'Initial Title' };
             mockQueryProcedure.mockResolvedValue({ id: '123', title: 'Fetched Title' });
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
 
             expect(queryAtom.get().status).toBe('loading');
             expect(queryAtom.get().loading).toBe(true);
@@ -302,8 +301,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should NOT call fetcher if enabled: false', () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, enabled: false });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, enabled: false });
             simulateMount(queryAtom);
 
             expect(mockQueryProcedure).not.toHaveBeenCalled();
@@ -318,10 +317,10 @@ describe('Nanostores query() helper', () => {
                 .mockImplementationOnce((event, cb) => mockUnsubChange) // onStateChange
                 .mockImplementationOnce((event, cb) => mockUnsubDelta); // onApplyDelta
 
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
-            simulateMount(queryAtom);
-            simulateUnmount(queryAtom);
+           // Update query call: Pass mockClientAtom
+           const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
+           simulateMount(queryAtom);
+           simulateUnmount(queryAtom);
 
             expect(vi.mocked(unregisterAtom)).toHaveBeenCalledTimes(1);
             expect(vi.mocked(unregisterAtom)).toHaveBeenCalledWith(defaultAtomKey);
@@ -343,8 +342,8 @@ describe('Nanostores query() helper', () => {
             });
 
 
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom);
 
             expect(mockQueryProcedure).toHaveBeenCalledTimes(1);
@@ -364,8 +363,8 @@ describe('Nanostores query() helper', () => {
         it('should set data and success status on successful fetch', async () => {
             const fetchedData = { id: '123', title: 'Fetched OK' };
             mockQueryProcedure.mockResolvedValue(fetchedData); // Resolves immediately
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom); // Triggers fetch
 
             // Wait for the status update which happens after the promise resolves
@@ -380,8 +379,8 @@ describe('Nanostores query() helper', () => {
         it('should set error and error status on failed fetch', async () => {
             const fetchError = new Error('Network Failed');
             mockQueryProcedure.mockRejectedValue(fetchError); // Rejects immediately
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom); // Triggers fetch
 
             // Wait for the status update which happens after the promise rejects
@@ -411,8 +410,8 @@ describe('Nanostores query() helper', () => {
                 });
             });
 
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom); // Ensure mount before checking state
 
             expect(queryAtom.get().loading).toBe(true);
@@ -437,8 +436,8 @@ describe('Nanostores query() helper', () => {
                 return new Promise((resolve) => { firstFetchResolve = resolve; });
             });
 
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom); // Ensure mount before reload
 
             await vi.waitFor(() => expect(mockQueryProcedure).toHaveBeenCalledTimes(1));
@@ -473,8 +472,8 @@ describe('Nanostores query() helper', () => {
                 return new Promise((resolve, reject) => { firstFetchReject = reject; });
             });
 
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions);
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(queryAtom); // Ensure mount before reload
 
             await vi.waitFor(() => expect(mockQueryProcedure).toHaveBeenCalledTimes(1));
@@ -515,8 +514,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should apply pending patches from coordinator on onStateChange', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -539,8 +538,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should use confirmedServerData as base for optimistic updates', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, defaultOptions); // No initial data
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, defaultOptions); // No initial data
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -559,8 +558,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should do nothing if no pending patches for this atom', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -577,8 +576,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should handle errors during optimistic patch application', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -601,8 +600,8 @@ describe('Nanostores query() helper', () => {
         });
 
          it('should clear computation error if subsequent computation succeeds', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -641,8 +640,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should apply server delta patches to confirmed state and recompute optimistic state', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -670,8 +669,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should ignore deltas for different atom keys', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -693,8 +692,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should handle errors during delta application', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -728,8 +727,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should set loading state and re-fetch data when called', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -754,8 +753,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should handle errors during reload fetch', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);
@@ -774,8 +773,8 @@ describe('Nanostores query() helper', () => {
         });
 
         it('should not fetch if query is disabled', async () => {
-             // Update query call
-             const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData, enabled: false });
+             // Update query call: Pass mockClientAtom
+             const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData, enabled: false });
              simulateMount(queryAtom); // Mount to register atom etc.
              expect(queryAtom.get().status).toBe('idle'); // Should remain idle
 
@@ -789,8 +788,8 @@ describe('Nanostores query() helper', () => {
         });
 
          it('should not fetch if component is unmounted', async () => {
-            // Update query call
-            const queryAtom = query(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update query call: Pass mockClientAtom
+            const queryAtom = query(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             // Resolve initial fetch immediately
             mockQueryProcedure.mockResolvedValue(initialData);
             simulateMount(queryAtom);

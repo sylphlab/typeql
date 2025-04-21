@@ -112,10 +112,10 @@ vi.mock('fast-json-patch', async (importOriginal) => {
 // --- Test Suite ---
 
 describe('Nanostores subscription() helper', () => {
-    // Remove clientAtom, clientGetter
     let mockCoordinatorInstance: OptimisticSyncCoordinator;
     let capturedUnmount: (() => void) | void | undefined;
     let mockClientUnsubscribe: Mock; // Keep this
+    let mockClientAtom: ReadableAtom<ZenQueryClient>; // Add mock client atom
     let subscribeCallbacks: any; // Declare in higher scope
     let mockApplyPatch: Mock; // Declare mock function in higher scope
 
@@ -142,11 +142,10 @@ describe('Nanostores subscription() helper', () => {
         }
     };
 
-    // Make beforeEach async to handle await import
-    beforeEach(async () => {
+    beforeEach(async () => { // Keep async for imports
         vi.clearAllMocks();
 
-        // Import and assign mock function here
+        // Move mock assignment here
         const fastJsonPatch = await import('fast-json-patch');
         mockApplyPatch = vi.mocked(fastJsonPatch.applyPatch);
 
@@ -155,11 +154,10 @@ describe('Nanostores subscription() helper', () => {
         (mockCoordinatorInstance as any).__mockClearListeners?.();
         vi.mocked(mockClient.getCoordinator).mockReturnValue(mockCoordinatorInstance as any);
 
-        // Register mock client atom using the *actual* (but mocked) registerAtom
-        // This ensures it uses the mock's internal store
-        const { registerAtom: mockRegisterAtom } = await import('../utils/atomRegistry');
-        mockRegisterAtom('zenQueryClient', atom(mockClient));
+        // Create and store the mock client atom
+        mockClientAtom = atom(mockClient);
 
+        // No need to register 'zenQueryClient' globally anymore
 
         mockClientUnsubscribe = vi.fn();
         mockSubscribeProcedure.mockReset().mockReturnValue({ unsubscribe: mockClientUnsubscribe });
@@ -193,12 +191,11 @@ describe('Nanostores subscription() helper', () => {
     };
     const defaultAtomKey = JSON.stringify({ path: defaultPath, input: defaultInput });
 
-    // Define mock procedure selector for subscription
-    // Update type usage: Remove TClient generic argument
+    // Update mock selector to accept client instance
     const mockProcedureSelector: ProcedureClientPathSelector<{ subscribe: Mock }> = (
-        get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
+        client: ZenQueryClient // Accept client
     ) => {
-        // Ensure the mock returns the exact structure expected by the refactored helper
+        // Use the passed client (or mock directly if simpler)
         const procedure = {
             subscribe: mockSubscribeProcedure
         };
@@ -213,8 +210,8 @@ describe('Nanostores subscription() helper', () => {
     // --- Test Cases ---
 
     it('should initialize with correct default state (enabled: true)', () => {
-        // Update subscription call
-        const subAtom = subscription(mockProcedureSelector, defaultOptions);
+        // Update subscription call: Pass mockClientAtom
+        const subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
         simulateMount(subAtom); // Add mount simulation
         const initialState = subAtom.get();
 
@@ -227,8 +224,8 @@ describe('Nanostores subscription() helper', () => {
 
      it('should initialize with initialData', () => {
         const initialData = { id: '456', content: 'Initial Content', version: 0 };
-        // Update subscription call
-        const subAtom = subscription(mockProcedureSelector, { ...defaultOptions, initialData });
+        // Update subscription call: Pass mockClientAtom
+        const subAtom = subscription(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
         simulateMount(subAtom); // Add mount simulation
         const initialState = subAtom.get();
 
@@ -238,8 +235,8 @@ describe('Nanostores subscription() helper', () => {
     });
 
     it('should initialize with correct default state (enabled: false)', () => {
-        // Update subscription call
-        const subAtom = subscription(mockProcedureSelector, { ...defaultOptions, enabled: false });
+        // Update subscription call: Pass mockClientAtom
+        const subAtom = subscription(mockClientAtom, mockProcedureSelector, { ...defaultOptions, enabled: false });
         simulateMount(subAtom); // Add mount simulation
         const initialState = subAtom.get();
 
@@ -250,18 +247,18 @@ describe('Nanostores subscription() helper', () => {
 
     describe('onMount', () => {
         it('should register the atom with the registry', () => {
-            // Update subscription call
-            const subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            const subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
 
-            // Check for the second call, as the client atom is registered first in beforeEach
+            // Check for the first call (only subscription atom is registered)
             expect(vi.mocked(registerAtom)).toHaveBeenCalledTimes(2);
             expect(vi.mocked(registerAtom).mock.calls[1]).toEqual([defaultAtomKey, subAtom]);
         });
 
         it('should subscribe to coordinator events (onStateChange, onApplyDelta, onRollback)', () => {
-            // Update subscription call
-            const subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            const subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
 
             expect(vi.mocked(mockCoordinatorInstance.on)).toHaveBeenCalledWith('onStateChange', expect.any(Function));
@@ -270,8 +267,8 @@ describe('Nanostores subscription() helper', () => {
         });
 
         it('should call client.subscribe and set status to connecting/connected if enabled', () => {
-            // Update subscription call
-            const subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            const subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
 
             expect(subAtom.get().status).toBe('connecting');
@@ -286,8 +283,8 @@ describe('Nanostores subscription() helper', () => {
         });
 
         it('should NOT call client.subscribe if enabled: false', () => {
-            // Update subscription call
-            const subAtom = subscription(mockProcedureSelector, { ...defaultOptions, enabled: false });
+            // Update subscription call: Pass mockClientAtom
+            const subAtom = subscription(mockClientAtom, mockProcedureSelector, { ...defaultOptions, enabled: false });
             simulateMount(subAtom);
 
             expect(mockSubscribeProcedure).not.toHaveBeenCalled();
@@ -298,8 +295,8 @@ describe('Nanostores subscription() helper', () => {
             const subscribeError = new Error('Connection Refused');
             mockSubscribeProcedure.mockImplementation(() => { throw subscribeError; });
 
-            // Update subscription call
-            const subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            const subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
 
             expect(mockSubscribeProcedure).toHaveBeenCalledTimes(1);
@@ -316,10 +313,10 @@ describe('Nanostores subscription() helper', () => {
                 .mockImplementationOnce((event, cb) => mockUnsubDelta)     // onApplyDelta
                 .mockImplementationOnce((event, cb) => mockUnsubRollback); // onRollback
 
-            // Update subscription call
-            const subAtom = subscription(mockProcedureSelector, defaultOptions);
-            simulateMount(subAtom);
-            expect(mockSubscribeProcedure).toHaveBeenCalledTimes(1);
+           // Update subscription call: Pass mockClientAtom
+           const subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
+           simulateMount(subAtom);
+           expect(mockSubscribeProcedure).toHaveBeenCalledTimes(1);
 
             simulateUnmount(subAtom);
 
@@ -342,16 +339,15 @@ describe('Nanostores subscription() helper', () => {
                 return { unsubscribe: mockClientUnsubscribe };
             });
 
-            // Update subscription call
-            subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
 
             expect(mockSubscribeProcedure).toHaveBeenCalledTimes(1);
             expect(subscribeCallbacks).toBeDefined();
             expect(subAtom.get().status).toBe('connected');
-            // Clear applyPatch mock
-            const { applyPatch: mockApplyPatch } = await import('fast-json-patch');
-            vi.mocked(mockApplyPatch).mockClear();
+            // Clear applyPatch mock (already assigned in beforeEach)
+            mockApplyPatch.mockClear();
             vi.mocked(applyImmerPatches).mockClear();
         });
 
@@ -402,8 +398,8 @@ describe('Nanostores subscription() helper', () => {
                 subscribeCallbacks = callbacks;
                 return { unsubscribe: mockClientUnsubscribe };
             });
-            // Update subscription call
-            subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
             expect(subAtom.get().status).toBe('connecting'); // Should be connecting initially
 
@@ -425,8 +421,8 @@ describe('Nanostores subscription() helper', () => {
                 return { unsubscribe: mockClientUnsubscribe };
             });
 
-            // Update subscription call
-            subAtom = subscription(mockProcedureSelector, defaultOptions);
+            // Update subscription call: Pass mockClientAtom
+            subAtom = subscription(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
             // Assume connection happens quickly in test setup
             if (subscribeCallbacks) subscribeCallbacks.onData({}); // Simulate initial data to move to 'connected'
@@ -482,8 +478,8 @@ describe('Nanostores subscription() helper', () => {
                 return { unsubscribe: mockClientUnsubscribe };
             });
 
-            // Update subscription call
-            subAtom = subscription(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update subscription call: Pass mockClientAtom
+            subAtom = subscription(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             simulateMount(subAtom);
             // Assume connection happens quickly in test setup
             if (subscribeCallbacks) subscribeCallbacks.onData(initialData); // Simulate initial data to move to 'connected'
@@ -515,8 +511,8 @@ describe('Nanostores subscription() helper', () => {
 
             (mockCoordinatorInstance as any).__mockEmit('onStateChange');
 
-            const { applyPatch: mockApplyPatch } = await import('fast-json-patch');
-            expect(vi.mocked(mockApplyPatch)).not.toHaveBeenCalled();
+            // Use mockApplyPatch assigned in beforeEach
+            expect(mockApplyPatch).not.toHaveBeenCalled();
             // Data remains initial data (applyPatch mock adds flag only if patches exist)
             expect(subAtom.get().data).toEqual(initialData);
         });
@@ -549,8 +545,8 @@ describe('Nanostores subscription() helper', () => {
                 return { unsubscribe: mockClientUnsubscribe };
             });
 
-            // Update subscription call
-            subAtom = subscription(mockProcedureSelector, { ...defaultOptions, initialData });
+            // Update subscription call: Pass mockClientAtom
+            subAtom = subscription(mockClientAtom, mockProcedureSelector, { ...defaultOptions, initialData });
             simulateMount(subAtom);
             // Assume connection happens quickly in test setup
             if (subscribeCallbacks) subscribeCallbacks.onData(initialData); // Simulate initial data to move to 'connected'

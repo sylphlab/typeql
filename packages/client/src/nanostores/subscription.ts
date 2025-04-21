@@ -1,4 +1,4 @@
-import { map, onMount, get, type ReadableAtom, type Atom, type Store } from 'nanostores'; // Restore get
+import { map, onMount, type ReadableAtom, type Atom, type Store } from 'nanostores'; // Remove get
 // Remove import from @nanostores/core
 // Use fast-json-patch Operation and applyPatch
 import { applyPatch, type Operation } from 'fast-json-patch';
@@ -8,7 +8,8 @@ import type { Patch } from 'immer';
 import { type ProcedureClientPathSelector } from './query'; // Import selector type
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator, ServerDelta, CoordinatorEvents } from '../coordinator'; // Added CoordinatorEvents
-import { generateAtomKey, registerAtom, unregisterAtom, getAtom, type AtomKey } from '../utils/atomRegistry';
+// Remove getAtom import
+import { generateAtomKey, registerAtom, unregisterAtom, type AtomKey } from '../utils/atomRegistry';
 // Re-import applyImmerPatches for rollback
 import { applyImmerPatches } from './patchUtils';
 // Remove applyJsonDelta import
@@ -56,7 +57,8 @@ interface SubscriptionCallbacks<TData = unknown, TError = Error> {
 /**
  * Creates a Nanostore map atom to manage the state of a ZenQuery subscription.
  *
- * @param procedureSelector A selector function returning the client, procedure, and path.
+ * @param $clientAtom The Nanostore atom holding the ZenQueryClient instance.
+ * @param procedureSelector A selector function receiving the client and returning the procedure and path.
  * @param options Subscription configuration options including optional input and initialData.
  * @returns A readable Nanostore map atom representing the subscription state.
  */
@@ -68,21 +70,22 @@ export function subscription<
   // Infer procedure type from selector - TProcedure is now inner object { subscribe: Func }
   TProcedure extends { subscribe: (input: TInput, callbacks: SubscriptionCallbacks<TOutput, TError>) => { unsubscribe: () => void } } = any
 >(
-  // Update function signature to use imported type
+  $clientAtom: ReadableAtom<ZenQueryClient>, // Add $clientAtom parameter
   procedureSelector: ProcedureClientPathSelector<TProcedure>,
   options?: SubscriptionOptions<TInput, TOutput>
 ): SubscriptionAtom<TOutput, TError> {
 
   const { initialData, enabled = true, input } = options ?? {};
 
-  // --- Preliminary call for stable key generation ---
-  const dummyGet = <T>(_: ReadableAtom<T> | Store<T>): T => {
-      throw new Error('[zenQuery] Preliminary selector call tried to use `get`. Selector should not depend on other stores for initial path/procedure determination.');
-  };
-  let initialPath: string; // Path is now always a string
+  // --- Key Generation (Requires non-reactive client access) ---
+  let initialPath: string;
   try {
-      // Call selector once just to get the path string
-      const preliminaryResult = procedureSelector(dummyGet);
+      // Get client non-reactively for key generation
+      const tempClient = $clientAtom.get();
+      if (!tempClient) {
+          throw new Error("Client atom has no value during initial setup for key generation.");
+      }
+      const preliminaryResult = procedureSelector(tempClient); // Call with client
       if (typeof preliminaryResult?.path !== 'string' || !preliminaryResult?._isZenQueryProcedure) {
           throw new Error("Selector did not return the expected { path: string, procedure: ..., _isZenQueryProcedure: true } object.");
       }
@@ -92,10 +95,7 @@ export function subscription<
       throw new Error(`[zenQuery] Failed to determine initial path from procedureSelector: ${e instanceof Error ? e.message : String(e)}`);
   }
   const stableAtomKey = generateAtomKey(initialPath, input);
-  // --- End Preliminary call ---
-
-  // Remove computed wrapper
-  // const $procedurePathObj = computed(procedureSelector) as any; // TODO: Fix computed type inference issue
+  // --- End Key Generation ---
 
   // Use a map atom to hold the subscription state
   const subscriptionMapAtom = map<SubscriptionAtomState<TOutput, TError>>({
@@ -181,8 +181,17 @@ export function subscription<
     isMounted = true;
 
     // --- Resolve reactive values inside onMount ---
+    const client = $clientAtom.get(); // Get client from the atom
+    if (!client) {
+        console.error(`[zenQuery][${stableAtomKey}] Mount failed: Client atom has no value.`);
+        subscriptionMapAtom.setKey('error', new Error('Internal configuration error: Client not available') as TError);
+        subscriptionMapAtom.setKey('status', 'error');
+        return; // Abort mount setup
+    }
+    const coordinator = client.getCoordinator();
+
     // Call selector here to get reactive procedure and verify structure
-    const selectorResult = procedureSelector(get); // Use real 'get' from onMount
+    const selectorResult = procedureSelector(client); // Pass client instance
     if (typeof selectorResult?.path !== 'string' || !selectorResult?.procedure?.subscribe || !selectorResult?._isZenQueryProcedure) {
         // Handle error state appropriately
         console.error(`[zenQuery][${stableAtomKey}] Invalid result from procedureSelector in onMount. Expected { path: string, procedure: { subscribe: Func }, _isZenQueryProcedure: true }`, selectorResult);
@@ -191,11 +200,6 @@ export function subscription<
         return; // Abort mount setup
     }
     const { procedure } = selectorResult;
-
-    // TODO: [TECH DEBT] Revisit coordinator access. Helpers should ideally receive client/coordinator via context or options.
-    const clientAtom = getAtom('zenQueryClient') as Atom<ZenQueryClient> | undefined; // Placeholder for coordinator access
-    if (!clientAtom) throw new Error("[zenQuery] Client atom ('zenQueryClient') not found. Ensure provider is set up or client is passed differently.");
-    const coordinator = clientAtom.get().getCoordinator();
     // ---
 
     // Define connection logic inside onMount to access reactive procedure/coordinator

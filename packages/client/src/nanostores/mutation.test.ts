@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi, type Mock, afterEach } from 'vitest';
-import { map, atom, type MapStore, type Atom, onMount, task, type ReadableAtom, type Store, type WritableAtom, get } from 'nanostores'; // Import WritableAtom, Restore get
+import { map, atom, type MapStore, type Atom, onMount, task, type ReadableAtom, type Store, type WritableAtom } from 'nanostores'; // Import WritableAtom, Remove get
 // Remove import from @nanostores/core
 import type { Patch, Draft } from 'immer';
 // import type { Operation as PatchOperation } from 'fast-json-patch'; // Not directly used here
@@ -110,8 +110,8 @@ vi.mock('./patchUtils', () => ({
 // --- Test Suite ---
 
 describe('Nanostores mutation() helper', () => {
-    // Remove clientAtom, clientGetter
     let mockCoordinatorInstance: OptimisticSyncCoordinator & { __mockEmit: Function };
+    let mockClientAtom: ReadableAtom<ZenQueryClient>; // Add mock client atom
     // Adjust targetAtom type
     type TargetAtomState = { data: { id: string; title: string } | undefined, status: string, error: any };
     // Ensure targetAtom is Writable
@@ -130,6 +130,9 @@ describe('Nanostores mutation() helper', () => {
         mockCoordinatorInstance = new MockCoordinator() as OptimisticSyncCoordinator & { __mockEmit: Function };
         (mockCoordinatorInstance as any).__mockClearListeners?.();
         vi.mocked(mockClient.getCoordinator).mockReturnValue(mockCoordinatorInstance as any);
+
+        // Create and store the mock client atom
+        mockClientAtom = atom(mockClient);
 
         mockMutateProcedure.mockReset();
         vi.mocked(generateAtomKey).mockClear();
@@ -156,12 +159,11 @@ describe('Nanostores mutation() helper', () => {
     // Update defaultOptions: remove effectsArray as direct arg, add empty options object
     const defaultOptions: MutationOptions<any, any, typeof defaultInput> = {};
 
-    // Define mock procedure selector for mutation
-    // Update type usage: Remove TClient generic argument
+    // Update mock selector to accept client instance
     const mockProcedureSelector: ProcedureClientPathSelector<{ mutate: Mock }> = (
-        get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
+        client: ZenQueryClient // Accept client
     ) => {
-        // Ensure the mock returns the exact structure expected by the refactored helper
+        // Use the passed client (or mock directly if simpler)
         const procedure = {
             mutate: mockMutateProcedure
         };
@@ -176,8 +178,8 @@ describe('Nanostores mutation() helper', () => {
     // --- Test Cases ---
 
     it('should initialize with correct default state', () => {
-        // Update mutation call: remove clientAtom, clientGetter, path, effectsArray
-        const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+        // Update mutation call: Pass mockClientAtom
+        const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
         const initialState = mutationAtom.get();
 
         expect(initialState.data).toBeUndefined();
@@ -204,8 +206,8 @@ describe('Nanostores mutation() helper', () => {
         });
 
         it('should set loading state and variables immediately', async () => {
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task to ensure onMount completes
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -233,8 +235,8 @@ describe('Nanostores mutation() helper', () => {
             // Pass effects via options
             const optionsWithEffects: MutationOptions<any, any, typeof mutationVariables> = { effects: [effect1, effect2] };
 
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, optionsWithEffects);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffects);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -254,8 +256,8 @@ describe('Nanostores mutation() helper', () => {
             // Pass effect via options
             const optionsWithEffect: MutationOptions<any, any, typeof mutationVariables> = { effects: [testEffect] };
 
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, optionsWithEffect);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffect);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -275,8 +277,8 @@ describe('Nanostores mutation() helper', () => {
             // Pass effect via options
             const optionsWithEffect: MutationOptions<any, any, typeof mutationVariables> = { effects: [testEffect] };
 
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, optionsWithEffect);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffect);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -299,8 +301,8 @@ describe('Nanostores mutation() helper', () => {
         });
 
         it('should call the correct client mutation procedure', async () => {
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -317,8 +319,8 @@ describe('Nanostores mutation() helper', () => {
         });
 
         it('should resolve promise and set success state on coordinator onAck', async () => {
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -337,8 +339,8 @@ describe('Nanostores mutation() helper', () => {
         });
 
         it('should reject promise and set error state on coordinator onError', async () => {
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
@@ -365,8 +367,8 @@ describe('Nanostores mutation() helper', () => {
             // Pass effect via options
             const optionsWithEffect: MutationOptions<any, any, typeof mutationVariables> = { effects: [testEffect] };
 
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, optionsWithEffect);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffect);
             simulateMount(mutationAtom); // Ensure mount before mutate
 
             // Wrap mutate call in task and await the task's promise
@@ -388,8 +390,8 @@ describe('Nanostores mutation() helper', () => {
             const invocationError = new Error('Procedure not found');
             mockMutateProcedure.mockImplementation(() => { throw invocationError; });
 
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
 
             // Wrap mutate call in task and await the task's promise
@@ -421,8 +423,8 @@ describe('Nanostores mutation() helper', () => {
                 mockPatches,
                 mockInversePatches
             ]);
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Add mount simulation here
             vi.mocked(applyImmerPatches).mockClear();
         });
@@ -462,8 +464,8 @@ describe('Nanostores mutation() helper', () => {
             const rollbackMap = new Map<AtomKey, Patch[]>();
             rollbackMap.set(targetAtomKey, mockInversePatches);
 
-            // Update mutation call
-            const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            // Update mutation call: Pass mockClientAtom
+            const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Add mount simulation here too
             mockCoordinatorInstance.__mockEmit('onRollback', rollbackMap);
 

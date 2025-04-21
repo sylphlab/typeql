@@ -1,12 +1,12 @@
-import { map, onMount, get, type ReadableAtom, type Atom, type Store } from 'nanostores'; // Restore get
+import { map, onMount, type ReadableAtom, type Atom, type Store } from 'nanostores'; // Remove get
 // Remove import from @nanostores/core
 // Replace Immer Patch with fast-json-patch Operation and applyPatch
 import { applyPatch, type Operation } from 'fast-json-patch';
 
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator, ServerDelta } from '../coordinator';
-// Add getAtom to import
-import { generateAtomKey, registerAtom, unregisterAtom, getAtom, type AtomKey } from '../utils/atomRegistry';
+// Remove getAtom import
+import { generateAtomKey, registerAtom, unregisterAtom, type AtomKey } from '../utils/atomRegistry';
 // Remove applyImmerPatches import
 // import { applyImmerPatches } from './patchUtils';
 // Remove applyJsonDelta import (we'll use applyPatch directly)
@@ -37,7 +37,7 @@ export interface QueryOptions<TInput = unknown, TData = unknown> {
 // TProcedureResult now represents the inner procedure object, e.g., { query: Func }
 // Path is now always a string derived by the proxy.
 export type ProcedureClientPathSelector<TProcedureResult> = (
-  get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue // Nanostores 'get' function type
+  client: ZenQueryClient // Receives the client instance directly
 ) => { path: string; procedure: TProcedureResult; _isZenQueryProcedure: true };
 
 // Type for the returned atom, including potential actions
@@ -50,7 +50,8 @@ export interface QueryAtom<TData = unknown, TError = Error> extends ReadableAtom
 /**
  * Creates a Nanostore map atom to manage the state of a ZenQuery query.
  *
- * @param procedureSelector A selector function returning the client, procedure, and path.
+ * @param $clientAtom The Nanostore atom holding the ZenQueryClient instance.
+ * @param procedureSelector A selector function receiving the client and returning the procedure and path.
  * @param options Query configuration options including optional input and initialData.
  * @returns A readable Nanostore map atom representing the query state with a reload method.
  */
@@ -62,36 +63,38 @@ export function query<
   // TProcedure now represents the inner object like { query: Func }
   TProcedure extends { query: (input: TInput, opts?: { signal?: AbortSignal }) => Promise<TOutput> } = any
 >(
-  // Remove TClient from selector type argument
+  $clientAtom: ReadableAtom<ZenQueryClient>, // Add $clientAtom parameter
   procedureSelector: ProcedureClientPathSelector<TProcedure>,
   options?: QueryOptions<TInput, TOutput> // Options are now optional
 ): QueryAtom<TOutput, TError> {
 
   const { initialData, enabled = true, input } = options ?? {}; // Handle potentially undefined options
 
-  // --- Preliminary call for stable key generation ---
-  // Define a dummy 'get' that throws, assuming selector doesn't need reactive values initially
-  const dummyGet = <T>(_: ReadableAtom<T> | Store<T>): T => {
-      throw new Error('[zenQuery] Preliminary selector call tried to use `get`. Selector should not depend on other stores for initial path/procedure determination.');
-  };
-  let initialPath: string; // Path is now always a string
+  // --- Key Generation (Requires non-reactive client access) ---
+  // We still need the path for the key *before* mount.
+  // Assume the selector can be called with a temporary client instance
+  // or that the path doesn't depend on reactive client state.
+  // This is a potential design constraint: selectors used for key generation
+  // should ideally not depend on reactive client state.
+  let initialPath: string;
   try {
-      // Call selector once just to get the path string
-      const preliminaryResult = procedureSelector(dummyGet);
+      // Get a client instance non-reactively for key generation
+      // This relies on the client atom having a value immediately or being setup beforehand.
+      const tempClient = $clientAtom.get(); // Get client non-reactively
+      if (!tempClient) {
+          throw new Error("Client atom has no value during initial setup for key generation.");
+      }
+      const preliminaryResult = procedureSelector(tempClient); // Call with client
       if (typeof preliminaryResult?.path !== 'string' || !preliminaryResult?._isZenQueryProcedure) {
           throw new Error("Selector did not return the expected { path: string, procedure: ..., _isZenQueryProcedure: true } object.");
       }
       initialPath = preliminaryResult.path;
   } catch (e) {
       console.error("[zenQuery] Failed preliminary selector call for key generation:", e);
-      // Fallback or re-throw? Let's throw to make the configuration error obvious.
       throw new Error(`[zenQuery] Failed to determine initial path from procedureSelector: ${e instanceof Error ? e.message : String(e)}`);
   }
   const stableAtomKey = generateAtomKey(initialPath, input);
-  // --- End Preliminary call ---
-
-  // Remove computed wrapper entirely
-  // const $procedurePathObj = computed(procedureSelector) as any; // TODO: Fix computed type inference issue
+  // --- End Key Generation ---
 
   // Use a map atom to hold the query state
   const queryMapAtom = map<QueryMapState<TOutput, TError>>({
@@ -169,22 +172,23 @@ export function query<
   };
 
   // Core fetch logic - Will be defined inside onMount
-  let fetcher: ((coord: OptimisticSyncCoordinator) => Promise<void>) | null = null; // Update type to accept coordinator
+  // Correct fetcher type to accept client and coordinator
+  let fetcher: ((client: ZenQueryClient, coord: OptimisticSyncCoordinator) => Promise<void>) | null = null;
   // Remove task wrapper
   // let _fetchDataTask: ReturnType<typeof task> | null = null;
 
   // Reload function - Defined outside, calls fetcher defined in onMount
   const reload = async (): Promise<void> => {
-      // Resolve coordinator within reload as well, in case it's called outside mount context
-      const clientAtom = getAtom('zenQueryClient') as Atom<ZenQueryClient> | undefined;
-      if (!clientAtom) {
-          console.error(`[zenQuery][${stableAtomKey}] Reload failed: Client atom not found.`);
+      // Get client and coordinator from the provided atom
+      const client = $clientAtom.get();
+      if (!client) {
+          console.error(`[zenQuery][${stableAtomKey}] Reload failed: Client atom has no value.`);
           return;
       }
-      const coordinator = clientAtom.get().getCoordinator();
+      const coordinator = client.getCoordinator();
 
       if (fetcher && isMounted && enabled) { // Check if fetcher is defined and mounted/enabled
-          await fetcher(coordinator); // Pass coordinator
+          await fetcher(client, coordinator); // Pass client and coordinator
       } else {
           console.warn(`[zenQuery][${stableAtomKey}] Reload called before mount or query is disabled/fetcher not ready.`);
       }
@@ -196,10 +200,20 @@ export function query<
     isMounted = true;
 
     // --- Resolve reactive values inside onMount ---
+    const client = $clientAtom.get(); // Get client from the atom
+    if (!client) {
+        console.error(`[zenQuery][${stableAtomKey}] Mount failed: Client atom has no value.`);
+        queryMapAtom.setKey('error', new Error('Internal configuration error: Client not available') as TError);
+        queryMapAtom.setKey('status', 'error');
+        queryMapAtom.setKey('loading', false);
+        return; // Abort mount setup
+    }
+    const coordinator = client.getCoordinator();
+
     // Call selector here to get reactive procedure and verify structure
-    const selectorResult = procedureSelector(get); // Use real 'get' from onMount
+    const selectorResult = procedureSelector(client); // Pass client instance
     if (typeof selectorResult?.path !== 'string' || !selectorResult?.procedure?.query || !selectorResult?._isZenQueryProcedure) {
-        // Handle error state appropriately - maybe set error in atom?
+        // Handle error state appropriately
         console.error(`[zenQuery][${stableAtomKey}] Invalid result from procedureSelector in onMount. Expected { path: string, procedure: { query: Func }, _isZenQueryProcedure: true }`, selectorResult);
         queryMapAtom.setKey('error', new Error('Internal configuration error: Invalid procedure selector result') as TError);
         queryMapAtom.setKey('status', 'error');
@@ -207,15 +221,11 @@ export function query<
         return; // Abort mount setup
     }
     const { procedure } = selectorResult;
-
-    // TODO: [TECH DEBT] Revisit coordinator access. Helpers should ideally receive client/coordinator via context or options.
-    const clientAtom = getAtom('zenQueryClient') as Atom<ZenQueryClient> | undefined; // Placeholder for coordinator access
-    if (!clientAtom) throw new Error("[zenQuery] Client atom ('zenQueryClient') not found. Ensure provider is set up or client is passed differently.");
-    const coordinator = clientAtom.get().getCoordinator();
     // ---
 
-    // Define fetcher function within onMount scope to accept coordinator
-    fetcher = async (coord: OptimisticSyncCoordinator) => { // Accept coordinator
+    // Define fetcher function within onMount scope to accept client and coordinator
+    // Correctly assign fetcher with the right signature
+    fetcher = async (client: ZenQueryClient, coord: OptimisticSyncCoordinator) => { // Use correct parameter names matching type
       // Abort previous fetch if running
     if (currentAbortController) {
         currentAbortController.abort();
@@ -257,30 +267,39 @@ export function query<
       queryMapAtom.setKey('status', 'success');
       computeOptimisticState(coord); // Use passed coordinator
 
-    } catch (error: any) {
-        if ((signal.aborted || error.name === 'AbortError') && currentAbortController === abortController) {
+    } catch (error: any) { // Restore correct catch block structure
+        // Check signal first
+        if (signal.aborted) {
             console.log(`[zenQuery][${stableAtomKey}] Fetch explicitly aborted.`);
-            if (queryMapAtom.get().loading) {
+            // Only reset loading state if this controller was the current one
+            if (currentAbortController === abortController) {
                 queryMapAtom.setKey('loading', false);
                 queryMapAtom.setKey('status', queryMapAtom.get().data !== undefined ? 'success' : 'idle');
             }
+            // Don't proceed to error handling if aborted
             return;
-        } else if (currentAbortController !== abortController) {
+        }
+
+        // Check if superseded *after* checking signal
+        if (currentAbortController !== abortController) {
             console.log(`[zenQuery][${stableAtomKey}] Ignored error from stale fetch.`);
             return;
         }
 
-      console.error(`[zenQuery][${stableAtomKey}] Fetch failed:`, error);
-      queryMapAtom.setKey('loading', false);
-      queryMapAtom.setKey('error', error instanceof Error ? error as TError : new Error('Query failed') as TError);
-      queryMapAtom.setKey('status', 'error');
-      computeOptimisticState(coord); // Use passed coordinator
-    } finally {
+        // Handle non-abort errors
+        console.error(`[zenQuery][${stableAtomKey}] Fetch failed:`, error);
+        queryMapAtom.setKey('loading', false);
+        queryMapAtom.setKey('error', error instanceof Error ? error as TError : new Error('Query failed') as TError);
+        queryMapAtom.setKey('status', 'error');
+        computeOptimisticState(coord); // Recompute state even on error
+
+    } finally { // Restore correct finally block structure
+        // Clear controller only if it's the current one
         if (currentAbortController === abortController) {
             currentAbortController = null;
         }
-      }
-    };
+    }
+    }; // End of fetcher async function
 
     // Remove task wrapper
     // _fetchDataTask = task(_fetcher);
@@ -302,13 +321,14 @@ export function query<
 
     // Initial fetch logic
     if (enabled && fetcher) { // Check fetcher directly
-        fetcher(coordinator); // Pass coordinator
+        fetcher(client, coordinator); // Pass client and coordinator
     } else {
         queryMapAtom.setKey('status', 'idle');
         queryMapAtom.setKey('loading', false);
     }
 
-    return () => { // Cleanup function
+    // Correct return type for onMount cleanup
+    return (): void => { // Cleanup function must return void
       isMounted = false;
       if (currentAbortController) {
           currentAbortController.abort();
@@ -318,9 +338,9 @@ export function query<
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
     };
-  });
+  }); // End of onMount
 
-  // --- Exposed Atom ---
+  // --- Exposed Atom (Move inside function scope) ---
   // Add properties directly to the map atom instance and cast
   const finalAtom = queryMapAtom as any; // Use 'any' temporarily to bypass cast error
   finalAtom.key = stableAtomKey;
@@ -328,4 +348,4 @@ export function query<
 
   // Return the enhanced atom instance
   return finalAtom as QueryAtom<TOutput, TError>; // Cast back
-}
+} // End of query function
