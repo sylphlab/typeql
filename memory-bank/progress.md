@@ -131,3 +131,13 @@
     *   [X] Fixed resulting TS/test errors.
 *   **Current Status:** Renaming completed. Build and core tests pass (excluding known unrelated issues). Linting has unrelated failures.
 *   **Next Step:** Implement Server Subscription `.streamDiff` abstraction.
+
+## 2025-04-21: Client API Refactoring (Auto Path Derivation)
+
+*   **Goal:** Refactor `createClient` and Binding Helpers to automatically derive procedure path via proxy, removing the need for a `path` option in helpers.
+*   **Progress:**
+    *   [X] **`createClient`:** Proxy logic updated to return `{ path, procedure, _isZenQueryProcedure }`.
+    *   [X] **Binding Helpers:** Refactored `query`, `subscription`, `mutation` to use the new selector return object, extracting `path` and `procedure` internally. Removed `path` from options.
+    *   [X] **Tests:** Updated unit tests for Binding Helpers to reflect the API change.
+*   **Current Status:** Client API now aligns with the desired `helper(procedureSelector, options?)` pattern. Persistent TS errors related to Nanostores `get`/`computed` require separate investigation.
+*   **Next Step:** Update README examples to reflect the final API.

@@ -14,7 +14,7 @@ type Operation = any; // TODO: Define this properly based on actual patch/operat
 interface OptimisticSyncCoordinator extends CoordinatorBase {
     onStateChange(callback: () => void): () => void;
     onApplyDelta(callback: (delta: ServerDelta) => void): () => void;
-    onRollback(callback: (inversePatchesByAtom: Map<string, Operation[]>) => void): () => void;
+    onRollback(callback: (inversePatchesByAtom: Map<string, Patch[]>) => void): () => void; // Use Patch[]
     // Add new event signatures
     onAck(callback: (clientSeq: number, result?: any) => void): () => void;
     onError(callback: (clientSeq: number, error: any) => void): () => void;
@@ -24,11 +24,11 @@ interface OptimisticSyncCoordinator extends CoordinatorBase {
     rejectMutation(clientSeq: number, error?: any): void;
     confirmMutation(clientSeq: number, result?: any): void; // Added result param
     generateClientSeq(): number;
-    registerPendingMutation(clientSeq: number, patchesByAtom: Map<string, Operation[]>, inversePatchesByAtom: Map<string, Operation[]>): void;
+    registerPendingMutation(clientSeq: number, patchesByAtom: Map<string, Operation[]>, inversePatchesByAtom: Map<string, Operation[]>): void; // Revert to Operation[]
     // Use string keys based on errors in binding helpers
     // Correct return type based on TS error
     // Correct return type based on coordinator implementation
-    getPendingPatches(): Map<string, Operation[]>;
+    getPendingPatches(): Map<string, Operation[]>; // Revert to Operation[]
 }
 // Assume the constructor exists on the base type
 declare const OptimisticSyncCoordinator: {
@@ -211,11 +211,11 @@ export interface ZenQueryClient {
  * @returns The ZenQuery client instance.
  */
 export function createClient(options: ClientOptions): ZenQueryClient {
-  const { transport, conflictResolverConfig, deltaApplicator } = options;
+  const { transport, conflictResolverConfig, deltaApplicator } = options; // Removed _coordinatorInstance
 
   // 1. Instantiate Coordinator
   // TODO: Pass conflictResolverConfig to the coordinator constructor when implemented
-  const coordinator = new OptimisticSyncCoordinator(/* conflictResolverConfig */);
+  const coordinator = new OptimisticSyncCoordinator(/* conflictResolverConfig */); // Reverted to direct instantiation
 
   // 2. Atom Registry is managed via imported functions, no instantiation needed
   // const atomRegistry = createAtomRegistry();
@@ -298,72 +298,122 @@ export function createClient(options: ClientOptions): ZenQueryClient {
   });
 
   // 4. Client API Proxy Implementation
-  const createProcedureProxy = (type: 'query' | 'mutation' | 'subscription') => {
-    return new Proxy({}, {
-      get(_target, procedurePath: string, _receiver) {
-        if (typeof procedurePath !== 'string' || procedurePath === 'then') {
-          // Handle potential promise interactions or non-string properties
+  const PROCEDURE_MARKER = '_isZenQueryProcedure'; // Marker for procedure endpoints
+
+  const internalState = internal; // Alias for use inside proxy
+
+  const createRecursiveProxy = (currentPath: string[] = []): any => {
+    // Target object can store non-proxied methods like getCoordinator
+    const target = {
+        getCoordinator: () => internalState.coordinator,
+        close: () => {
+            unsubscribeTransport(); // Unsubscribe from transport messages
+            if (internalState.transport.close) {
+                internalState.transport.close(); // Close connection if method exists
+            }
+            // TODO: Add any other cleanup (e.g., clear coordinator state?)
+            console.log("ZenQuery client closed.");
+        }
+        // Add other non-proxied methods if needed
+    };
+
+    return new Proxy(target, {
+      get(target, prop: string | symbol, receiver) {
+        // Handle direct access to non-proxied methods
+        if (prop in target) {
+            // @ts-ignore - Allow indexing target
+            return target[prop];
+        }
+
+        // Ignore symbols and promise 'then'
+        if (typeof prop === 'symbol' || prop === 'then') {
           return undefined;
         }
 
-        // Return an object containing the function, matching expected structure
-        const procedureExecutor = (input: any, /* subscription callbacks */ callbacks?: any) => {
-            if (type === 'mutation') {
+        const newPath = [...currentPath, prop];
+        const pathString = newPath.join('.');
+
+        // Check if this path corresponds to a known procedure type endpoint
+        // This is a simplified check; a real implementation might need more robust detection
+        // or rely on the structure returned by the actual procedure implementations.
+        // For now, we assume the binding helpers will access the final methods.
+        // The key is to return the path *before* the final method access.
+
+        // Let's simulate the expected structure for binding helpers:
+        // client.posts.get -> returns proxy for 'posts.get'
+        // client.posts.get.query -> returns { path: 'posts.get', procedure: { query: func }, _isZenQueryProcedure: true }
+
+        // We need a way to know when we've reached the level *before* query/mutate/subscribe
+        // Let's assume the actual procedures are attached at the level the binding helpers expect.
+        // The proxy will intercept access up to that level.
+
+        // Modified approach: The proxy intercepts access. When a binding helper calls
+        // e.g., selector().procedure.query(), the proxy on 'procedure' needs to return
+        // the final object. Let's refine the structure.
+
+        // Create the actual procedure executor functions (similar to before, but using pathString)
+        const procedureExecutors = {
+            query: (input: any, opts?: { signal?: AbortSignal }) => {
+                internal.transport.send({ type: 'query', path: pathString, input });
+                // TODO: Return promise resolving with query result
+                console.log(`[Proxy] Executing query for ${pathString}`);
+                return Promise.resolve({ data: `Result for ${pathString}` }); // Placeholder
+            },
+            mutate: (input: any) => { // Assuming input object structure for mutate
                 const clientSeq = internal.coordinator.generateClientSeq();
                 // TODO: Integrate with binding helpers for optimistic updates BEFORE sending
-                // Binding helpers will call registerPendingMutation on the coordinator.
-                // For now, just send the message.
-                internal.transport.send({ type, path: procedurePath, input, clientSeq });
-                // TODO: Return a promise that resolves/rejects based on Ack/Error
-                return Promise.resolve(); // Placeholder
-            } else if (type === 'query') {
-                internal.transport.send({ type, path: procedurePath, input });
-                // TODO: Return a promise that resolves with query result (needs request correlation)
-                return Promise.resolve(); // Placeholder
-            } else if (type === 'subscription') {
-                // Correct the type sent to 'subscribe'
-                internal.transport.send({ type: 'subscribe', path: procedurePath, input });
+                internal.transport.send({ type: 'mutation', path: pathString, input, clientSeq });
+                 console.log(`[Proxy] Executing mutation for ${pathString}`);
+                // TODO: Return promise resolving/rejecting based on Ack/Error
+                return Promise.resolve({ ack: clientSeq }); // Placeholder
+            },
+            subscribe: (input: any, callbacks: any) => {
+                internal.transport.send({ type: 'subscribe', path: pathString, input });
+                 console.log(`[Proxy] Executing subscription for ${pathString}`);
                 // TODO: Manage subscription lifecycle and callbacks
-                // Return an unsubscribe function
                 return {
                     unsubscribe: () => {
-                        internal.transport.send({ type: 'unsubscribe', path: procedurePath, input });
-                        console.log(`Unsubscribing from ${procedurePath}`);
-                        // TODO: Clean up internal subscription state/callbacks
+                        internal.transport.send({ type: 'unsubscribe', path: pathString, input });
+                        console.log(`[Proxy] Unsubscribing from ${pathString}`);
                     }
                 };
             }
         };
 
-        // Return the executor function wrapped in an object matching the procedure type
-        if (type === 'query') {
-            return { query: procedureExecutor };
-        } else if (type === 'mutation') {
-            return { mutate: procedureExecutor };
-        } else if (type === 'subscription') {
-            return { subscribe: procedureExecutor };
-        }
-        return undefined; // Should not happen
+        // Check if the *next* property access would be query/mutate/subscribe
+        // This requires looking ahead, which proxies don't easily do.
+        // Alternative: Return an object that *looks like* the procedure endpoint,
+        // but its properties (query/mutate/subscribe) trigger the final return.
+
+        return new Proxy({}, {
+             get(_target2, method: string | symbol, _receiver2) {
+                 if (typeof method === 'string' && (method === 'query' || method === 'mutate' || method === 'subscribe')) {
+                     // This is the final access, return the special object
+                     const procedure = { [method]: (procedureExecutors as any)[method] };
+                     return {
+                         path: pathString,
+                         procedure: procedure,
+                         [PROCEDURE_MARKER]: true,
+                     };
+                 }
+                 // If accessing something else on this level (e.g., nested procedures like client.admin.users.list), continue recursion
+                 if (typeof method === 'string') {
+                     return createRecursiveProxy([...newPath, method]);
+                 }
+                 return undefined;
+             }
+        });
+
+        // Original recursive call - replaced by the proxy above
+        // return createRecursiveProxy(newPath);
       }
     });
   };
 
-  const client: ZenQueryClient = {
-    getCoordinator: () => internal.coordinator,
-    // Remove getAtomRegistry implementation
-    // getAtomRegistry: () => internal.atomRegistry,
-    query: createProcedureProxy('query') as QueryProcedures,
-    mutation: createProcedureProxy('mutation') as MutationProcedures,
-    subscription: createProcedureProxy('subscription') as SubscriptionProcedures,
-    close: () => {
-        unsubscribeTransport(); // Unsubscribe from transport messages
-        if (internal.transport.close) {
-            internal.transport.close(); // Close connection if method exists
-        }
-        // TODO: Add any other cleanup (e.g., clear coordinator state?)
-        console.log("ZenQuery client closed.");
-    }
-  };
 
-  return client;
+  // The client *is* the proxy
+  const client = createRecursiveProxy([]);
+
+  // Cast to ZenQueryClient for external type safety, acknowledging it's a proxy
+  return client as ZenQueryClient;
 }

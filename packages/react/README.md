@@ -42,16 +42,15 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
     export const $posts = query(
       // Selector function: receives 'get', returns the procedure reference
       get => get($client).posts.list,
-      // Options object: includes 'path' for registry key and procedure input
-      { path: 'posts.list', initialData: [] } // Assuming no input needed for list
+      // Options object: input, initialData etc. (NO 'path' needed)
+      { initialData: [] } // Assuming no input needed for list
     );
     
     // Mutation Atom
     export const $addPost = mutation(
       // Selector function: returns the procedure reference
       get => get($client).posts.add,
-      { // Options object
-        path: 'posts.add', // Path for registry key (if needed by coordinator/rollback)
+      { // Options object (NO 'path' needed)
         effects: [ // Define optimistic updates
           effect($posts, (currentPosts, input) => { // Target atom, apply patch recipe
           const tempId = `temp-${Date.now()}`;

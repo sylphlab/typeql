@@ -1,19 +1,20 @@
-import { map, onMount, computed, type ReadableAtom, type Atom, type Store } from 'nanostores'; // Removed task, added computed, Store
-import type { Patch } from 'immer'; // Immer patches for optimistic updates
-// import { Operation } from 'fast-json-patch'; // Use standard named import - Reverted
+import { map, onMount, get, type ReadableAtom, type Atom, type Store } from 'nanostores'; // Restore get
+// Remove import from @nanostores/core
+// Use fast-json-patch Operation and applyPatch
+import { applyPatch, type Operation } from 'fast-json-patch';
+// Also import Immer Patch for rollback
+import type { Patch } from 'immer';
+// Import ProcedureClientPathSelector from query.ts
+import { type ProcedureClientPathSelector } from './query'; // Import selector type
 import type { ZenQueryClient } from '../client';
-import type { OptimisticSyncCoordinator, ServerDelta } from '../coordinator';
+import type { OptimisticSyncCoordinator, ServerDelta, CoordinatorEvents } from '../coordinator'; // Added CoordinatorEvents
 import { generateAtomKey, registerAtom, unregisterAtom, getAtom, type AtomKey } from '../utils/atomRegistry';
-import { applyImmerPatches } from './patchUtils'; // Use Immer utils
-import { applyJsonDelta } from './stateUtils'; // Use JSON Patch delta applicator
+// Re-import applyImmerPatches for rollback
+import { applyImmerPatches } from './patchUtils';
+// Remove applyJsonDelta import
+// import { applyJsonDelta } from './stateUtils';
 
-// Local definition as workaround for import issues
-interface PatchOperation {
-  op: 'add' | 'remove' | 'replace' | 'move' | 'copy' | 'test';
-  path: string;
-  value?: any;
-  from?: string;
-}
+// Remove local PatchOperation definition
 
 
 // Define the shape of the state managed by the subscription map atom
@@ -34,10 +35,8 @@ export interface SubscriptionOptions<TInput = unknown, TData = unknown> {
   // Add other options like retry logic later
 }
 
-// Type for the selector function (same as query)
-type ProcedureClientPathSelector<TClient extends ZenQueryClient, TProcedureResult> = (
-  get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
-) => { client: TClient; procedure: TProcedureResult; path: string | string[] };
+// Remove local type definition - will import from query.ts
+// type ProcedureClientPathSelector<...> = ...
 
 // Type for the returned atom
 export interface SubscriptionAtom<TData = unknown, TError = Error> extends ReadableAtom<SubscriptionAtomState<TData, TError>> {
@@ -47,7 +46,7 @@ export interface SubscriptionAtom<TData = unknown, TError = Error> extends Reada
 
 // Define the callback interface locally based on usage
 interface SubscriptionCallbacks<TData = unknown, TError = Error> {
-    onData: (data: TData | PatchOperation[]) => void; // Use local PatchOperation
+    onData: (data: TData | Operation[]) => void; // Use fast-json-patch Operation[]
     onError: (error: TError | Error | any) => void;
     onComplete: () => void;
     // onOpen?: () => void;
@@ -62,24 +61,41 @@ interface SubscriptionCallbacks<TData = unknown, TError = Error> {
  * @returns A readable Nanostore map atom representing the subscription state.
  */
 export function subscription<
-  TClient extends ZenQueryClient,
   TInput = unknown,
   // Constrain TOutput to object or array for Immer compatibility
   TOutput extends object | unknown[] = any,
   TError = Error,
-  // Infer procedure type from selector
+  // Infer procedure type from selector - TProcedure is now inner object { subscribe: Func }
   TProcedure extends { subscribe: (input: TInput, callbacks: SubscriptionCallbacks<TOutput, TError>) => { unsubscribe: () => void } } = any
 >(
-  procedureSelector: ProcedureClientPathSelector<TClient, TProcedure>,
+  // Update function signature to use imported type
+  procedureSelector: ProcedureClientPathSelector<TProcedure>,
   options?: SubscriptionOptions<TInput, TOutput>
 ): SubscriptionAtom<TOutput, TError> {
 
   const { initialData, enabled = true, input } = options ?? {};
-  const $procedureClientPath = computed(procedureSelector); // Error likely persists here
 
-  // Determine stable key
-  const { path: initialPath } = $procedureClientPath.get()!; // Error likely persists here
+  // --- Preliminary call for stable key generation ---
+  const dummyGet = <T>(_: ReadableAtom<T> | Store<T>): T => {
+      throw new Error('[zenQuery] Preliminary selector call tried to use `get`. Selector should not depend on other stores for initial path/procedure determination.');
+  };
+  let initialPath: string; // Path is now always a string
+  try {
+      // Call selector once just to get the path string
+      const preliminaryResult = procedureSelector(dummyGet);
+      if (typeof preliminaryResult?.path !== 'string' || !preliminaryResult?._isZenQueryProcedure) {
+          throw new Error("Selector did not return the expected { path: string, procedure: ..., _isZenQueryProcedure: true } object.");
+      }
+      initialPath = preliminaryResult.path;
+  } catch (e) {
+      console.error("[zenQuery] Failed preliminary selector call for key generation:", e);
+      throw new Error(`[zenQuery] Failed to determine initial path from procedureSelector: ${e instanceof Error ? e.message : String(e)}`);
+  }
   const stableAtomKey = generateAtomKey(initialPath, input);
+  // --- End Preliminary call ---
+
+  // Remove computed wrapper
+  // const $procedurePathObj = computed(procedureSelector) as any; // TODO: Fix computed type inference issue
 
   // Use a map atom to hold the subscription state
   const subscriptionMapAtom = map<SubscriptionAtomState<TOutput, TError>>({
@@ -100,7 +116,7 @@ export function subscription<
     if (!isMounted) return;
     const currentMapState = subscriptionMapAtom.get();
     const pendingPatchesMap = coordinator.getPendingPatches();
-    const patchesForThisAtom = pendingPatchesMap.get(stableAtomKey) || [];
+    const patchesForThisAtom: Operation[] = pendingPatchesMap.get(stableAtomKey) || []; // Use Operation[]
 
     let optimisticData: TOutput | undefined;
     let computationError: Error | null = null;
@@ -109,8 +125,11 @@ export function subscription<
       optimisticData = confirmedServerData;
     } else {
       try {
-        const baseState = confirmedServerData ?? ({} as TOutput);
-        optimisticData = applyImmerPatches(baseState as any, patchesForThisAtom);
+        // Clone base state before applying patches as applyPatch mutates
+        const baseState = confirmedServerData ? structuredClone(confirmedServerData) : ({} as TOutput);
+        // Apply patches using fast-json-patch's applyPatch
+        const patchResult = applyPatch(baseState, patchesForThisAtom, true, false); // validate = true, mutateDocument = false (already cloned)
+        optimisticData = patchResult.newDocument;
       } catch (error) {
         console.error(`[zenQuery][${stableAtomKey}] Failed to apply optimistic patches:`, error);
         computationError = error instanceof Error ? error : new Error('Failed to compute optimistic state');
@@ -130,11 +149,14 @@ export function subscription<
     }
   };
 
-  const applyServerDelta = (coordinator: OptimisticSyncCoordinator, deltaPatches: readonly PatchOperation[]) => { // Use local PatchOperation
+  const applyServerDelta = (coordinator: OptimisticSyncCoordinator, deltaPatches: readonly Operation[]) => { // Use Operation[]
     if (!isMounted) return;
     try {
-      const newState = applyJsonDelta(confirmedServerData, deltaPatches);
-      confirmedServerData = newState;
+      // Clone base state before applying patches as applyPatch mutates
+      const baseState = confirmedServerData ? structuredClone(confirmedServerData) : ({} as TOutput);
+      // Apply patches using fast-json-patch's applyPatch
+      const patchResult = applyPatch(baseState, deltaPatches, true, false); // validate = true, mutateDocument = false (already cloned)
+      confirmedServerData = patchResult.newDocument;
       computeOptimisticState(coordinator); // Recompute optimistic state
     } catch (error) {
       console.error(`[zenQuery][${stableAtomKey}] Failed to apply server delta:`, error);
@@ -149,25 +171,48 @@ export function subscription<
       computeOptimisticState(coordinator); // Recompute optimistic state after snapshot
   };
 
-  // --- Connection Logic ---
+  // --- Connection Logic - Define inside onMount ---
+  let connectSubscription: (() => void) | null = null;
+  let disconnectSubscription: (() => void) | null = null;
 
-  const connectSubscription = () => {
-    if (!isMounted || clientUnsubscribeFn || !enabled) return;
 
-    const { client, procedure } = $procedureClientPath.get()!; // Error likely persists here
-    const coordinator = client.getCoordinator();
+  // --- Lifecycle ---
+  onMount(subscriptionMapAtom, () => {
+    isMounted = true;
 
-    subscriptionMapAtom.setKey('status', 'connecting');
-    subscriptionMapAtom.setKey('error', null);
+    // --- Resolve reactive values inside onMount ---
+    // Call selector here to get reactive procedure and verify structure
+    const selectorResult = procedureSelector(get); // Use real 'get' from onMount
+    if (typeof selectorResult?.path !== 'string' || !selectorResult?.procedure?.subscribe || !selectorResult?._isZenQueryProcedure) {
+        // Handle error state appropriately
+        console.error(`[zenQuery][${stableAtomKey}] Invalid result from procedureSelector in onMount. Expected { path: string, procedure: { subscribe: Func }, _isZenQueryProcedure: true }`, selectorResult);
+        subscriptionMapAtom.setKey('error', new Error('Internal configuration error: Invalid procedure selector result') as TError);
+        subscriptionMapAtom.setKey('status', 'error');
+        return; // Abort mount setup
+    }
+    const { procedure } = selectorResult;
+
+    // TODO: [TECH DEBT] Revisit coordinator access. Helpers should ideally receive client/coordinator via context or options.
+    const clientAtom = getAtom('zenQueryClient') as Atom<ZenQueryClient> | undefined; // Placeholder for coordinator access
+    if (!clientAtom) throw new Error("[zenQuery] Client atom ('zenQueryClient') not found. Ensure provider is set up or client is passed differently.");
+    const coordinator = clientAtom.get().getCoordinator();
+    // ---
+
+    // Define connection logic inside onMount to access reactive procedure/coordinator
+    connectSubscription = () => {
+      if (!isMounted || clientUnsubscribeFn || !enabled) return;
+
+      subscriptionMapAtom.setKey('status', 'connecting');
+      subscriptionMapAtom.setKey('error', null);
 
     try {
       // Define callbacks for the client subscription
       const callbacks: SubscriptionCallbacks<TOutput, TError> = {
-        onData: (data: TOutput | PatchOperation[]) => { // Use local PatchOperation
+        onData: (data: TOutput | Operation[]) => { // Use Operation[]
           if (!isMounted) return;
-          // Basic check: Assume array is JSON Patch delta
+          // Basic check: Assume array is JSON Patch delta (Operation[])
           if (Array.isArray(data) && data.length > 0 && typeof data[0] === 'object' && 'op' in data[0] && 'path' in data[0]) {
-             applyServerDelta(coordinator, data as PatchOperation[]); // Pass coordinator
+             applyServerDelta(coordinator, data as Operation[]); // Pass coordinator
           } else { // Assume full snapshot
              applyServerSnapshot(coordinator, data as TOutput); // Pass coordinator
           }
@@ -181,13 +226,13 @@ export function subscription<
             subscriptionMapAtom.setKey('error', error instanceof Error ? error as TError : new Error('Subscription failed') as TError);
             subscriptionMapAtom.setKey('status', 'error');
           }
-          disconnectSubscription(); // Clean up on error
+          disconnectSubscription?.(); // Add null check
         },
         onComplete: () => {
           if (isMounted) {
             subscriptionMapAtom.setKey('status', 'closed');
           }
-          disconnectSubscription(); // Clean up on completion
+          disconnectSubscription?.(); // Add null check
         },
       };
 
@@ -205,47 +250,44 @@ export function subscription<
         subscriptionMapAtom.setKey('error', error instanceof Error ? error as TError : new Error('Failed to start subscription') as TError);
         subscriptionMapAtom.setKey('status', 'error');
       }
-    }
-  };
-
-  const disconnectSubscription = () => {
-    if (clientUnsubscribeFn) {
-      try {
-        clientUnsubscribeFn();
-      } catch (error) {
-        console.error(`[zenQuery][${stableAtomKey}] Error during unsubscribe:`, error);
       }
-      clientUnsubscribeFn = null;
-      if (isMounted && subscriptionMapAtom.get().status !== 'error') {
-          subscriptionMapAtom.setKey('status', 'closed');
+    };
+
+    disconnectSubscription = () => {
+      if (clientUnsubscribeFn) {
+        try {
+          clientUnsubscribeFn();
+        } catch (error) {
+          console.error(`[zenQuery][${stableAtomKey}] Error during unsubscribe:`, error);
+        }
+        clientUnsubscribeFn = null;
+        if (isMounted && subscriptionMapAtom.get().status !== 'error') {
+            subscriptionMapAtom.setKey('status', 'closed');
+        }
       }
-    }
-  };
-
-
-  // --- Lifecycle ---
-  onMount(subscriptionMapAtom, () => {
-    isMounted = true;
-    const { client } = $procedureClientPath.get()!; // Error likely persists here
-    const coordinator = client.getCoordinator();
+    };
 
     registerAtom(stableAtomKey, subscriptionMapAtom);
 
-    // Subscribe to coordinator events
+    // Subscribe to coordinator events (coordinator already defined above)
     const unsubChange = coordinator.onStateChange(() => computeOptimisticState(coordinator));
     const unsubDelta = coordinator.onApplyDelta((delta: ServerDelta) => {
       if (delta.key === stableAtomKey) {
-        applyServerDelta(coordinator, delta.patches);
+        // Ensure delta.patches is treated as Operation[]
+        applyServerDelta(coordinator, delta.patches as Operation[]);
       }
     });
-    // Add explicit type for inversePatchesByAtom
-    const unsubRollback = coordinator.onRollback((inversePatchesByAtom: Map<AtomKey, Patch[]>) => {
+    // Use Immer Patch[] for rollback patches as required by coordinator signature
+    const unsubRollback = coordinator.onRollback((inversePatchesByAtom: Map<AtomKey, Patch[]>) => { // Use Patch[]
         const inversePatches = inversePatchesByAtom.get(stableAtomKey);
         if (inversePatches && inversePatches.length > 0) {
             console.warn(`[zenQuery][${stableAtomKey}] Rolling back optimistic updates due to mutation failure.`);
+            // TODO: Add comment explaining coordinator inconsistency (uses Operation elsewhere, Patch here)
             try {
+                // Apply rollback patches using Immer patch applicator
                 const baseState = confirmedServerData ?? ({} as TOutput);
-                confirmedServerData = applyImmerPatches(baseState as any, inversePatches as Patch[]);
+                // Assuming applyImmerPatches handles cloning or works immutably
+                confirmedServerData = applyImmerPatches(baseState as any, inversePatches);
                 computeOptimisticState(coordinator); // Recompute state after rollback
             } catch (error) {
                 console.error(`[zenQuery][${stableAtomKey}] Error applying rollback patches:`, error);
@@ -263,7 +305,7 @@ export function subscription<
     };
 
     // Connect the subscription if enabled
-    if (enabled) {
+    if (enabled && connectSubscription) { // Check connectSubscription exists
       connectSubscription();
     } else {
       subscriptionMapAtom.setKey('status', 'idle');
@@ -271,10 +313,13 @@ export function subscription<
 
     return () => { // Cleanup function
       isMounted = false;
-      disconnectSubscription(); // Disconnect the actual subscription
+      if (disconnectSubscription) disconnectSubscription(); // Disconnect the actual subscription
       unregisterAtom(stableAtomKey);
       unsubscribeCoordinator?.();
       unsubscribeCoordinator = null;
+      // Reset connection functions
+      connectSubscription = null;
+      disconnectSubscription = null;
     };
   });
 

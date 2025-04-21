@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi, type Mock, afterEach } from 'vitest';
-import { map, atom, type MapStore, type Atom, onMount, task, type ReadableAtom, type Store, type WritableAtom } from 'nanostores'; // Import WritableAtom
+import { map, atom, type MapStore, type Atom, onMount, task, type ReadableAtom, type Store, type WritableAtom, get } from 'nanostores'; // Import WritableAtom, Restore get
+// Remove import from @nanostores/core
 import type { Patch, Draft } from 'immer';
 // import type { Operation as PatchOperation } from 'fast-json-patch'; // Not directly used here
 
@@ -103,20 +104,8 @@ vi.mock('./patchUtils', () => ({
     }),
 }));
 
-// Mock nanostores (Keep as is)
-vi.mock('nanostores', async (importOriginal) => {
-    const actual = await importOriginal() as typeof import('nanostores');
-    return {
-        ...actual,
-        task: vi.fn((fn) => fn),
-        onMount: vi.fn((store: import('nanostores').Store, initialize?: () => void | (() => void)) => {
-            const storeWithMocks = store as any;
-            if (!storeWithMocks.__mockMountCallbacks) storeWithMocks.__mockMountCallbacks = [];
-            storeWithMocks.__mockMountCallbacks.push(initialize);
-            return () => {};
-        }),
-    };
-});
+// Remove Nanostores mock entirely - let tests use actual implementation
+// vi.mock('nanostores', async (importOriginal) => { ... });
 
 // --- Test Suite ---
 
@@ -150,8 +139,9 @@ describe('Nanostores mutation() helper', () => {
         vi.mocked(getAtom).mockClear().mockImplementation((key): WritableAtom<any> | undefined => mockAtomStore[key]);
         vi.mocked(applyImmerPatches).mockClear();
         vi.mocked(produceImmerPatches).mockClear();
-        vi.mocked(onMount).mockClear();
-        vi.mocked(task).mockClear();
+        // Remove mockClear for Nanostores functions
+        // vi.mocked(onMount).mockClear();
+        // vi.mocked(task).mockClear();
 
         // Recreate mock target atom correctly (MapStore is Writable)
         const mapStore = map<TargetAtomState>({ data: { id: '1', title: 'Initial Target' }, status: 'success', error: null });
@@ -167,15 +157,22 @@ describe('Nanostores mutation() helper', () => {
     const defaultOptions: MutationOptions<any, any, typeof defaultInput> = {};
 
     // Define mock procedure selector for mutation
-    const mockProcedureSelector: ProcedureClientPathSelector<ZenQueryClient, { mutate: Mock }> = (
+    // Update type usage: Remove TClient generic argument
+    const mockProcedureSelector: ProcedureClientPathSelector<{ mutate: Mock }> = (
         get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
-    ) => ({
-        client: mockClient,
-        procedure: (mockClient.mutation.posts as any).create, // Use 'as any' workaround
-        path: defaultPath, // Path might still be useful for context/debugging, keep it
-    });
-
-
+    ) => {
+        // Ensure the mock returns the exact structure expected by the refactored helper
+        const procedure = {
+            mutate: mockMutateProcedure
+        };
+        return {
+            path: defaultPath, // Path string
+            procedure: procedure, // Procedure object containing the method
+            _isZenQueryProcedure: true // Marker
+        };
+    };
+  
+  
     // --- Test Cases ---
 
     it('should initialize with correct default state', () => {
@@ -209,9 +206,15 @@ describe('Nanostores mutation() helper', () => {
         it('should set loading state and variables immediately', async () => {
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task to ensure onMount completes
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
 
             const state = mutationAtom.get();
+            // State might not be loading immediately if task hasn't run, adjust assertion or wait
+            // Let's assume we check state *after* the task starts
+            // await new Promise(setImmediate); // Or similar microtask delay if needed
             expect(state.loading).toBe(true);
             expect(state.status).toBe('loading');
             expect(state.variables).toEqual(mutationVariables);
@@ -232,7 +235,10 @@ describe('Nanostores mutation() helper', () => {
 
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, optionsWithEffects);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
 
             expect(vi.mocked(produceImmerPatches)).toHaveBeenCalledTimes(2);
             expect(vi.mocked(produceImmerPatches)).toHaveBeenCalledWith(targetAtom.get().data, expect.any(Function));
@@ -250,7 +256,10 @@ describe('Nanostores mutation() helper', () => {
 
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, optionsWithEffect);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
 
             expect(vi.mocked(produceImmerPatches)).toHaveBeenCalledTimes(1);
             expect(targetAtom.get().data).toEqual(expectedNextState);
@@ -268,7 +277,10 @@ describe('Nanostores mutation() helper', () => {
 
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, optionsWithEffect);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
 
             expect(vi.mocked(mockCoordinatorInstance.registerPendingMutation)).toHaveBeenCalledTimes(1);
             const expectedPatchesMap = new Map<AtomKey, Patch[]>();
@@ -289,7 +301,10 @@ describe('Nanostores mutation() helper', () => {
         it('should call the correct client mutation procedure', async () => {
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
 
             expect(mockMutateProcedure).toHaveBeenCalledTimes(1);
             expect(mockMutateProcedure).toHaveBeenCalledWith({
@@ -304,7 +319,10 @@ describe('Nanostores mutation() helper', () => {
         it('should resolve promise and set success state on coordinator onAck', async () => {
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
 
             mockCoordinatorInstance.__mockEmit('onAck', mockClientSeq, mockServerResult);
 
@@ -321,7 +339,10 @@ describe('Nanostores mutation() helper', () => {
         it('should reject promise and set error state on coordinator onError', async () => {
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
-            const mutatePromise = mutationAtom.mutate(mutationVariables);
+            simulateMount(mutationAtom); // Ensure mount before mutate
+            // Wrap mutate call in task
+            const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
+
             const mutationError = new Error('Server Rejected Mutation');
 
             mockCoordinatorInstance.__mockEmit('onError', mockClientSeq, mutationError);
@@ -346,8 +367,11 @@ describe('Nanostores mutation() helper', () => {
 
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, optionsWithEffect);
+            simulateMount(mutationAtom); // Ensure mount before mutate
 
-            await expect(mutationAtom.mutate(mutationVariables)).rejects.toThrow('Failed applying optimistic effect');
+            // Wrap mutate call in task and await the task's promise
+            await expect(task(() => mutationAtom.mutate(mutationVariables))).rejects.toThrow('Failed applying optimistic effect');
+
 
             const state = mutationAtom.get();
             expect(state.loading).toBe(false);
@@ -366,8 +390,11 @@ describe('Nanostores mutation() helper', () => {
 
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
+            simulateMount(mutationAtom); // Ensure mount before mutate
 
-            await expect(mutationAtom.mutate(mutationVariables)).rejects.toThrow('Procedure not found');
+            // Wrap mutate call in task and await the task's promise
+            await expect(task(() => mutationAtom.mutate(mutationVariables))).rejects.toThrow('Procedure not found');
+
 
             const state = mutationAtom.get();
             expect(state.loading).toBe(false);
@@ -396,7 +423,7 @@ describe('Nanostores mutation() helper', () => {
             ]);
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
-            // Mount implicitly handled by mock
+            simulateMount(mutationAtom); // Add mount simulation here
             vi.mocked(applyImmerPatches).mockClear();
         });
 
@@ -437,9 +464,9 @@ describe('Nanostores mutation() helper', () => {
 
             // Update mutation call
             const mutationAtom = mutation(mockProcedureSelector, defaultOptions);
-            // Mount implicitly handled
-
+            simulateMount(mutationAtom); // Add mount simulation here too
             mockCoordinatorInstance.__mockEmit('onRollback', rollbackMap);
+
 
             const state = mutationAtom.get();
             expect(state.status).toBe('error');

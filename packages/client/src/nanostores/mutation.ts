@@ -1,6 +1,8 @@
-import { map, onMount, task, computed, type ReadableAtom, type Atom, type MapStore, type Store } from 'nanostores'; // Import MapStore, computed, Store
+import { map, onMount, task, computed, get, type ReadableAtom, type Atom, type MapStore, type Store } from 'nanostores'; // Restore get
+// Remove import from @nanostores/core
 import type { Patch, Draft } from 'immer'; // Immer patches for optimistic updates
-// import type { default as PatchOperation } from 'fast-json-patch'; // Use default import with alias - Replaced with local interface
+// Import selector type
+import { type ProcedureClientPathSelector } from './query';
 
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator, CoordinatorEvents } from '../coordinator'; // Import CoordinatorEvents
@@ -72,10 +74,8 @@ export interface MutationOptions<TData = unknown, TError = Error, TVariables = u
   // Add options like onSuccess, onError, onSettled callbacks later
 }
 
-// Type for the selector function (same as query/sub)
-type ProcedureClientPathSelector<TClient extends ZenQueryClient, TProcedureResult> = (
-  get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
-) => { client: TClient; procedure: TProcedureResult; path: string | string[] }; // Path might not be needed by mutation itself
+// Remove local type definition - will import from query.ts
+// type ProcedureClientPathSelector<...> = ...
 
 // Type for the mutate function exposed by the atom
 export type MutateFunction<TData = unknown, TError = Error, TVariables = unknown> =
@@ -97,19 +97,26 @@ export interface MutationAtom<TData = unknown, TError = Error, TVariables = unkn
  * @returns A Nanostore map atom with a `mutate` function.
  */
 export function mutation<
-  TClient extends ZenQueryClient,
+  // Remove TClient generic
   TInput = unknown, // Input/Variables type for the mutation procedure
   TOutput = any,   // Output type of the mutation procedure
   TError = Error,
-  // Infer procedure type from selector
-  TProcedure extends { mutate: (args: { input: TInput, clientSeq: number }) => void } = any // Assuming mutate takes object
+  // Infer procedure type from selector - TProcedure is now inner object { mutate: Func }
+  // Proxy's mutate function doesn't return anything directly, it sends a message.
+  TProcedure extends { mutate: (args: { input: TInput, clientSeq: number }) => void } = any
 >(
-  procedureSelector: ProcedureClientPathSelector<TClient, TProcedure>, // Use selector
+  // Update function signature to use imported type
+  procedureSelector: ProcedureClientPathSelector<TProcedure>,
   options?: MutationOptions<TOutput, TError, TInput> // Options are optional
 ): MutationAtom<TOutput, TError, TInput> {
 
   const { effects = [] } = options ?? {}; // Get effects from options, default to empty array
-  const $procedureClientPath = computed(procedureSelector); // Error likely persists here
+
+  // Remove preliminary call and stableAtomKey - not needed for mutation atom itself
+  // const stableAtomKey = generateAtomKey(...);
+
+  // Store the reactive procedure resolved in onMount
+  let resolvedProcedure: TProcedure | null = null;
 
   // Use a map atom for mutation state
   const mutationMapAtom = map<MutationAtomState<TOutput, TError, TInput>>({
@@ -164,15 +171,28 @@ export function mutation<
   let unsubscribeRollback: (() => void) | null = null;
 
   onMount(mutationMapAtom, () => {
-      // Get coordinator via selector only when mounted
-      const { client } = $procedureClientPath.get()!; // Error likely persists here
-      const coordinator = client.getCoordinator();
+      // Resolve reactive procedure and coordinator inside onMount
+      const selectorResult = procedureSelector(get); // Use real 'get'
+      // Validate selector result structure
+      if (typeof selectorResult?.path !== 'string' || !selectorResult?.procedure?.mutate || !selectorResult?._isZenQueryProcedure) {
+          console.error(`[zenQuery][mutation] Invalid result from procedureSelector in onMount. Expected { path: string, procedure: { mutate: Func }, _isZenQueryProcedure: true }`, selectorResult);
+          // Cannot set error state here easily as mutation atom doesn't have its own key/status tied to this setup phase
+          throw new Error('Internal configuration error: Invalid procedure selector result for mutation');
+      }
+      resolvedProcedure = selectorResult.procedure;
+
+      // TODO: [TECH DEBT] Revisit coordinator access. Helpers should ideally receive client/coordinator via context or options.
+      const clientAtom = getAtom('zenQueryClient') as Atom<ZenQueryClient> | undefined; // Placeholder for coordinator access
+      if (!clientAtom) throw new Error("[zenQuery] Client atom ('zenQueryClient') not found. Ensure provider is set up or client is passed differently.");
+      const coordinator = clientAtom.get().getCoordinator();
+
       if (!unsubscribeRollback) {
           unsubscribeRollback = coordinator.onRollback(handleRollback);
       }
       return () => {
           unsubscribeRollback?.();
           unsubscribeRollback = null;
+          resolvedProcedure = null; // Clear resolved procedure on unmount
       };
   });
 
@@ -189,9 +209,18 @@ export function mutation<
             status: 'loading',
         });
 
-        // Get client/procedure via selector for this mutation call
-        const { client, procedure } = $procedureClientPath.get()!; // Error likely persists here
-        const coordinator = client.getCoordinator();
+        // Use the procedure resolved and stored during onMount
+        if (!resolvedProcedure) {
+            throw new Error("[zenQuery] Mutation called before component mount or after unmount.");
+        }
+        const procedure = resolvedProcedure;
+
+        // Add placeholder coordinator access
+        // TODO: [TECH DEBT] Revisit coordinator access. Helpers should ideally receive client/coordinator via context or options.
+        const clientAtom = getAtom('zenQueryClient') as Atom<ZenQueryClient> | undefined; // Placeholder for coordinator access
+        if (!clientAtom) throw new Error("[zenQuery] Client atom ('zenQueryClient') not found. Ensure provider is set up or client is passed differently.");
+        const coordinator = clientAtom.get().getCoordinator();
+
         const clientSeq = coordinator.generateClientSeq();
         const patchesByAtom = new Map<AtomKey, Patch[]>();
         const inversePatchesByAtom = new Map<AtomKey, Patch[]>();
@@ -233,6 +262,7 @@ export function mutation<
                 }
             });
 
+            // Pass Immer Patch[] to coordinator, aligning with onRollback signature
             coordinator.registerPendingMutation(clientSeq, patchesByAtom, inversePatchesByAtom);
 
         } catch (optimisticError) {
@@ -259,11 +289,12 @@ export function mutation<
 
             // Use coordinator instance captured at the start of mutator
             // Add types for seq and result based on CoordinatorEvents
-            unsubAck = coordinator.on('onAck', (seq: number, result: unknown) => {
+            // Use onAck directly instead of generic 'on'
+            unsubAck = coordinator.onAck((seq: number, result?: any) => { // Use specific onAck signature
                 if (seq === clientSeq) {
                     if (mutationMapAtom.get().status === 'loading' && mutationMapAtom.get().variables === variables) {
                         mutationMapAtom.set({
-                            data: result as TOutput,
+                            data: result as TOutput, // Use result from onAck
                             loading: false, error: null, variables, status: 'success',
                         });
                     }
@@ -272,13 +303,13 @@ export function mutation<
                 }
             });
 
-            // Add types for seq and error based on CoordinatorEvents
-            unsubError = coordinator.on('onError', (seq: number, error: Error) => {
+            // Use onError directly instead of generic 'on'
+            unsubError = coordinator.onError((seq: number, error: any) => { // Use specific onError signature
                 if (seq === clientSeq) {
                      if (mutationMapAtom.get().status === 'loading' && mutationMapAtom.get().variables === variables) {
                         mutationMapAtom.set({
                             data: undefined, loading: false,
-                            error: error as TError, // Use error directly
+                            error: error as TError, // Use error from onError
                             variables, status: 'error',
                         });
                     }
@@ -303,10 +334,9 @@ export function mutation<
         });
     };
 
-    // Wrap the mutator with task() to manage concurrency.
-    const executeMutation = task(mutator); // Error likely persists here
-    // Call the original mutator function. task() intercepts this call.
-    return mutator(); // Error likely persists here
+    // Remove task wrapper for now
+    // const executeMutation = task(mutator);
+    return mutator();
   };
 
 

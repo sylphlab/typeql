@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, vi, type Mock, afterEach } from 'vitest';
 import { map, atom, type MapStore, type Atom, onMount, task, type ReadableAtom, type Store } from 'nanostores';
+// Import both patch types
 import type { Patch } from 'immer';
-// import type { Operation as PatchOperation } from 'fast-json-patch'; // Replaced with local interface
+import { applyPatch, type Operation } from 'fast-json-patch';
 
 // Import ProcedureClientPathSelector from query.ts
 import { subscription, type SubscriptionOptions, type SubscriptionAtom, type SubscriptionAtomState, type SubscriptionStatus } from './subscription'; // Function under test
@@ -9,16 +10,12 @@ import { type ProcedureClientPathSelector } from './query'; // Import selector t
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator, ServerDelta, CoordinatorEvents } from '../coordinator';
 import { generateAtomKey, registerAtom, unregisterAtom, getAtom, type AtomKey } from '../utils/atomRegistry';
+// Keep applyImmerPatches for rollback
 import { applyImmerPatches } from './patchUtils';
-import { applyJsonDelta } from './stateUtils';
+// Remove applyJsonDelta
+// import { applyJsonDelta } from './stateUtils';
 
-// Local definition as workaround for import issues
-interface PatchOperation {
-  op: 'add' | 'remove' | 'replace' | 'move' | 'copy' | 'test';
-  path: string;
-  value?: any;
-  from?: string;
-}
+// Remove local PatchOperation definition
 
 // --- Mocks ---
 
@@ -43,7 +40,8 @@ vi.mock('../coordinator', async () => {
     const MockCoordinator = vi.fn().mockImplementation(() => {
         const instance = {
             on: mockEmitter.on,
-            getPendingPatches: vi.fn(() => new Map<AtomKey, Patch[]>()),
+            // Return Operation[] for pending patches
+            getPendingPatches: vi.fn(() => new Map<AtomKey, Operation[]>()),
             __mockEmit: mockEmitter.emit,
             __mockClearListeners: mockEmitter.clearListeners,
         };
@@ -88,31 +86,28 @@ vi.mock('./patchUtils', () => ({
     }),
 }));
 
-// Mock State Utils (Keep as is)
-vi.mock('./stateUtils', () => ({
-    applyJsonDelta: vi.fn((base, patches) => {
-        console.log('[Mock applyJsonDelta] Applying:', patches, 'to base:', base);
-        if (patches.length > 0 && typeof base === 'object' && base !== null) {
-            return { ...base, __appliedDelta: true };
-        }
-        return base;
-    }),
-}));
-
-// Mock nanostores (Keep as is)
-vi.mock('nanostores', async (importOriginal) => {
-    const actual = await importOriginal() as typeof import('nanostores');
+// Mock fast-json-patch (similar to query.test.ts)
+vi.mock('fast-json-patch', async (importOriginal) => {
+    const actual = await importOriginal() as any;
     return {
         ...actual,
-        task: vi.fn((fn) => fn),
-        onMount: vi.fn((store: import('nanostores').Store, initialize?: () => void | (() => void)) => {
-            const storeWithMocks = store as any;
-            if (!storeWithMocks.__mockMountCallbacks) storeWithMocks.__mockMountCallbacks = [];
-            storeWithMocks.__mockMountCallbacks.push(initialize);
-            return () => {};
+        applyPatch: vi.fn((base, patches) => {
+            console.log('[Mock applyPatch] Applying:', patches, 'to base:', base);
+            const newDoc = structuredClone(base);
+            if (patches.length > 0 && typeof newDoc === 'object' && newDoc !== null) {
+                 newDoc.__appliedPatch = true; // Use generic marker
+            }
+            // Cast return to 'any' to bypass potential mock type inference issues
+            return { newDocument: newDoc } as any;
         }),
     };
 });
+
+// Remove mock for stateUtils
+// vi.mock('./stateUtils', () => ({ ... }));
+
+// Remove Nanostores mock entirely - let tests use actual implementation
+// vi.mock('nanostores', async (importOriginal) => { ... });
 
 // --- Test Suite ---
 
@@ -121,6 +116,8 @@ describe('Nanostores subscription() helper', () => {
     let mockCoordinatorInstance: OptimisticSyncCoordinator;
     let capturedUnmount: (() => void) | void | undefined;
     let mockClientUnsubscribe: Mock; // Keep this
+    let subscribeCallbacks: any; // Declare in higher scope
+    let mockApplyPatch: Mock; // Declare mock function in higher scope
 
     // Helper to simulate mounting (Keep as is)
     const simulateMount = (atomInstance: Atom<any>) => {
@@ -145,28 +142,41 @@ describe('Nanostores subscription() helper', () => {
         }
     };
 
+    // Make beforeEach async to handle await import
     beforeEach(async () => {
         vi.clearAllMocks();
+
+        // Import and assign mock function here
+        const fastJsonPatch = await import('fast-json-patch');
+        mockApplyPatch = vi.mocked(fastJsonPatch.applyPatch);
 
         const { OptimisticSyncCoordinator: MockCoordinator } = await import('../coordinator');
         mockCoordinatorInstance = new MockCoordinator();
         (mockCoordinatorInstance as any).__mockClearListeners?.();
         vi.mocked(mockClient.getCoordinator).mockReturnValue(mockCoordinatorInstance as any);
 
-        // Remove clientAtom creation
+        // Register mock client atom using the *actual* (but mocked) registerAtom
+        // This ensures it uses the mock's internal store
+        const { registerAtom: mockRegisterAtom } = await import('../utils/atomRegistry');
+        mockRegisterAtom('zenQueryClient', atom(mockClient));
+
 
         mockClientUnsubscribe = vi.fn();
         mockSubscribeProcedure.mockReset().mockReturnValue({ unsubscribe: mockClientUnsubscribe });
 
         vi.mocked(generateAtomKey).mockClear();
-        vi.mocked(registerAtom).mockClear();
+        // vi.mocked(registerAtom).mockClear(); // REMOVE - Interferes with mock implementation
         vi.mocked(unregisterAtom).mockClear();
-        vi.mocked(getAtom).mockClear();
+        // vi.mocked(getAtom).mockClear(); // REMOVE - Interferes with mock implementation
         vi.mocked(applyImmerPatches).mockClear();
-        vi.mocked(applyJsonDelta).mockClear();
-        vi.mocked(onMount).mockClear();
-        vi.mocked(task).mockClear();
+        mockApplyPatch.mockClear(); // Clear the mock function
+        // Remove applyJsonDelta mock clear
+        // vi.mocked(applyJsonDelta).mockClear();
+        // Remove mockClear for Nanostores functions
+        // vi.mocked(onMount).mockClear();
+        // vi.mocked(task).mockClear();
         capturedUnmount = undefined;
+        subscribeCallbacks = undefined; // Reset callbacks
     });
 
     afterEach(() => {
@@ -184,24 +194,32 @@ describe('Nanostores subscription() helper', () => {
     const defaultAtomKey = JSON.stringify({ path: defaultPath, input: defaultInput });
 
     // Define mock procedure selector for subscription
-    const mockProcedureSelector: ProcedureClientPathSelector<ZenQueryClient, { subscribe: Mock }> = (
+    // Update type usage: Remove TClient generic argument
+    const mockProcedureSelector: ProcedureClientPathSelector<{ subscribe: Mock }> = (
         get: <TValue>(atom: ReadableAtom<TValue> | Store<TValue>) => TValue
-    ) => ({
-        client: mockClient,
-        procedure: (mockClient.subscription.posts as any).updates, // Use 'as any' workaround
-        path: defaultPath,
-    });
-
-
+    ) => {
+        // Ensure the mock returns the exact structure expected by the refactored helper
+        const procedure = {
+            subscribe: mockSubscribeProcedure
+        };
+        return {
+            path: defaultPath, // Path string
+            procedure: procedure, // Procedure object containing the method
+            _isZenQueryProcedure: true // Marker
+        };
+    };
+  
+  
     // --- Test Cases ---
 
     it('should initialize with correct default state (enabled: true)', () => {
         // Update subscription call
         const subAtom = subscription(mockProcedureSelector, defaultOptions);
+        simulateMount(subAtom); // Add mount simulation
         const initialState = subAtom.get();
 
         expect(initialState.data).toBeUndefined();
-        expect(initialState.status).toBe('idle');
+        expect(initialState.status).toBe('connecting'); // Should be connecting after mount
         expect(initialState.error).toBeNull();
         expect(vi.mocked(generateAtomKey)).toHaveBeenCalledWith(defaultPath, defaultInput);
         expect(subAtom.key).toBe(defaultAtomKey);
@@ -211,20 +229,22 @@ describe('Nanostores subscription() helper', () => {
         const initialData = { id: '456', content: 'Initial Content', version: 0 };
         // Update subscription call
         const subAtom = subscription(mockProcedureSelector, { ...defaultOptions, initialData });
+        simulateMount(subAtom); // Add mount simulation
         const initialState = subAtom.get();
 
         expect(initialState.data).toEqual(initialData);
-        expect(initialState.status).toBe('idle');
+        expect(initialState.status).toBe('connecting'); // Should be connecting after mount
         expect(initialState.error).toBeNull();
     });
 
     it('should initialize with correct default state (enabled: false)', () => {
         // Update subscription call
         const subAtom = subscription(mockProcedureSelector, { ...defaultOptions, enabled: false });
+        simulateMount(subAtom); // Add mount simulation
         const initialState = subAtom.get();
 
         expect(initialState.data).toBeUndefined();
-        expect(initialState.status).toBe('idle');
+        expect(initialState.status).toBe('idle'); // Remains idle if not enabled
         expect(initialState.error).toBeNull();
     });
 
@@ -234,8 +254,9 @@ describe('Nanostores subscription() helper', () => {
             const subAtom = subscription(mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
 
-            expect(vi.mocked(registerAtom)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(registerAtom)).toHaveBeenCalledWith(defaultAtomKey, subAtom);
+            // Check for the second call, as the client atom is registered first in beforeEach
+            expect(vi.mocked(registerAtom)).toHaveBeenCalledTimes(2);
+            expect(vi.mocked(registerAtom).mock.calls[1]).toEqual([defaultAtomKey, subAtom]);
         });
 
         it('should subscribe to coordinator events (onStateChange, onApplyDelta, onRollback)', () => {
@@ -313,7 +334,7 @@ describe('Nanostores subscription() helper', () => {
 
     describe('onData Handling', () => {
         let subAtom: SubscriptionAtom<any, any>;
-        let subscribeCallbacks: { onData: Function; onError: Function; onComplete: Function };
+        // let subscribeCallbacks: { onData: Function; onError: Function; onComplete: Function }; // Moved to higher scope
 
         beforeEach(async () => {
             mockSubscribeProcedure.mockImplementation((input, callbacks) => {
@@ -328,7 +349,9 @@ describe('Nanostores subscription() helper', () => {
             expect(mockSubscribeProcedure).toHaveBeenCalledTimes(1);
             expect(subscribeCallbacks).toBeDefined();
             expect(subAtom.get().status).toBe('connected');
-            vi.mocked(applyJsonDelta).mockClear();
+            // Clear applyPatch mock
+            const { applyPatch: mockApplyPatch } = await import('fast-json-patch');
+            vi.mocked(mockApplyPatch).mockClear();
             vi.mocked(applyImmerPatches).mockClear();
         });
 
@@ -337,32 +360,37 @@ describe('Nanostores subscription() helper', () => {
 
             subscribeCallbacks.onData(snapshotData);
 
-            expect(vi.mocked(applyJsonDelta)).not.toHaveBeenCalled();
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledWith(snapshotData, []);
+            // Check applyPatch mock (called by computeOptimisticState after snapshot)
+            // Use mockApplyPatch defined in beforeEach
+            expect(mockApplyPatch).toHaveBeenCalledTimes(1);
+            expect(mockApplyPatch).toHaveBeenCalledWith(expect.objectContaining(snapshotData), [], true, false); // No pending patches
 
-            expect(subAtom.get().data).toEqual({ ...snapshotData, __appliedOptimistic: true });
+            expect(subAtom.get().data).toEqual({ ...snapshotData, __appliedPatch: true }); // Updated based on applyPatch mock
             expect(subAtom.get().status).toBe('connected');
             expect(subAtom.get().error).toBeNull();
         });
 
         it('should apply delta patches via onData', () => {
             const initialSnapshot = { id: '456', content: 'Initial', version: 1 };
-            const deltaPatches: PatchOperation[] = [{ op: 'replace', path: '/content', value: 'Delta Update' }, { op: 'add', path: '/newField', value: true }];
-            const expectedDataAfterDelta = { ...initialSnapshot, content: 'Delta Update', newField: true, __appliedDelta: true };
-            const expectedOptimisticData = { ...expectedDataAfterDelta, __appliedOptimistic: true };
+            const deltaPatches: Operation[] = [{ op: 'replace', path: '/content', value: 'Delta Update' }, { op: 'add', path: '/newField', value: true }];
+            // Update expected data based on applyPatch mock
+            const expectedDataAfterDelta = { ...initialSnapshot, content: 'Delta Update', newField: true, __appliedPatch: true };
+            const expectedOptimisticData = { ...expectedDataAfterDelta, __appliedPatch: true }; // applyPatch mock used for both
 
-            subscribeCallbacks.onData(initialSnapshot);
-            vi.mocked(applyJsonDelta).mockClear();
+            subscribeCallbacks.onData(initialSnapshot); // Set initial confirmed data
+            // Use mockApplyPatch defined in beforeEach
+            mockApplyPatch.mockClear(); // Clear calls from initial snapshot
             vi.mocked(applyImmerPatches).mockClear();
 
             subscribeCallbacks.onData(deltaPatches);
 
-            expect(vi.mocked(applyJsonDelta)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(applyJsonDelta)).toHaveBeenCalledWith(initialSnapshot, deltaPatches);
-
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledWith(expectedDataAfterDelta, []);
+            // Check applyPatch mock (called twice: once for delta, once for optimistic recompute)
+            // Use mockApplyPatch defined in beforeEach
+            expect(mockApplyPatch).toHaveBeenCalledTimes(2);
+            // First call applies the delta to initialSnapshot
+            expect(mockApplyPatch).toHaveBeenNthCalledWith(1, expect.objectContaining(initialSnapshot), deltaPatches, true, false);
+            // Second call recomputes optimistic state (base is now delta-applied data, patches are [])
+            expect(mockApplyPatch).toHaveBeenNthCalledWith(2, expect.objectContaining(expectedDataAfterDelta), [], true, false);
 
             expect(subAtom.get().data).toEqual(expectedOptimisticData);
             expect(subAtom.get().status).toBe('connected');
@@ -389,7 +417,7 @@ describe('Nanostores subscription() helper', () => {
 
     describe('Client Callback Handling (onError, onComplete)', () => {
         let subAtom: SubscriptionAtom<any, any>;
-        let subscribeCallbacks: { onData: Function; onError: Function; onComplete: Function };
+        // let subscribeCallbacks: { onData: Function; onError: Function; onComplete: Function }; // Moved to higher scope
 
         beforeEach(async () => {
             mockSubscribeProcedure.mockImplementation((input, callbacks) => {
@@ -400,6 +428,8 @@ describe('Nanostores subscription() helper', () => {
             // Update subscription call
             subAtom = subscription(mockProcedureSelector, defaultOptions);
             simulateMount(subAtom);
+            // Assume connection happens quickly in test setup
+            if (subscribeCallbacks) subscribeCallbacks.onData({}); // Simulate initial data to move to 'connected'
             expect(subAtom.get().status).toBe('connected');
         });
 
@@ -439,10 +469,12 @@ describe('Nanostores subscription() helper', () => {
 
     describe('Optimistic Updates (onStateChange)', () => {
         let subAtom: SubscriptionAtom<any, any>;
-        let subscribeCallbacks: { onData: Function; onError: Function; onComplete: Function };
+        // let subscribeCallbacks: { onData: Function; onError: Function; onComplete: Function }; // Moved to higher scope
         const initialData = { id: '456', content: 'Initial', version: 1 };
-        const optimisticPatch: Patch[] = [{ op: 'replace', path: ['content'], value: 'Optimistic Content' }];
-        const expectedOptimisticData = { ...initialData, content: 'Optimistic Content', __appliedOptimistic: true };
+        // Use Operation format for optimistic patches
+        const optimisticPatch: Operation[] = [{ op: 'replace', path: '/content', value: 'Optimistic Content' }];
+        // Update expected data based on applyPatch mock
+        const expectedOptimisticData = { ...initialData, __appliedPatch: true };
 
         beforeEach(async () => {
             mockSubscribeProcedure.mockImplementation((input, callbacks) => {
@@ -453,46 +485,54 @@ describe('Nanostores subscription() helper', () => {
             // Update subscription call
             subAtom = subscription(mockProcedureSelector, { ...defaultOptions, initialData });
             simulateMount(subAtom);
+            // Assume connection happens quickly in test setup
+            if (subscribeCallbacks) subscribeCallbacks.onData(initialData); // Simulate initial data to move to 'connected'
             expect(subAtom.get().status).toBe('connected');
 
+            // Use mockApplyPatch defined in beforeEach
+            mockApplyPatch.mockClear(); // Clear calls from initial data
             vi.mocked(applyImmerPatches).mockClear();
         });
 
         it('should apply pending patches from coordinator on onStateChange', () => {
-            const pendingPatchesMap = new Map<AtomKey, Patch[]>();
+            const pendingPatchesMap = new Map<AtomKey, Operation[]>(); // Use Operation[]
             pendingPatchesMap.set(defaultAtomKey, optimisticPatch);
-            vi.mocked(mockCoordinatorInstance.getPendingPatches).mockImplementation(() => pendingPatchesMap as any);
+            vi.mocked(mockCoordinatorInstance.getPendingPatches).mockImplementation(() => pendingPatchesMap);
 
             (mockCoordinatorInstance as any).__mockEmit('onStateChange');
 
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledWith(initialData, optimisticPatch);
+            // Check applyPatch mock
+            // Use mockApplyPatch defined in beforeEach
+            expect(mockApplyPatch).toHaveBeenCalledTimes(1);
+            expect(mockApplyPatch).toHaveBeenCalledWith(expect.objectContaining(initialData), optimisticPatch, true, false);
 
             expect(subAtom.get().data).toEqual(expectedOptimisticData);
             expect(subAtom.get().status).toBe('connected');
         });
 
         it('should do nothing if no pending patches for this atom', () => {
-            vi.mocked(mockCoordinatorInstance.getPendingPatches).mockImplementation(() => new Map() as any);
+            vi.mocked(mockCoordinatorInstance.getPendingPatches).mockImplementation(() => new Map());
 
             (mockCoordinatorInstance as any).__mockEmit('onStateChange');
 
-            expect(vi.mocked(applyImmerPatches)).not.toHaveBeenCalled();
-            // Data remains initial data (mock applyImmerPatches adds flag even on empty patches, adjust expectation)
-            expect(subAtom.get().data).toEqual({ ...initialData, __appliedOptimistic: true }); // Mock applies flag
+            const { applyPatch: mockApplyPatch } = await import('fast-json-patch');
+            expect(vi.mocked(mockApplyPatch)).not.toHaveBeenCalled();
+            // Data remains initial data (applyPatch mock adds flag only if patches exist)
+            expect(subAtom.get().data).toEqual(initialData);
         });
 
         it('should handle errors during optimistic patch application', () => {
             const patchError = new Error('Optimistic Patch failed');
-            vi.mocked(applyImmerPatches).mockImplementation(() => { throw patchError; });
+            // Use mockApplyPatch defined in beforeEach
+            mockApplyPatch.mockImplementation(() => { throw patchError; });
 
-            const pendingPatchesMap = new Map<AtomKey, Patch[]>();
+            const pendingPatchesMap = new Map<AtomKey, Operation[]>(); // Use Operation[]
             pendingPatchesMap.set(defaultAtomKey, optimisticPatch);
-            vi.mocked(mockCoordinatorInstance.getPendingPatches).mockImplementation(() => pendingPatchesMap as any);
+            vi.mocked(mockCoordinatorInstance.getPendingPatches).mockImplementation(() => pendingPatchesMap);
 
             (mockCoordinatorInstance as any).__mockEmit('onStateChange');
 
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(1);
+            expect(mockApplyPatch).toHaveBeenCalledTimes(1);
             expect(subAtom.get().status).toBe('error');
             expect(subAtom.get().error).toBe(patchError);
             expect(subAtom.get().data).toEqual(initialData);
@@ -504,40 +544,49 @@ describe('Nanostores subscription() helper', () => {
         const initialData = { id: '456', content: 'Initial', version: 1 };
 
         beforeEach(async () => {
-            mockSubscribeProcedure.mockImplementation(() => ({ unsubscribe: mockClientUnsubscribe }));
+            mockSubscribeProcedure.mockImplementation((input, callbacks) => { // Ensure callbacks are captured
+                subscribeCallbacks = callbacks;
+                return { unsubscribe: mockClientUnsubscribe };
+            });
 
             // Update subscription call
             subAtom = subscription(mockProcedureSelector, { ...defaultOptions, initialData });
             simulateMount(subAtom);
+            // Assume connection happens quickly in test setup
+            if (subscribeCallbacks) subscribeCallbacks.onData(initialData); // Simulate initial data to move to 'connected'
             expect(subAtom.get().status).toBe('connected');
 
-            vi.mocked(applyJsonDelta).mockClear();
+            // Use mockApplyPatch defined in beforeEach
+            mockApplyPatch.mockClear(); // Clear calls from initial data
             vi.mocked(applyImmerPatches).mockClear();
         });
 
         it('should apply delta patches from coordinator via onApplyDelta', () => {
-            const coordDeltaPatch: PatchOperation[] = [{ op: 'replace', path: '/content', value: 'Coordinator Delta' }];
+            const coordDeltaPatch: Operation[] = [{ op: 'replace', path: '/content', value: 'Coordinator Delta' }]; // Use imported Operation type
             const expectedDataAfterDelta = { ...initialData, content: 'Coordinator Delta', __appliedDelta: true };
             const expectedOptimisticData = { ...expectedDataAfterDelta, __appliedOptimistic: true };
 
             const serverDelta: ServerDelta = { serverSeq: 2, key: defaultAtomKey, patches: coordDeltaPatch };
             (mockCoordinatorInstance as any).__mockEmit('onApplyDelta', serverDelta);
 
-            expect(vi.mocked(applyJsonDelta)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(applyJsonDelta)).toHaveBeenCalledWith(initialData, coordDeltaPatch);
-
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(1);
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledWith(expectedDataAfterDelta, []);
+            // Check applyPatch mock (called twice: once for delta, once for optimistic recompute)
+            // Use mockApplyPatch defined in beforeEach
+            expect(mockApplyPatch).toHaveBeenCalledTimes(2);
+            // First call applies the delta to initialData
+            expect(mockApplyPatch).toHaveBeenNthCalledWith(1, expect.objectContaining(initialData), coordDeltaPatch, true, false);
+            // Second call recomputes optimistic state (base is now delta-applied data, patches are [])
+            expect(mockApplyPatch).toHaveBeenNthCalledWith(2, expect.objectContaining(expectedDataAfterDelta), [], true, false);
 
             expect(subAtom.get().data).toEqual(expectedOptimisticData);
             expect(subAtom.get().status).toBe('connected');
         });
 
         it('should ignore coordinator deltas for different atom keys', () => {
-            const serverDelta: ServerDelta = { serverSeq: 2, key: 'other/key', patches: [{ op: 'add', path: '/foo', value: 1 }] };
+            const serverDelta: ServerDelta = { serverSeq: 2, key: 'other/key', patches: [{ op: 'add', path: '/foo', value: 1 }] as Operation[] }; // Cast patches to Operation[]
             (mockCoordinatorInstance as any).__mockEmit('onApplyDelta', serverDelta);
 
-            expect(vi.mocked(applyJsonDelta)).not.toHaveBeenCalled();
+            // Use mockApplyPatch defined in beforeEach
+            expect(mockApplyPatch).not.toHaveBeenCalled();
             expect(vi.mocked(applyImmerPatches)).not.toHaveBeenCalled();
             expect(subAtom.get().data).toEqual(initialData);
         });
@@ -551,16 +600,21 @@ describe('Nanostores subscription() helper', () => {
             rollbackMap.set(defaultAtomKey, inversePatch);
 
             const rolledBackState = { ...initialData }; // Expected state after inverse applied
-            vi.mocked(applyImmerPatches).mockReturnValueOnce(rolledBackState); // Mock the result of computeOptimisticState after rollback
+            // Mock applyImmerPatches for the rollback step
+            vi.mocked(applyImmerPatches).mockReturnValueOnce(rolledBackState);
+            // Mock applyPatch for the subsequent computeOptimisticState call
+            // Use mockApplyPatch defined in beforeEach
+            mockApplyPatch.mockReturnValueOnce({ newDocument: rolledBackState } as any); // Recompute results in rolledBackState
 
             (mockCoordinatorInstance as any).__mockEmit('onRollback', rollbackMap);
 
-            // Check applyImmerPatches called by rollback handler AND subsequent computeOptimisticState
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(2); // Once for rollback, once for recompute
-            // Check the call that applied the inverse patch
+            // Check applyImmerPatches called by rollback handler
+            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledTimes(1);
             expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledWith(optimisticStateBeforeRollback, inversePatch);
-            // Check the call from computeOptimisticState after rollback
-            expect(vi.mocked(applyImmerPatches)).toHaveBeenCalledWith(rolledBackState, []); // Assuming no other pending patches
+
+            // Check applyPatch called by computeOptimisticState after rollback
+            expect(mockApplyPatch).toHaveBeenCalledTimes(1);
+            expect(mockApplyPatch).toHaveBeenCalledWith(expect.objectContaining(rolledBackState), [], true, false); // No pending patches
 
             expect(subAtom.get().data).toEqual(rolledBackState); // Final state after recompute
             expect(subAtom.get().status).toBe('connected');

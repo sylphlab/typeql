@@ -136,9 +136,8 @@ export type AppRouter = typeof appRouter;
  // 3. Mutation Atom
  export const $addTodo = mutation<AppRouter['todos']['add']['_def']['_input']>(
    // Selector function: returns the procedure reference
-   get => get($client).todos.add,
-   { // Options object
-     path: 'todos.add', // Path for registry key (if needed by coordinator/rollback)
+   get => get($client).todos.add, // Selector just returns the procedure
+   { // Options object (NO 'path' needed)
      effects: [ // Define optimistic updates
        effect($todos, (currentTodos, input) => { // Target atom, apply patch recipe
          const tempId = `temp-${Date.now()}`;
