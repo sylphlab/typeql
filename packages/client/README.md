@@ -38,7 +38,7 @@ pnpm add @sylphlab/zen-query-client
     const transport = createWebSocketTransport({ url: 'ws://localhost:3000' });
 
     // Create the client instance (likely within a Nanostore atom)
-    export const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+    export const $client = atom(() => // Type is inferred
       createClient<AppRouter>({ transport })
     );
 
@@ -63,7 +63,7 @@ import { createClient } from '@sylphlab/zen-query-client';
 import { createHttpTransport } from '@sylphlab/zen-query-transport-http';
 import type { AppRouter } from '../server/router'; // Your server router type
 
-export const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+export const $client = atom(() => // Type is inferred
   createClient<AppRouter>({
     transport: createHttpTransport({ url: '/api/zenquery', batching: true }),
     // Add other client options if needed

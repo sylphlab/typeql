@@ -106,79 +106,69 @@ export type AppRouter = typeof appRouter;
 ```
 
 ```typescript
-// packages/client/src/client.ts (Example Usage)
-import { createClient } from '@sylphlab/zenquery-client';
-import { createWebSocketTransport } from '@sylphlab/zenquery-transport-websocket'; // Example transport
-import type { AppRouter } from './server'; // <-- Import only the TYPE
-import { applyPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // Use fast-json-patch
-
-// Example state management (replace with your actual state logic)
-let localTodos: Record<string, Todo> = {};
-
-const transport = createWebSocketTransport({ url: 'ws://localhost:3000' }); // Configure your transport
-const client = createClient<AppRouter>({ transport });
-
-async function main() {
-  // Query (Using procedure helper style)
-  const initialTodosArray = await client.query('getTodos');
-  localTodos = initialTodosArray.reduce((acc, todo) => {
-    acc[todo.id] = todo;
-    return acc;
-  }, {} as Record<string, Todo>);
-  console.log('Initial Todos:', localTodos);
-
-  // Mutation (with optimistic update example)
-  const tempId = `temp-${Math.random().toString(36).substring(7)}`;
-  const optimisticTodo: Todo = { id: tempId, text: 'Buy milk', completed: false };
-  // Use the binding helpers for optimistic updates (conceptual)
-  // const $addTodo = mutation($client, { mutation: c => c.mutation('addTodo'), effects: [...] });
-  // $addTodo.get().mutate({ text: 'Buy milk' });
-
-  // Manual optimistic apply for demo
-  applyPatch(localTodos, optimisticPatch);
-  console.log('Optimistic Todos:', localTodos);
-
-  // Apply optimistically (manual for demo)
-  applyPatch(localTodos, [{ op: 'add', path: `/${tempId}`, value: optimisticTodo }]);
-  console.log('Optimistic Todos:', localTodos);
-
-  try {
-    // Use procedure helper style for mutation
-    const addedTodo = await client.mutate('addTodo', { text: 'Buy milk' });
-    console.log('Added Todo (Server Confirmed):', addedTodo);
-    // Reconciliation logic (replacing tempId etc.) would be handled by
-    // the OptimisticSyncCoordinator and Nanostores Binding Helpers
-  } catch (error) {
-    console.error("Mutation failed:", error);
-    // Revert optimistic update if needed
-    // applyPatch(localTodos, revertPatch); // Logic to generate revert patch
-  }
-
-
-  // Subscription (Using procedure helper style and async iterator)
-  try {
-    const subscription = await client.subscribe('onTodoUpdate'); // No input needed for this example
-    console.log('Subscribed to todo updates...');
-    for await (const delta of subscription.iterator) {
-      console.log('Received Delta:', delta);
-      // Apply delta to local state
-      try {
-        applyPatch(localTodos, delta);
-        console.log('Updated Todos:', localTodos);
-      } catch (e) {
-        console.error("Failed to apply delta:", e, delta);
-        // Request full state refresh?
-      }
-    }
-    console.log('Subscription ended.');
-  } catch (err) {
-    console.error('Subscription Error:', err);
-  }
-  // Unsubscription handled by ending the loop or client disconnect
-}
-
-main();
-```
+ // packages/client/src/nanostoresUsage.ts (Example Usage with Nanostores)
+ import { atom, useStore } from '@nanostores/react'; // Or @nanostores/preact etc.
+ import { createClient } from '@sylphlab/zenquery-client';
+ import { query, mutation, effect } from '@sylphlab/zenquery-client/nanostores';
+ import { createWebSocketTransport } from '@sylphlab/zenquery-transport-websocket';
+ import type { AppRouter } from './server'; // <-- Import only the TYPE
+ 
+ // Assume Todo type is defined
+ interface Todo { id: string; text: string; completed: boolean; status?: string }
+ 
+ // 1. Create Client Atom
+ const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+   createClient<AppRouter>({
+     transport: createWebSocketTransport({ url: 'ws://localhost:3000' })
+   })
+ );
+ 
+ // 2. Create Query Atom using the 'query' helper
+ const $todos = query($client, {
+   query: (client) => client.todos.list.query, // Select the query procedure
+   initialData: [] as Todo[], // Optional initial data
+ });
+ 
+ // 3. Create Mutation Atom using the 'mutation' helper
+ const $addTodo = mutation($client, {
+   mutation: (client) => client.todos.add.mutate, // Select the mutation procedure
+   effects: [ // Define optimistic updates
+     effect($todos, (currentTodos, input: { text: string }) => { // Target atom, recipe
+       const tempId = `temp-${Date.now()}`;
+       return [...currentTodos, { ...input, id: tempId, completed: false, status: 'pending' }];
+     })
+   ]
+ });
+ 
+ // 4. Use in Component
+ function TodoList() {
+   const { data: todos, loading, error } = useStore($todos);
+   const { mutate: addTodo, loading: isAdding } = useStore($addTodo);
+ 
+   const handleAdd = () => {
+     addTodo({ text: 'New todo from zenQuery!' });
+   };
+ 
+   if (loading && !todos?.length) return <div>Loading...</div>;
+   if (error) return <div>Error: {error.message}</div>;
+ 
+   return (
+     <div>
+       <button onClick={handleAdd} disabled={isAdding}>
+         {isAdding ? 'Adding...' : 'Add Todo'}
+       </button>
+       <ul>
+         {todos?.map(todo => (
+           <li key={todo.id} style={{ opacity: todo.status === 'pending' ? 0.5 : 1 }}>
+             {todo.text} {todo.status === 'pending' ? '(Sending...)' : ''}
+           </li>
+         ))}
+       </ul>
+       {/* Subscription updates to $todos will automatically reflect here */}
+     </div>
+   );
+ }
+ ```
 
 ---
 

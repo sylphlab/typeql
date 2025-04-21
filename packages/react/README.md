@@ -23,7 +23,7 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
     import { createWebSocketTransport } from '@sylphlab/zenquery-transport-websocket';
     import type { AppRouter } from '../server/router'; // Your server router type
 
-    export const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+    export const $client = atom(() => // Type is inferred
       createClient<AppRouter>({
         transport: createWebSocketTransport({ url: 'ws://...' }),
       })
