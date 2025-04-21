@@ -209,6 +209,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount to potentially run
             // Wrap mutate call in task to ensure onMount completes
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -238,6 +239,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffects);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -259,6 +261,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffect);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -280,6 +283,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffect);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -304,6 +308,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -322,6 +327,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -342,6 +348,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task
             const mutatePromise = task(() => mutationAtom.mutate(mutationVariables));
 
@@ -370,7 +377,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, optionsWithEffect);
             simulateMount(mutationAtom); // Ensure mount before mutate
-
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task and await the task's promise
             await expect(task(() => mutationAtom.mutate(mutationVariables))).rejects.toThrow('Failed applying optimistic effect');
 
@@ -393,7 +400,7 @@ describe('Nanostores mutation() helper', () => {
             // Update mutation call: Pass mockClientAtom
             const mutationAtom = mutation(mockClientAtom, mockProcedureSelector, defaultOptions);
             simulateMount(mutationAtom); // Ensure mount before mutate
-
+            await vi.advanceTimersByTimeAsync(0); // Wait for onMount
             // Wrap mutate call in task and await the task's promise
             await expect(task(() => mutationAtom.mutate(mutationVariables))).rejects.toThrow('Procedure not found');
 

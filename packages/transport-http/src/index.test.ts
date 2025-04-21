@@ -388,19 +388,32 @@ it('should reject all promises if the batch fetch itself encounters a network er
 
     vi.advanceTimersByTime(delayMs);
 
-    // Expect both promises to reject with the network error (or a wrapped version)
-    // The current implementation wraps it in a generic 'Batch request failed' error
-    await expect(promise1).rejects.toThrow('Batch request failed');
-    await expect(promise2).rejects.toThrow('Batch request failed');
-
-    // Check the underlying error if needed (depends on implementation detail)
+    // Expect both promises to reject. Use try/catch for explicit handling.
+    let error1, error2;
     try {
         await promise1;
-    } catch (e: any) {
-        // Check if the original error is somehow attached or if it's just the generic message
-        // This assertion might need adjustment based on how errors are wrapped/propagated
-        expect(e.message).toBe('Batch request failed');
+    } catch (e) {
+        error1 = e;
     }
+    try {
+        await promise2;
+    } catch (e) {
+        error2 = e;
+    }
+
+    expect(error1).toBeInstanceOf(Error);
+    expect((error1 as Error).message).toBe('Batch request failed');
+    expect(error2).toBeInstanceOf(Error);
+    expect((error2 as Error).message).toBe('Batch request failed');
+
+    // Check the underlying error if needed (depends on implementation detail - removed for simplicity)
+    // try {
+    //     await promise1;
+    // } catch (e: any) {
+    //     // Check if the original error is somehow attached or if it's just the generic message
+    //     // This assertion might need adjustment based on how errors are wrapped/propagated
+    //     expect(e.message).toBe('Batch request failed');
+    // }
 
 
     expect(mockFetch).toHaveBeenCalledOnce();
