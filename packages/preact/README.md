@@ -39,23 +39,21 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
     import { atom } from 'nanostores'; // Import base atom if needed
 
     // Query Atom
-    const postsSelector = (get: any) => {
-      const client = get($client);
-      return { client, procedure: client.posts.list, path: 'posts.list' };
-    };
-    export const $posts = query(postsSelector, {
-      // input: undefined,
-      initialData: [],
-    });
-
+    export const $posts = query(
+      // Selector function: receives 'get', returns the procedure reference
+      get => get($client).posts.list,
+      // Options object: includes 'path' for registry key and procedure input
+      { path: 'posts.list', initialData: [] } // Assuming no input needed for list
+    );
+    
     // Mutation Atom
-    const addPostSelector = (get: any) => {
-      const client = get($client);
-      return { client, procedure: client.posts.add, path: 'posts.add' };
-    };
-    export const $addPost = mutation(addPostSelector, {
-      effects: [
-        effect($posts, (currentPosts, input) => { // Target atom, apply patch recipe
+    export const $addPost = mutation(
+      // Selector function: returns the procedure reference
+      get => get($client).posts.add,
+      { // Options object
+        path: 'posts.add', // Path for registry key (if needed by coordinator/rollback)
+        effects: [ // Define optimistic updates
+          effect($posts, (currentPosts, input) => { // Target atom, apply patch recipe
           const tempId = `temp-${Date.now()}`;
           const current = currentPosts ?? [];
           return [...current, { ...input, id: tempId, status: 'pending' }];

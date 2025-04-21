@@ -126,22 +126,19 @@ export type AppRouter = typeof appRouter;
  );
  
  // 2. Query Atom
- export const $todos = query<AppRouter['todos']['list']['_def']['_output'], Error, { limit: number }>( // Explicit types for clarity, often inferred
-   (get) => { // Procedure Selector receives nanostores 'get'
-     const client = get($client); // Get client instance
-     // Return client, procedure reference, and unique path string
-     return { client, procedure: client.todos.list, path: 'todos.list' };
-   },
-   { input: { limit: 10 }, initialData: [] } // Options: input, initialData etc.
+ export const $todos = query<AppRouter['todos']['list']['_def']['_output'], Error, { limit: number }>(
+   // Selector function: receives 'get', returns the procedure reference
+   get => get($client).todos.list,
+   // Options object: includes 'path' for registry key and procedure input
+   { path: 'todos.list', input: { limit: 10 }, initialData: [] }
  );
  
  // 3. Mutation Atom
- export const $addTodo = mutation<AppRouter['todos']['add']['_def']['_input']>( // Input type for mutate fn
-   (get) => { // Procedure Selector
-     const client = get($client);
-     return { client, procedure: client.todos.add, path: 'todos.add' };
-   },
-   { // Options
+ export const $addTodo = mutation<AppRouter['todos']['add']['_def']['_input']>(
+   // Selector function: returns the procedure reference
+   get => get($client).todos.add,
+   { // Options object
+     path: 'todos.add', // Path for registry key (if needed by coordinator/rollback)
      effects: [ // Define optimistic updates
        effect($todos, (currentTodos, input) => { // Target atom, apply patch recipe
          const tempId = `temp-${Date.now()}`;
