@@ -150,6 +150,14 @@ export type AppRouter = typeof appRouter;
    }
  );
  
+ // 4. (Optional) Hybrid Atom using the 'hybrid' helper
+ //    Combines a query atom and a subscription atom
+ const $todosSub = subscription(
+   get => get($client).todos.onUpdate,
+   { /* input if needed */ }
+ );
+ const $todosHybrid = hybrid($todos, $todosSub); // Combines query and subscription
+ 
  // --- Component.tsx ---
  import React from 'react';
  import { useStore } from '@nanostores/react';
@@ -157,7 +165,8 @@ export type AppRouter = typeof appRouter;
  
  function TodoManager() {
    // 4. Use atoms in component
-   const { data: todos, loading, error, status } = useStore($todos);
+   //    Can use the query atom directly, or the hybrid atom
+   const { data: todos, loading, error, status } = useStore($todosHybrid); // Using hybrid atom
    const { mutate: addTodo, loading: isAdding } = useStore($addTodo);
  
    const handleAdd = () => {
@@ -179,7 +188,7 @@ export type AppRouter = typeof appRouter;
            </li>
          ))}
        </ul>
-       {/* Subscription updates would likely involve another atom created with 'subscription' helper */}
+       {/* Hybrid atom automatically reflects subscription updates */}
      </div>
    );
  }

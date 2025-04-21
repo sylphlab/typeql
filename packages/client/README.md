@@ -71,7 +71,7 @@ export const $client = atom(() => // Type is inferred
 );
 
 // --- Binding Helpers ---
-import { query, mutation, effect } from '@sylphlab/zen-query-client/nanostores';
+import { query, subscription, hybrid, mutation, effect } from '@sylphlab/zen-query-client/nanostores';
 
 // Query Atom
 export const $posts = query(
@@ -98,21 +98,32 @@ export const $addPost = mutation(
   // onError: (error, input) => { console.error('Failed:', error); },
 });
 
+// Subscription Atom (Example)
+export const $postsSub = subscription(
+  get => get($client).posts.onUpdate,
+  { /* input if needed */ }
+);
+
+// Hybrid Atom (Combines Query and Subscription)
+export const $postsHybrid = hybrid($posts, $postsSub);
+
 // --- Component Usage (React Example) ---
 import React from 'react';
 import { useStore } from '@nanostores/react';
 import { $posts, $addPost } from './store';
 
 function PostManager() {
-  const { data: posts, loading, error } = useStore($posts);
+  // Use the hybrid atom to get initial data + realtime updates
+  const { data: posts, loading, error, status } = useStore($postsHybrid);
   const { mutate: addPost, loading: isAdding } = useStore($addPost);
 
   const handleAdd = () => {
     addPost({ title: 'New Post via Nanostores', content: '...' });
   };
 
-  if (loading && !posts?.length) return <div>Loading posts...</div>;
-  if (error) return <div>Error loading posts: {error.message}</div>;
+  // Use status for more granular loading/error states
+  if (status === 'loading' && !posts?.length) return <div>Loading posts...</div>;
+  if (status === 'error') return <div>Error loading posts: {error?.message}</div>;
 
   return (
     <div>

@@ -35,9 +35,9 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
     ```typescript
     // src/store.ts (Example)
     import { $client } from './clientSetup';
-    import { query, mutation, effect } from '@sylphlab/zen-query-client/nanostores';
+    import { query, subscription, hybrid, mutation, effect } from '@sylphlab/zen-query-client/nanostores';
     import { atom } from 'nanostores'; // Import base atom if needed
-
+    
     // Query Atom
     export const $posts = query(
       // Selector function: receives 'get', returns the procedure reference
@@ -59,6 +59,15 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
         }),
       ],
     });
+
+    // Subscription Atom (Example)
+    export const $postsSub = subscription(
+      get => get($client).posts.onUpdate,
+      { /* input if needed */ }
+    );
+
+    // Hybrid Atom (Combines Query and Subscription)
+    export const $postsHybrid = hybrid($posts, $postsSub);
     ```
 
 3.  **Use in Preact Components:** Use the `useStore` hook from `@nanostores/preact` to interact with the atoms.
@@ -70,15 +79,17 @@ This package primarily works in conjunction with `@sylphlab/zen-query-client/nan
     import { $posts, $addPost } from '../store';
 
     function PostManager() {
-      const { data: posts, loading, error } = useStore($posts);
+      // Use the hybrid atom to get initial data + realtime updates
+      const { data: posts, loading, error, status } = useStore($postsHybrid);
       const { mutate: addPost, loading: isAdding } = useStore($addPost);
 
       const handleAdd = () => {
         addPost({ title: 'New Post via Preact', content: '...' });
       };
 
-      if (loading && !posts?.length) return <div>Loading posts...</div>;
-      if (error) return <div>Error loading posts: {error.message}</div>;
+      // Use status for more granular loading/error states
+      if (status === 'loading' && !posts?.length) return <div>Loading posts...</div>;
+      if (status === 'error') return <div>Error loading posts: {error?.message}</div>;
 
       return (
         <div>

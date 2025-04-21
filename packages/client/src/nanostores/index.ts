@@ -8,6 +8,7 @@
 export { query, type QueryMapState as QueryAtomState, type QueryOptions } from './query'; // Renamed QueryMapState
 export { subscription, type SubscriptionAtomState, type SubscriptionOptions, type SubscriptionStatus } from './subscription';
 export { mutation, effect, type MutationAtomState, type MutationOptions } from './mutation';
+export { hybrid, type HybridAtomState, type HybridStatus } from './hybrid';
 
 // Optionally re-export atom registry utilities if they are intended for public use
 // export * from '../utils/atomRegistry';
