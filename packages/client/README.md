@@ -1,77 +1,129 @@
-# zenQuery Client (`@sylphlab/typeql-client`)
+# zenQuery Client (`@sylphlab/zen-query-client`)
 
 This package provides the core client-side logic for interacting with a zenQuery server. It allows you to create a fully typesafe client based on your server's router definition.
 
 ## Installation
 
 ```bash
-pnpm add @sylphlab/typeql-client
-# You also need to install a transport package, e.g.:
-pnpm add @sylphlab/typeql-transport-websocket
-```
+pnpm add @sylphlab/zen-query-client
+ # You also need to install a transport package, e.g.:
+ pnpm add @sylphlab/zen-query-transport-websocket
+ # And Nanostores for state integration:
+ pnpm add nanostores @nanostores/react # or other framework bindings
+ ```
 
 ## Basic Usage
 
-1.  **Define your Server Router:** (See `@sylphlab/typeql-server` documentation) Export the *type* of your router.
+1.  **Define your Server Router:** (See `@sylphlab/zen-query-server` documentation) Export the *type* of your router.
 
     ```typescript
     // server.ts (Example)
-    import { createRouter } from '@sylphlab/typeql-server';
-    // ... define procedures ...
-    const appRouter = createRouter({ /* ... procedures ... */ });
+    import { initZenQuery, createRouter } from '@sylphlab/zenquery-server';
+    // ... define procedures using t.query, t.mutation, t.subscription ...
+    const t = initZenQuery<MyContext>();
+    const appRouter = createRouter<MyContext>()({ /* ... procedures ... */ });
     export type AppRouter = typeof appRouter; // Export the type
     ```
 
 2.  **Create the Client:** Import `createClient`, a transport implementation, and your server's `AppRouter` type.
 
     ```typescript
-    // client.ts
-    import { createClient } from '@sylphlab/typeql-client';
-    import { createWebSocketTransport } from '@sylphlab/typeql-transport-websocket'; // Choose your transport
+    // clientSetup.ts (Example)
+    import { atom } from 'nanostores';
+    import { createClient } from '@sylphlab/zen-query-client';
+    import { createWebSocketTransport } from '@sylphlab/zen-query-transport-websocket'; // Choose your transport
     import type { AppRouter } from './server'; // Import the router TYPE
 
     // Configure and create the transport
     const transport = createWebSocketTransport({ url: 'ws://localhost:3000' });
 
-    // Create the typesafe client
-    const client = createClient<AppRouter>({ transport });
+    // Create the client instance (likely within a Nanostore atom)
+    export const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+      createClient<AppRouter>({ transport })
+    );
 
-    // Now you can call procedures with full type safety and autocompletion!
-    async function fetchData() {
-      // Example Query
-      const users = await client.users.list.query();
-      console.log(users);
-
-      // Example Mutation
-      const newUser = await client.users.create.mutate({ name: 'Alice' });
-      console.log(newUser);
-
-      // Example Subscription
-      const sub = client.posts.onUpdate.subscribe({
-        onData: (delta) => {
-          console.log('Received post update delta:', delta);
-          // Apply delta to your local state
-        },
-        onError: (err) => {
-          console.error('Subscription error:', err);
-        }
-      });
-
-      // Unsubscribe later
-      // sub.unsubscribe();
-    }
+    // Now use the binding helpers with the client atom!
+    // See usage examples with Nanostores binding helpers below
     ```
 
-## Features
+## Features & Architecture
 
 *   **End-to-End Typesafety:** Leverages TypeScript inference from your server router.
 *   **Transport Agnostic:** Works with different transport layers (WebSocket, HTTP, VSCode, etc.).
-*   **Queries:** Fetch data using `.query()`.
-*   **Mutations:** Modify data using `.mutate()`.
-    *   **Optimistic Updates:** Supports providing optimistic update information (`id`, `patch`) for immediate UI feedback and automatic reconciliation.
-*   **Subscriptions:** Subscribe to realtime updates using `.subscribe()`.
-    *   **Delta-based:** Receives granular JSON Patch updates for efficient state synchronization.
-    *   **Error Handling:** Provides `onError` callback.
-    *   **Lifecycle:** Returns an object with an `unsubscribe` method.
+*   **Optimistic Updates & Realtime Sync:** Built-in `OptimisticSyncCoordinator` engine handles sequence numbers, pending mutations, conflict resolution, and recomputation logic.
+*   **Delta-based Subscriptions:** Designed to receive and apply granular JSON Patch updates for efficient state synchronization.
+*   **Nanostores Integration:** Provides helper functions (`query`, `subscription`, `mutation`, `effect`) in `@sylphlab/zen-query-client/nanostores` to seamlessly bind zenQuery operations with Nanostore atoms.
 
-See the main project [README](../../README.md) for a more complete example and overview.
+## Usage with Nanostores
+
+```typescript
+// store.ts
+import { atom } from 'nanostores';
+import { createClient } from '@sylphlab/zen-query-client';
+import { createHttpTransport } from '@sylphlab/zen-query-transport-http';
+import type { AppRouter } from '../server/router'; // Your server router type
+
+export const $client = atom<ReturnType<typeof createClient<AppRouter>>>(() =>
+  createClient<AppRouter>({
+    transport: createHttpTransport({ url: '/api/zenquery', batching: true }),
+    // Add other client options if needed
+  })
+);
+
+// --- Binding Helpers ---
+import { query, mutation, effect } from '@sylphlab/zen-query-client/nanostores';
+
+// Query Atom
+export const $posts = query($client, {
+  query: (client) => client.posts.list.query,
+  initialData: [],
+});
+
+// Mutation Atom with Optimistic Update
+export const $addPost = mutation($client, {
+  mutation: (client) => client.posts.add.mutate,
+  effects: [
+    effect($posts, (currentPosts, input) => { // Target atom, apply patch recipe
+      const tempId = `temp-${Date.now()}`;
+      return [...currentPosts, { ...input, id: tempId, status: 'pending' }];
+    }),
+    // Add effects for other atoms if needed
+  ],
+  // onSuccess: (result, input) => { console.log('Added:', result); },
+  // onError: (error, input) => { console.error('Failed:', error); },
+});
+
+// --- Component Usage (React Example) ---
+import React from 'react';
+import { useStore } from '@nanostores/react';
+import { $posts, $addPost } from './store';
+
+function PostManager() {
+  const { data: posts, loading, error } = useStore($posts);
+  const { mutate: addPost, loading: isAdding } = useStore($addPost);
+
+  const handleAdd = () => {
+    addPost({ title: 'New Post via Nanostores', content: '...' });
+  };
+
+  if (loading && !posts?.length) return <div>Loading posts...</div>;
+  if (error) return <div>Error loading posts: {error.message}</div>;
+
+  return (
+    <div>
+      <button onClick={handleAdd} disabled={isAdding}>
+        {isAdding ? 'Adding...' : 'Add Post'}
+      </button>
+      <ul>
+        {posts?.map(post => (
+          <li key={post.id} style={{ opacity: post.status === 'pending' ? 0.5 : 1 }}>
+            {post.title} {post.status === 'pending' ? '(Sending...)' : ''}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+See the main project [README](../../README.md) for a higher-level overview. Check the technical guidelines (`memory-bank/zenquery_technical_guidelines_v1.md`) for detailed architecture.

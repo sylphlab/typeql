@@ -5,9 +5,9 @@ This example demonstrates using zenQuery in a React application built with Vite,
 ## Features Demonstrated
 
 *   **zenQuery Server:** Basic router setup with queries, mutations, and subscriptions (`server/index.ts`).
-*   **zenQuery Client:** Connecting to the server using `@sylphlab/typeql-transport-websocket`.
-*   **React Integration:** Using `@sylphlab/typeql-react` hooks (`useQuery`, `useMutation`, `useSubscription`) to interact with the zenQuery API.
-*   **Realtime Updates:** Subscribing to backend changes and applying delta updates to the UI.
+*   **zenQuery Client:** Connecting to the server using `@sylphlab/zenquery-transport-websocket`.
+*   **React/Nanostores Integration:** Using `@sylphlab/zenquery-client/nanostores` helpers (`query`, `mutation`, `subscription`) and `@nanostores/react` to interact with the zenQuery API and manage state.
+*   **Realtime Updates:** Subscribing to backend changes and applying delta updates (JSON Patch) to the Nanostore atoms.
 *   **Optimistic Updates:** Basic example of optimistic UI updates for mutations.
 
 ## Setup

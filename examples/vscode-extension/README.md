@@ -1,13 +1,13 @@
 # zenQuery VSCode Extension Example
 
-This example demonstrates using zenQuery to facilitate communication between a VSCode extension's main process (extension host) and a webview panel, using the `@sylphlab/typeql-transport-vscode` package.
+This example demonstrates using zenQuery to facilitate communication between a VSCode extension's main process (extension host) and a webview panel, using the `@sylphlab/zenquery-transport-vscode` package.
 
 ## Features Demonstrated
 
 *   **VSCode Extension Backend:** A simple zenQuery server running within the extension host (`src/extension.ts`).
 *   **Webview Panel Frontend:** A React application running inside a VSCode webview (`src/webview/main.tsx`).
 *   **zenQuery Communication:** Using zenQuery queries, mutations, and potentially subscriptions to interact between the extension host and the webview via the dedicated VSCode transport.
-*   **`@sylphlab/typeql-transport-vscode`:** Usage of the transport adapter designed for VSCode extension messaging.
+*   **`@sylphlab/zenquery-transport-vscode`:** Usage of the transport adapter designed for VSCode extension messaging.
 
 ## Setup
 
@@ -31,7 +31,7 @@ This command runs `tsc` to compile the extension's TypeScript code (output to `d
 
 ## Running & Debugging
 
-1.  **Open the Monorepo:** Ensure the root `typeql` monorepo folder is open in VSCode.
+1.  **Open the Monorepo:** Ensure the root `zen-query` monorepo folder is open in VSCode.
 2.  **Build:** Run `pnpm run compile` in the `examples/vscode-extension` directory if you haven't already.
 3.  **Launch Extension:**
     *   Go to the "Run and Debug" view in VSCode (Ctrl+Shift+D or Cmd+Shift+D).

@@ -1,4 +1,4 @@
-# ✨ zenQuery (@sylphlab/typeql) ✨
+# ✨ zenQuery ✨
 
 **Tired of REST/GraphQL boilerplate? Crave effortless, end-to-end typesafe APIs in TypeScript?**
 
@@ -27,7 +27,7 @@ Inspired by tRPC, zenQuery leverages the full power of TypeScript inference to c
 
 ```typescript
 // packages/server/src/router.ts (Example Definition)
-import { createRouter, query, mutation, subscription } from '@sylphlab/typeql-server';
+import { initZenQuery, createRouter } from '@sylphlab/zenquery-server'; // Updated import
 import { z } from 'zod';
 import { observable } from '@trpc/server/observable'; // Or your preferred observable library
 import { applyPatch, Operation as JsonPatchOperation } from 'rfc6902'; // JSON Patch
@@ -42,13 +42,16 @@ interface Todo {
 let todos: Record<string, Todo> = {};
 const todoEvents = new EventTarget(); // Use a simple EventTarget for demo
 
+// Initialize zenQuery (assuming a context type, adjust as needed)
+const t = initZenQuery<any>();
+
 const appRouter = createRouter()
-  .query('getTodos', {
+  .procedure('getTodos', t.query({ // Use procedure helper
     resolve: async () => {
       return Object.values(todos);
     },
-  })
-  .mutation('addTodo', {
+  }))
+  .procedure('addTodo', t.mutation({ // Use procedure helper
     input: z.object({ text: z.string() }),
     resolve: async ({ input }) => {
       const id = Math.random().toString(36).substring(7);
@@ -59,10 +62,26 @@ const appRouter = createRouter()
       todoEvents.dispatchEvent(new CustomEvent('update', { detail }));
       return newTodo;
     },
-  })
-  .subscription('onTodoUpdate', {
-    resolve: () => {
-      return observable<JsonPatchOperation[]>((emit) => {
+  }))
+  .procedure('onTodoUpdate', t.subscription({ // Use procedure helper
+    // Output schema for the stream
+    subscriptionOutput: z.array(z.any()), // Define JSON Patch schema properly later
+    // Async generator for the stream
+    stream: async function* () {
+      // This needs proper implementation using async iterators / event listeners
+      // The observable example below is from tRPC and needs adaptation
+      // Conceptual:
+      // const listener = createUpdateListener();
+      // try {
+      //   for await (const patch of listener) {
+      //     yield patch;
+      //   }
+      // } finally {
+      //   listener.cleanup();
+      // }
+
+      // Placeholder based on old example structure (needs rewrite)
+      yield* observable<JsonPatchOperation[]>((emit) => {
         const handler = (event: Event) => {
           emit.next((event as CustomEvent).detail);
         };
@@ -74,24 +93,24 @@ const appRouter = createRouter()
         return () => {
           todoEvents.removeEventListener('update', handler);
         };
-      });
+      }) as any; // Cast needed as observable isn't AsyncGenerator
     }
-  });
+  }));
 
 export type AppRouter = typeof appRouter;
 
 // --- In your server setup ---
-// import { createHTTPHandler } from '@sylphlab/typeql-transport-http/server'; // Example
-// import { createWebSocketHandler } from '@sylphlab/typeql-transport-websocket/server'; // Example
+// import { createHTTPHandler } from '@sylphlab/zenquery-transport-http/server'; // Example
+// import { createWebSocketHandler } from '@sylphlab/zenquery-transport-websocket/server'; // Example
 // ... create transport handler with appRouter ...
 ```
 
 ```typescript
 // packages/client/src/client.ts (Example Usage)
-import { createClient } from '@sylphlab/typeql-client';
-import { createWebSocketTransport } from '@sylphlab/typeql-transport-websocket'; // Example transport
+import { createClient } from '@sylphlab/zenquery-client';
+import { createWebSocketTransport } from '@sylphlab/zenquery-transport-websocket'; // Example transport
 import type { AppRouter } from './server'; // <-- Import only the TYPE
-import { applyPatch, Operation as JsonPatchOperation } from 'rfc6902'; // JSON Patch
+import { applyPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // Use fast-json-patch
 
 // Example state management (replace with your actual state logic)
 let localTodos: Record<string, Todo> = {};
@@ -100,8 +119,8 @@ const transport = createWebSocketTransport({ url: 'ws://localhost:3000' }); // C
 const client = createClient<AppRouter>({ transport });
 
 async function main() {
-  // Query
-  const initialTodosArray = await client.getTodos.query();
+  // Query (Using procedure helper style)
+  const initialTodosArray = await client.query('getTodos');
   localTodos = initialTodosArray.reduce((acc, todo) => {
     acc[todo.id] = todo;
     return acc;
@@ -111,25 +130,24 @@ async function main() {
   // Mutation (with optimistic update example)
   const tempId = `temp-${Math.random().toString(36).substring(7)}`;
   const optimisticTodo: Todo = { id: tempId, text: 'Buy milk', completed: false };
-  const optimisticPatch: JsonPatchOperation[] = [{ op: 'add', path: `/${tempId}`, value: optimisticTodo }];
+  // Use the binding helpers for optimistic updates (conceptual)
+  // const $addTodo = mutation($client, { mutation: c => c.mutation('addTodo'), effects: [...] });
+  // $addTodo.get().mutate({ text: 'Buy milk' });
 
-  // Apply optimistically
+  // Manual optimistic apply for demo
   applyPatch(localTodos, optimisticPatch);
   console.log('Optimistic Todos:', localTodos);
 
+  // Apply optimistically (manual for demo)
+  applyPatch(localTodos, [{ op: 'add', path: `/${tempId}`, value: optimisticTodo }]);
+  console.log('Optimistic Todos:', localTodos);
+
   try {
-    const addedTodo = await client.addTodo.mutate(
-      { text: 'Buy milk' },
-      {
-        // Optional: Provide optimistic update info for reconciliation
-        optimisticUpdate: {
-          id: tempId,
-          patch: optimisticPatch,
-        }
-      }
-    );
+    // Use procedure helper style for mutation
+    const addedTodo = await client.mutate('addTodo', { text: 'Buy milk' });
     console.log('Added Todo (Server Confirmed):', addedTodo);
-    // Server confirmation might involve replacing tempId, handled by client/store logic
+    // Reconciliation logic (replacing tempId etc.) would be handled by
+    // the OptimisticSyncCoordinator and Nanostores Binding Helpers
   } catch (error) {
     console.error("Mutation failed:", error);
     // Revert optimistic update if needed
@@ -137,9 +155,11 @@ async function main() {
   }
 
 
-  // Subscription
-  const sub = client.onTodoUpdate.subscribe({
-    onData: (delta: JsonPatchOperation[]) => {
+  // Subscription (Using procedure helper style and async iterator)
+  try {
+    const subscription = await client.subscribe('onTodoUpdate'); // No input needed for this example
+    console.log('Subscribed to todo updates...');
+    for await (const delta of subscription.iterator) {
       console.log('Received Delta:', delta);
       // Apply delta to local state
       try {
@@ -149,17 +169,12 @@ async function main() {
         console.error("Failed to apply delta:", e, delta);
         // Request full state refresh?
       }
-    },
-    onError: (err) => {
-      console.error('Subscription Error:', err);
-    },
-    // onComplete: () => { console.log('Subscription ended'); }
-  });
-
-  console.log('Subscribed to todo updates...');
-
-  // To unsubscribe later:
-  // sub.unsubscribe();
+    }
+    console.log('Subscription ended.');
+  } catch (err) {
+    console.error('Subscription Error:', err);
+  }
+  // Unsubscription handled by ending the loop or client disconnect
 }
 
 main();
@@ -172,8 +187,8 @@ main();
 This project is a monorepo managed using `pnpm` workspaces and `Turborepo`.
 
 *   `packages/`: Contains the core zenQuery libraries.
-    *   `client/`: Core client logic (`createClient`).
-    *   `server/`: Core server logic (`createRouter`, procedure types).
+    *   `client/`: Core client logic (`createClient`, `OptimisticSyncCoordinator`, Nanostores bindings).
+    *   `server/`: Core server logic (`initZenQuery`, `createRouter`, procedure builders).
     *   `shared/`: Types and utilities shared between client and server.
     *   `react/`: React hooks (`useQuery`, `useMutation`, `useSubscription`).
     *   `preact/`: Preact hooks.
@@ -186,14 +201,14 @@ This project is a monorepo managed using `pnpm` workspaces and `Turborepo`.
 
 ## 📦 Packages
 
-*   `@sylphlab/typeql-client`: Core client logic (`createClient`).
-*   `@sylphlab/typeql-server`: Core server logic (`createRouter`, procedure types).
-*   `@sylphlab/typeql-shared`: Shared types and utilities.
-*   `@sylphlab/typeql-react`: React hooks (`useQuery`, `useMutation`, `useSubscription`).
-*   `@sylphlab/typeql-preact`: Preact hooks.
-*   `@sylphlab/typeql-transport-websocket`: WebSocket transport adapter.
-*   `@sylphlab/typeql-transport-http`: HTTP transport adapter (supports batching).
-*   `@sylphlab/typeql-transport-vscode`: VSCode extension transport adapter.
+*   `@sylphlab/zen-query-client`: Core client logic (`createClient`, Coordinator, Nanostores bindings).
+*   `@sylphlab/zen-query-server`: Core server logic (`initZenQuery`, `createRouter`, procedure builders).
+*   `@sylphlab/zen-query-shared`: Shared types and utilities.
+*   `@sylphlab/zen-query-react`: React hooks (`useQuery`, `useMutation`, `useSubscription`).
+*   `@sylphlab/zen-query-preact`: Preact hooks.
+*   `@sylphlab/zen-query-transport-websocket`: WebSocket transport adapter.
+*   `@sylphlab/zen-query-transport-http`: HTTP transport adapter (supports batching).
+*   `@sylphlab/zen-query-transport-vscode`: VSCode extension transport adapter.
 
 ---
 
