@@ -26,5 +26,4 @@ export declare class SubscriptionManager {
      */
     hasSubscription(subscriptionId: number | string): boolean;
 }
-export {};
 //# sourceMappingURL=subscriptionManager.d.ts.map

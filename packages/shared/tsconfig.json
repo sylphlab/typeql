@@ -1,57 +1,35 @@
 {
   "extends": "../../tsconfig.base.json", // Add extends
   "compilerOptions": {
-    /* Base Options: */
+    // Copied necessary options from tsconfig.base.json
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "target": "ES2016", // Target modern ECMAScript
+    "target": "ESNext",
     "allowJs": true,
     "resolveJsonModule": true,
     "moduleDetection": "force",
-    // "isolatedModules": true, // Removed as potential conflict with tsup dts generation
-
-    /* Strictness */
+    "isolatedModules": true,
     "strict": true,
-    // "noUncheckedIndexedAccess": true, // Keep basic strictness
+    "noUncheckedIndexedAccess": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
-    // "strictBindCallApply": true,
-    // "strictPropertyInitialization": true,
-    // "noImplicitThis": true,
-    // "useUnknownInCatchVariables": true,
-    // "alwaysStrict": true,
-    // "noUnusedLocals": true, // Keep these potentially useful ones
-    // "noUnusedParameters": true,
-    // "exactOptionalPropertyTypes": true,
-    // "noImplicitReturns": true,
-    // "noFallthroughCasesInSwitch": true,
-    // "noImplicitOverride": true,
-    // "noPropertyAccessFromIndexSignature": true,
+    "strictBindCallApply": true,
+    "strictPropertyInitialization": true,
+    "noImplicitThis": true,
+    "alwaysStrict": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler", // Explicitly set
+    "lib": ["esnext", "dom", "dom.iterable"],
+    "declaration": true,
+    "sourceMap": false,
+    "declarationMap": false,
+    "inlineSources": false,
+    "forceConsistentCasingInFileNames": true,
 
-    /* If NOT transpiling with TypeScript: */
-    // "moduleResolution": "Bundler", // or "NodeNext"
-    // "module": "Preserve", // or "NodeNext"
-    // "noEmit": true,
-
-    /* If your code runs in the DOM: */
-    // "lib": ["es2022", "dom", "dom.iterable"],
-
-    /* If you're building for downstream consumers: */
-    "module": "CommonJS", // Revert module back to CommonJS
-    // "moduleResolution": "NodeNext", // Remove moduleResolution
-    "declaration": true, // Generate .d.ts files
-    "declarationMap": true, // Generate sourcemaps for .d.ts files
-    "declarationDir": "./dist", // Explicitly set declaration output dir
-    "sourceMap": true, // Generate .js.map files for debugging
-    "outDir": "./dist", // Output directory for compiled JS
-    "rootDir": "./src", // Add rootDir back
-    "lib": ["ES2016"], // Core doesn't need DOM
-    // // "composite": true, // Removed again as per user instruction
-    "incremental": true,
-    "tsBuildInfoFile": "./.tsbuildinfo"
-,
-    "types": ["vitest/globals"]
+    // Removed other package-specific options: emitDeclarationOnly
+    "declarationDir": "dist", // Explicitly set declaration output directory
+    "rootDir": "src" // Restore rootDir for composite project
   },
   "include": ["src/**/*"], // Include all files within src
   "exclude": ["node_modules", "dist", "examples"]

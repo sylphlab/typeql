@@ -65,11 +65,11 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): ze
     let ws: WebSocket | null = null;
     let status: ConnectionStatus = 'idle';
     let retriesMade = 0;
-    let connectionListeners = new Set<(connected: boolean) => void>();
-    let disconnectListeners = new Set<() => void>();
-    let pendingRequests = new Map<string | number, PendingRequest>();
-    let activeSubscriptions = new Map<string | number, ActiveSubscription>();
-    let ackListeners = new Set<(ack: AckMessage) => void>(); // Listeners for AckMessages
+    const connectionListeners = new Set<(connected: boolean) => void>();
+    const disconnectListeners = new Set<() => void>();
+    const pendingRequests = new Map<string | number, PendingRequest>();
+    const activeSubscriptions = new Map<string | number, ActiveSubscription>();
+    const ackListeners = new Set<(ack: AckMessage) => void>(); // Listeners for AckMessages
 
     const WS_READY_STATE_OPEN = 1; // WebSocket.OPEN
 
@@ -275,7 +275,7 @@ export function createWebSocketTransport(options: WebSocketTransportOptions): ze
             }
             const subId = message.id;
 
-            let dataQueue: Array<SubscriptionDataMessage | SubscriptionErrorMessage> = [];
+            const dataQueue: Array<SubscriptionDataMessage | SubscriptionErrorMessage> = [];
             let resolvePromise: ((value: IteratorResult<SubscriptionDataMessage | SubscriptionErrorMessage>) => void) | null = null;
             let isEnded = false;
 

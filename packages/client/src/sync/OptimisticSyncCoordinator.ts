@@ -93,12 +93,12 @@ interface IOptimisticSyncCoordinator {
 // --- Core Logic Outline (Conceptual) ---
 
 class OptimisticSyncCoordinator implements IOptimisticSyncCoordinator {
-  private _confirmedServerSeq: number = 0;
+  private _confirmedServerSeq = 0;
   private _pendingMutations: PendingMutation[] = [];
-  private _nextClientSeq: number = 0; // Internal counter to derive expectedServerSeq
+  private _nextClientSeq = 0; // Internal counter to derive expectedServerSeq
   private callbacks: SyncCoordinatorCallbacks;
 
-  constructor(callbacks: SyncCoordinatorCallbacks, initialServerSeq: number = 0) {
+  constructor(callbacks: SyncCoordinatorCallbacks, initialServerSeq = 0) {
     this.callbacks = callbacks;
     this._confirmedServerSeq = initialServerSeq;
     this._nextClientSeq = initialServerSeq + 1; // Start expecting next seq

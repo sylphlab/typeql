@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react'; // Use React Testing Library
-import React, { ReactNode } from 'react'; // Import React
+import React, { type ReactNode } from 'react'; // Import React
 // Removed signal import
 import { zenQueryProvider } from '../context'; // Import React context
 import { useSubscription } from '../hooks/useSubscription'; // Import React hook

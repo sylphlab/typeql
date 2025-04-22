@@ -1,6 +1,6 @@
 // packages/core/src/server/requestHandler.ts
 
-import { createServerSequenceManager, ServerSequenceManager } from '@sylphlab/zen-query-shared';
+import { createServerSequenceManager, type ServerSequenceManager } from '@sylphlab/zen-query-shared';
 // Consolidate imports from @sylphlab/zen-query-shared
 import { zenQueryClientError } from '@sylphlab/zen-query-shared'; // Import as value
 import type {
@@ -17,7 +17,7 @@ import type {
 // Removed original line 4 which was: import type { AnyRouter, ProcedureRouterRecord, ProcedureContext, AnyProcedure } from '@sylphlab/zen-query-shared';
 import type { ProcedureDef, ProcedureOptions, SubscriptionOptions } from './procedure'; // Keep specific procedure types here
 import { ZodError } from 'zod';
-import { SubscriptionManager } from './subscriptionManager'; // Import manager CLASS
+import type { SubscriptionManager } from './subscriptionManager'; // Import manager CLASS
 
 // --- Error Formatting Helper ---
 
@@ -33,7 +33,7 @@ interface FormattedError {
 
 /** Formats various errors into a standard structure */
 // Add optional isInputValidationError flag
-function formatError(error: unknown, isInputValidationError: boolean = false): FormattedError {
+function formatError(error: unknown, isInputValidationError = false): FormattedError {
     console.debug(`[formatError] Input error:`, error, `isInputValidationError:`, isInputValidationError);
     // Define validCodes once
     const validCodes: Record<ErrorCode, boolean> = {

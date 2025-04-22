@@ -29,5 +29,4 @@ declare class Router<TContext extends ProcedureContext, TRecord extends Procedur
  * export type AppRouter = typeof appRouter; // Export type for client
  */
 export declare function createRouter<TContext extends ProcedureContext>(): <TRecord extends ProcedureRouterRecord>(procedures: TRecord) => Router<TContext, TRecord>;
-export {};
 //# sourceMappingURL=router.d.ts.map

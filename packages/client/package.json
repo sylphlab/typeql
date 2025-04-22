@@ -23,10 +23,7 @@
     "dist"
   ],
   "scripts": {
-    "clean": "rimraf --glob dist \"*.tsbuildinfo\"",
-    "build": "pnpm exec tsup",
-    "test": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "build": "tsup"
   },
   "keywords": [
     "typeql",
@@ -39,9 +36,6 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "terser": "^5.39.0",
-    "typescript": "^5.8.3",
-    "vitest": "^3.1.1"
   },
   "publishConfig": {
     "access": "public"

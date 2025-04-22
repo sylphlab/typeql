@@ -1,4 +1,4 @@
-import React, { createContext, useContext, ReactNode } from 'react';
+import React, { createContext, useContext, type ReactNode } from 'react';
 import type { createClient, OptimisticStore } from '@sylphlab/zen-query-client';
 
 // Use ReturnType to get the type of the client instance

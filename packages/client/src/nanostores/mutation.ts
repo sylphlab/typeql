@@ -2,7 +2,7 @@ import { map, onMount, task, type ReadableAtom, type Atom, type MapStore, type S
 // Remove import from @nanostores/core
 import type { Patch, Draft } from 'immer'; // Immer patches for optimistic updates
 // Import selector type
-import { type ProcedureClientPathSelector } from './query';
+import type { ProcedureClientPathSelector } from './query';
 
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator, CoordinatorEvents } from '../coordinator'; // Import CoordinatorEvents

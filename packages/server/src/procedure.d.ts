@@ -1,4 +1,4 @@
-import * as z from 'zod';
+import type * as z from 'zod';
 import type { ProcedureContext, AnyProcedure, BaseProcedureDef } from '@sylphlab/zen-query-shared';
 /** Options passed to resolver/subscription functions */
 export interface ProcedureOptions<TContext = ProcedureContext, TInput = unknown> {
@@ -81,5 +81,4 @@ declare class ProcedureBuilderInitializer<TContext = ProcedureContext> {
  * });
  */
 export declare function initzenQuery<TContext = ProcedureContext>(): ProcedureBuilderInitializer<TContext>;
-export {};
 //# sourceMappingURL=procedure.d.ts.map

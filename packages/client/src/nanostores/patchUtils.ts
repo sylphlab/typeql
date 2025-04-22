@@ -1,5 +1,5 @@
 import { produceWithPatches, applyPatches, type Patch, type Draft } from 'immer';
-import { type Operation as PatchOperation } from 'fast-json-patch'; // Keep for potential future use or type consistency if needed
+import type { Operation as PatchOperation } from 'fast-json-patch'; // Keep for potential future use or type consistency if needed
 
 /**
  * Applies an array of Immer patches to a base state immutably.

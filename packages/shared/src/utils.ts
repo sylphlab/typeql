@@ -5,7 +5,7 @@
  * @param length The desired length of the ID. Defaults to 8.
  * @returns A pseudo-random string ID.
  */
-export function generateId(length: number = 8): string {
+export function generateId(length = 8): string {
   const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
   let result = '';
   const charactersLength = characters.length;
@@ -17,7 +17,7 @@ export function generateId(length: number = 8): string {
 
 // --- Path Navigation & Standard Delta Application ---
 import type { StandardDelta } from './types'; // Path is correct now
-import { applyPatch as applyJsonPatch, Operation as JsonPatchOperation } from 'fast-json-patch'; // Import for patch/move
+import { applyPatch as applyJsonPatch, type Operation as JsonPatchOperation } from 'fast-json-patch'; // Import for patch/move
 
 /**
  * Safely retrieves a value from a nested object or array using a path array.

@@ -1,5 +1,5 @@
 import type { AnyRouter, ProcedureContext } from '@sylphlab/zen-query-shared';
-import { SubscriptionManager } from './subscriptionManager';
+import type { SubscriptionManager } from './subscriptionManager';
 import type { zenQueryTransport, ProcedureResultMessage, UnsubscribeMessage } from '@sylphlab/zen-query-shared';
 /** Represents an incoming procedure call */
 export interface ProcedureCall {

@@ -183,9 +183,9 @@ export class OptimisticSyncCoordinator {
 			this.confirmedServerSeq = delta.serverSeq - 1; // Try to recover
 		}
 
-		let resolvedDelta = delta;
+		const resolvedDelta = delta;
 		let requireRollback = false;
-		let rollbackPatches: PatchOperation[] = [];
+		const rollbackPatches: PatchOperation[] = [];
 
 		// 2. Conflict Resolution (if delta originated from another client or is a correction)
 		if (this.pendingMutations.length > 0) {

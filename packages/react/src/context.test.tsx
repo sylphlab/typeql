@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { renderHook, render } from '@testing-library/react'; // Use React Testing Library
-import React, { ReactNode } from 'react'; // Import React
+import React, { type ReactNode } from 'react'; // Import React
 import { zenQueryProvider, usezenQuery } from './context'; // Corrected relative import path
 import type { createClient, OptimisticStore } from '@sylphlab/zen-query-client';
 

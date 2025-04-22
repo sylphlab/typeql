@@ -1,5 +1,5 @@
 import { defineConfig } from 'tsup';
-import { Options } from 'tsup'; // Import Options type
+import type { Options } from 'tsup'; // Import Options type
 
 // Define base options for reuse
 const baseOptions: Options = {

@@ -20,8 +20,6 @@ import type {
     UnsubscribeFn,
     AckMessage,
     ServerDelta, // This might still cause an error if not exported from shared
-    ClientMessage, // This might still cause an error if not exported from shared
-    ServerMessage // Import ServerMessage
 } from '@sylphlab/zen-query-shared';
 import type { z } from 'zod';
 
@@ -32,11 +30,11 @@ type Operation = PatchOperation;
 interface MockTransport extends zenQueryTransport {
   request: Mock<(...args: [ProcedureCallMessage]) => Promise<ProcedureResultMessage>>;
   subscribe: Mock<(...args: [SubscribeMessage]) => { iterator: AsyncIterableIterator<SubscriptionDataMessage | SubscriptionErrorMessage>; unsubscribe: UnsubscribeFn }>; // Correct iterator type
-  send: Mock<(...args: [ClientMessage]) => void | Promise<void>>; // Make non-optional and correct signature
+  send: Mock<(...args: [unknown]) => void | Promise<void>>; // Make non-optional and correct signature
   onAckReceived?: (ack: AckMessage) => void;
   onDisconnect: Mock<(...args: [() => void]) => () => void>;
   requestMissingDeltas: Mock<(...args: [number | string, number, number]) => void | Promise<void>>;
-  onMessage: Mock<(...args: [(message: ServerMessage) => void]) => () => void>; // Correct message type
+  onMessage: Mock<(...args: [(message: unknown) => void]) => () => void>; // Correct message type
 }
 
 interface MockCoordinator extends OptimisticSyncCoordinator {

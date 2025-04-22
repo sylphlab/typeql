@@ -1,7 +1,7 @@
 /** @jsxImportSource react */ // Add JSX pragma
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react'; // Use React Testing Library
-import React, { ReactNode } from 'react'; // Ensure React is imported for JSX
+import React, { type ReactNode } from 'react'; // Ensure React is imported for JSX
 import { zenQueryProvider } from '../context.tsx'; // Correct import path
 import { useQuery } from '../hooks/useQuery'; // Import React hook
 import type { createClient, OptimisticSyncCoordinator } from '@sylphlab/zen-query-client'; // Import createClient AND Coordinator type

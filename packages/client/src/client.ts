@@ -6,7 +6,7 @@ import { getAtom } from './utils/atomRegistry';
 import type { AtomKey } from './utils/atomRegistry'; // Import AtomKey
 import type { Atom } from 'nanostores';
 import type { Patch } from 'immer'; // Assuming immer for patches
-import { type Operation as PatchOperation } from 'fast-json-patch'; // Import PatchOperation
+import type { Operation as PatchOperation } from 'fast-json-patch'; // Import PatchOperation
 
 // Placeholder for Operation type based on error message
 type Operation = PatchOperation; // TODO: Define this properly - Using PatchOperation

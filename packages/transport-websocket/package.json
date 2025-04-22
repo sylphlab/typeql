@@ -34,17 +34,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "lint": "eslint . --cache --max-warnings=0",
-    "lint:fix": "eslint . --fix --cache",
-    "format": "prettier --write . --cache --ignore-unknown",
-    "check-format": "prettier --check . --cache --ignore-unknown",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test",
-    "clean": "rimraf dist .turbo node_modules"
+    "build": "tsup"
   },
   "dependencies": {
     "@sylphlab/zen-query-shared": "workspace:*"
@@ -52,12 +42,7 @@
   "devDependencies": {
     "@types/node": "^20.14.11",
     "@types/ws": "^8.5.11",
-    "eslint": "^9.7.0",
-    "prettier": "^3.3.3",
-    "rimraf": "^5.0.9",
-    "tsup": "^8.2.2",
     "typescript": "^5.5.3",
-    "vitest": "^2.0.4",
     "ws": "^8.18.0"
   },
   "publishConfig": {

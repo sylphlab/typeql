@@ -22,17 +22,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "dev": "tsup --watch",
-    "lint": "eslint . --cache --max-warnings=0",
-    "lint:fix": "eslint . --fix --cache",
-    "format": "prettier --write . --cache --ignore-unknown",
-    "check-format": "prettier --check . --cache --ignore-unknown",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage",
-    "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test"
+    "build": "tsup"
   },
   "dependencies": {
     "@sylphlab/zen-query-client": "workspace:*",
@@ -43,17 +33,11 @@
   },
   "devDependencies": {
     "@preact/signals-core": "^1.6.2",
-    "@sylphlab/eslint-config-sylph-react": "^7.0.0",
-    "@sylphlab/prettier-config": "^0.3.3",
     "@testing-library/preact": "^3.2.3",
     "@types/node": "^20.14.2",
-    "eslint": "^9.4.0",
     "happy-dom": "^14.12.3",
     "preact": "^10.22.0",
-    "prettier": "^3.3.1",
-    "tsup": "^8.1.0",
-    "typescript": "^5.4.5",
-    "vitest": "^3.1.1"
+    "typescript": "^5.4.5"
   },
   "publishConfig": {
     "access": "public"

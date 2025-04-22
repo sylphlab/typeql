@@ -1,4 +1,4 @@
-import { compare, Operation as JsonPatchOperation } from 'fast-json-patch';
+import { compare, type Operation as JsonPatchOperation } from 'fast-json-patch';
 
 /**
  * Calculates the difference between two states and returns an array of JSON Patch operations.

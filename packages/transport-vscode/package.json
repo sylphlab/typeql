@@ -22,43 +22,18 @@
     "dist"
   ],
   "scripts": {
-    "lint": "eslint . --cache --max-warnings=0",
-    "lint:fix": "eslint . --fix --cache",
-    "format": "prettier --write . --cache --ignore-unknown",
-    "check-format": "prettier --check . --cache --ignore-unknown",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "build": "tsup",
-    "validate": "pnpm run check-format && pnpm run lint && pnpm run typecheck && pnpm run test"
+    "build": "tsup"
   },
   "dependencies": {
     "@sylphlab/zen-query-shared": "workspace:*"
   },
   "devDependencies": {
-    "@commitlint/cli": "^19.3.0",
-    "@commitlint/config-conventional": "^19.2.2",
     "@types/node": "^20.14.10",
     "@types/vscode": "^1.90.0",
     "@types/vscode-webview": "^1.57.5",
-    "eslint": "^9.7.0",
-    "husky": "^9.0.11",
-    "lint-staged": "^15.2.7",
-    "prettier": "^3.3.2",
-    "tsup": "^8.1.0",
-    "typescript": "^5.5.3",
-    "vitest": "^1.6.0"
+    "typescript": "^5.5.3"
   },
   "publishConfig": {
     "access": "public"
-  },
-  "lint-staged": {
-    "*.{ts,tsx,js,cjs,mjs}": [
-      "eslint --fix --cache --max-warnings=0",
-      "prettier --write --cache --ignore-unknown"
-    ],
-    "*.{json,md,yaml,yml,html,css}": [
-      "prettier --write --cache --ignore-unknown"
-    ]
   }
 }

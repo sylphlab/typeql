@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'preact/hooks';
-import { signal, Signal } from '@preact/signals-core';
+import { signal, type Signal } from '@preact/signals-core';
 import { usezenQuery } from '../context';
 import type {
   zenQueryClientError,

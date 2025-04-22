@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'preact/hooks';
-import { signal, Signal, computed } from '@preact/signals-core';
+import { signal, type Signal, computed } from '@preact/signals-core';
 import { usezenQuery } from '../context';
 import type { zenQueryClientError } from '@sylphlab/zen-query-client'; // Assuming error type export
 

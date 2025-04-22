@@ -1,0 +1,9 @@
+{
+  "extends": ["@sylphlab/biome-config"],
+  "files": {
+    "ignore": ["**/*.js", "**/dist/**", "**/*.test.[jt]s", "**/*.spec.[jt]s", "examples/**"]
+  },
+  "linter": {
+    "ignore": ["**/core.d.ts"]
+  }
+}

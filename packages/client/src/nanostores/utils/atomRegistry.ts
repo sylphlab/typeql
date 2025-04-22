@@ -41,14 +41,14 @@ export function createAtomRegistry(): AtomRegistry {
      unregisterQueryAtom(key: AtomKey) { // Add type
        const deleted = queryAtoms.delete(key);
        if (deleted) {
-         console.log(`[AtomRegistry] Unregistered query atom:`, String(key)); // Use String()
+         console.log('[AtomRegistry] Unregistered query atom:', String(key)); // Use String()
        }
        return deleted;
      },
      unregisterSubscriptionAtom(key: AtomKey) { // Add type
        const deleted = subscriptionAtoms.delete(key);
        if (deleted) {
-         console.log(`[AtomRegistry] Unregistered subscription atom:`, String(key)); // Use String()
+         console.log('[AtomRegistry] Unregistered subscription atom:', String(key)); // Use String()
       }
       return deleted;
     }

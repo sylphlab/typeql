@@ -5,7 +5,7 @@ import { applyPatch, type Operation } from 'fast-json-patch';
 // Also import Immer Patch for rollback
 import type { Patch } from 'immer';
 // Import ProcedureClientPathSelector from query.ts
-import { type ProcedureClientPathSelector } from './query'; // Import selector type
+import type { ProcedureClientPathSelector } from './query'; // Import selector type
 import type { ZenQueryClient } from '../client';
 import type { OptimisticSyncCoordinator, ServerDelta, CoordinatorEvents } from '../coordinator'; // Added CoordinatorEvents
 // Remove getAtom import

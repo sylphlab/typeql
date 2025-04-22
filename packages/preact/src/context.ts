@@ -1,4 +1,4 @@
-import { createContext, h, ComponentChildren } from 'preact';
+import { createContext, h, type ComponentChildren } from 'preact';
 import { useContext } from 'preact/hooks';
 import type { createClient, OptimisticStore } from '@sylphlab/zen-query-client';
 // Use ReturnType to get the type of the client instance

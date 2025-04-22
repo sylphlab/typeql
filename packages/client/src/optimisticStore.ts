@@ -1,14 +1,14 @@
 // packages/core/src/client/optimisticStore.ts
 
-import { produce, applyPatches, Patch } from 'immer';
+import { produce, applyPatches, type Patch } from 'immer';
 import type { ProcedureCallMessage, SubscriptionDataMessage, AckMessage } from '@sylphlab/zen-query-shared';
-import { createClientSequenceManager, ClientSequenceManager } from '@sylphlab/zen-query-shared';
+import { createClientSequenceManager, type ClientSequenceManager } from '@sylphlab/zen-query-shared';
 // Import conflict resolution types and result structure
 import {
-    ConflictResolverConfig,
+    type ConflictResolverConfig,
     resolveConflict,
-    ConflictResolutionResult, // Import the result type
-    ConflictResolutionOutcome // Import the outcome enum/type
+    type ConflictResolutionResult, // Import the result type
+    type ConflictResolutionOutcome // Import the outcome enum/type
 } from './conflictResolver';
 
 // --- JSON Patch Types (RFC 6902) ---
@@ -207,7 +207,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
 
     let confirmedState: TState = initialState;
     let optimisticState: TState = initialState;
-    let confirmedServerSeq: number = 0; // Track the sequence number of the confirmed state
+    let confirmedServerSeq = 0; // Track the sequence number of the confirmed state
     let pendingMutations: PendingMutation[] = []; // Removed TState generic here
     const clientSeqManager: ClientSequenceManager = createClientSequenceManager();
     const listeners = new Set<StoreListener<TState>>();
@@ -466,8 +466,8 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
         let resolvedDelta = delta; // Start with the original server delta
         // Type for outcome when resolution *occurs*. Can be 'error' if resolver fails.
         let resolutionOutcome: ConflictResolutionOutcome | 'error' | undefined = undefined;
-        let mutationsToRemove = new Set<number>(); // Track clientSeqs to remove
-        let conflictOccurred = conflictingMutations.length > 0; // Flag if conflict was detected
+        const mutationsToRemove = new Set<number>(); // Track clientSeqs to remove
+        const conflictOccurred = conflictingMutations.length > 0; // Flag if conflict was detected
         let specificConflictErrorOccurred = false; // Flag if resolver or applyDelta failed
 
         // console.log(`[DEBUG] applyServerDelta: Identified ${conflictingMutations.length} conflicting mutations.`);
@@ -555,7 +555,7 @@ export function createOptimisticStore<TState, Delta = JsonPatch>(
         // 6. Filter pending mutations: Keep only those predicted *at or after* the new confirmed sequence
         //    AND were not marked for removal during conflict resolution.
         const initialPendingCount = pendingMutations.length;
-        let finalPendingMutations = pendingMutations.filter(p =>
+        const finalPendingMutations = pendingMutations.filter(p =>
             !mutationsToRemove.has(p.clientSeq) // Keep all mutations not explicitly marked for removal by conflict resolution
         );
         const removedCount = initialPendingCount - finalPendingMutations.length;

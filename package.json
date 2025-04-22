@@ -8,7 +8,7 @@
     "test:coverage": "vitest run --coverage",
     "test:filter": "turbo run test --filter",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "biome lint",
     "dev": "turbo run dev",
     "release": "pnpm turbo run test:coverage && pnpm turbo run build && pnpm changeset publish"
   },
@@ -16,9 +16,11 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.29.2",
     "@microsoft/api-extractor": "^7.52.5",
     "@preact/preset-vite": "^2.10.1",
+    "@sylphlab/biome-config": "^0.2.0",
     "@sylphlab/eslint-config-sylph": "^3.4.0",
     "@sylphlab/prettier-config": "^0.3.3",
     "@types/node": "^22.14.1",
@@ -26,6 +28,7 @@
     "ajv": "^8.17.1",
     "cross-env": "^7.0.3",
     "jsdom": "^26.1.0",
+    "lefthook": "^1.11.11",
     "prettier": "^3.5.3",
     "rimraf": "^6.0.1",
     "tsup": "^8.4.0",

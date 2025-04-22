@@ -18,7 +18,7 @@ export function createClientSequenceManager() {
  * might manage sequences per topic.
  * @param initialSeq The sequence number to start from (default: 0).
  */
-export function createServerSequenceManager(initialSeq: number = 0) {
+export function createServerSequenceManager(initialSeq = 0) {
     let serverSeq = initialSeq;
     return {
         /** Gets the next available server sequence number. */
@@ -26,7 +26,7 @@ export function createServerSequenceManager(initialSeq: number = 0) {
         /** Gets the current highest assigned server sequence number. */
         getCurrent: () => serverSeq,
         /** Resets the sequence number (e.g., for testing or specific scenarios). */
-        reset: (newStart: number = 0) => { serverSeq = newStart; },
+        reset: (newStart = 0) => { serverSeq = newStart; },
     };
 }
 

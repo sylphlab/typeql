@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react'; // Use React Testing Library
-import React, { ReactNode } from 'react'; // Import React
+import React, { type ReactNode } from 'react'; // Import React
 import { zenQueryProvider } from '../context'; // Import React context
 import { useMutation } from '../hooks/useMutation'; // Import React hook
 import type { createClient, zenQueryClientError, MutationCallOptions } from '@sylphlab/zen-query-client'; // Import createClient for ReturnType
