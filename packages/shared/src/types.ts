@@ -115,6 +115,22 @@ export type SubscriptionLifecycleMessage =
     | SubscriptionEndMessage
     | SubscriptionErrorMessage;
 
+// --- Server Delta (Moved from client/coordinator) ---
+
+/** Represents a delta (change) originating from the server. */
+export type ServerDelta = {
+ /** Server-generated sequence number for this delta. */
+ serverSeq: number;
+ /** ID of the client who originated the mutation (if applicable). */
+ clientId?: string;
+ /** Sequence number from the originating client (if applicable). */
+ clientSeq?: number;
+ /** JSON Patch operations representing the change. */
+ patches: { op: string; path: string; value?: any; from?: string }[]; // Use inline patch type for now
+ /** Key identifying the target atom/subscription/state slice. */
+ key: string;
+};
+
 
 // --- Recovery ---
 

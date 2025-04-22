@@ -1,13 +1,15 @@
-// Import ServerDelta type from coordinator
-// Import ServerDelta type from coordinator
-import type { OptimisticSyncCoordinator as CoordinatorBase, ServerDelta } from './coordinator'; // Assuming coordinator exists
+// Import ServerDelta type from shared package now
+import type { OptimisticSyncCoordinator as CoordinatorBase } from './coordinator'; // Assuming coordinator exists
+import type { ServerDelta } from '@sylphlab/zen-query-shared'; // Import ServerDelta from shared
 // Import functions from atomRegistry instead of type/creator
 import { getAtom } from './utils/atomRegistry';
+import type { AtomKey } from './utils/atomRegistry'; // Import AtomKey
 import type { Atom } from 'nanostores';
 import type { Patch } from 'immer'; // Assuming immer for patches
+import { type Operation as PatchOperation } from 'fast-json-patch'; // Import PatchOperation
 
 // Placeholder for Operation type based on error message
-type Operation = any; // TODO: Define this properly based on actual patch/operation structure
+type Operation = PatchOperation; // TODO: Define this properly - Using PatchOperation
 
 // Extend the base coordinator type with expected event handlers based on guidelines/errors
 // TODO: Verify these against the actual implementation in './coordinator'
@@ -24,11 +26,12 @@ interface OptimisticSyncCoordinator extends CoordinatorBase {
     rejectMutation(clientSeq: number, error?: any): void;
     confirmMutation(clientSeq: number, result?: any): void; // Added result param
     generateClientSeq(): number;
-    registerPendingMutation(clientSeq: number, patchesByAtom: Map<string, Operation[]>, inversePatchesByAtom: Map<string, Operation[]>): void; // Revert to Operation[]
-    // Use string keys based on errors in binding helpers
+    // Updated signatures to use AtomKey and Operation (PatchOperation)
+    registerPendingMutation(clientSeq: number, patchesByAtom: Map<AtomKey, Operation[]>, inversePatchesByAtom: Map<AtomKey, Operation[]>): void;
+    // Use string keys based on errors in binding helpers - Kept string for now based on previous errors, revisit if needed
     // Correct return type based on TS error
-    // Correct return type based on coordinator implementation
-    getPendingPatches(): Map<string, Operation[]>; // Revert to Operation[]
+    // Correct return type based on coordinator implementation - Updated return type
+    getPendingPatches(): Map<AtomKey, Operation[]>;
 }
 // Assume the constructor exists on the base type
 declare const OptimisticSyncCoordinator: {
@@ -312,6 +315,7 @@ export function createClient(options: ClientOptions): ZenQueryClient {
                 internalState.transport.close(); // Close connection if method exists
             }
             // TODO: Add any other cleanup (e.g., clear coordinator state?)
+            // Consider adding a coordinator.reset() method if needed.
             console.log("ZenQuery client closed.");
         }
         // Add other non-proxied methods if needed

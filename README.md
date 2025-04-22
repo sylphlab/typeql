@@ -127,10 +127,10 @@ export type AppRouter = typeof appRouter;
  
  // 2. Query Atom
  export const $todos = query<AppRouter['todos']['list']['_def']['_output'], Error, { limit: number }>(
-   // Selector function: receives 'get', returns the procedure reference
-   get => get($client).todos.list,
-   // Options object: includes 'path' for registry key and procedure input
-   { path: 'todos.list', input: { limit: 10 }, initialData: [] }
+   // Selector function: receives the client, returns the procedure reference object
+   client => client.todos.list, // Updated selector to match procedureSelector type
+   // Options object: input and initialData (NO 'path' needed)
+   { input: { limit: 10 }, initialData: [] }
  );
  
  // 3. Mutation Atom

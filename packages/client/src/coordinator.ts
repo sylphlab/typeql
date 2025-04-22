@@ -2,17 +2,11 @@ import { type Operation as PatchOperation, applyPatch } from 'fast-json-patch';
 import { nanoid } from 'nanoid'; // Assuming nanoid is installed now
 import { createNanoEvents, type Emitter } from 'nanoevents'; // Corrected import source
 
-// TODO: Define these types more robustly, potentially in shared package
-export type ServerDelta = {
-	serverSeq: number;
-	clientId?: string; // ID of the client who originated the mutation (if applicable)
-	clientSeq?: number; // Sequence number from the originating client (if applicable)
-	patches: PatchOperation[];
-	key: string; // Added key to identify the target atom/subscription
-};
+// TODO: Define these types more robustly, potentially in shared package - MOVED ServerDelta to shared
 
 // Use AtomKey type from registry
 import type { AtomKey } from './utils/atomRegistry';
+// ServerDelta is now imported from shared below
 
 export type PendingMutation = {
 	clientSeq: number;
@@ -27,11 +21,14 @@ export type CoordinatorOptions = {
 	// Add other options like conflict resolution strategy later
 };
 
+// Import ServerDelta from shared package
+import type { ServerDelta } from '@sylphlab/zen-query-shared';
+
 export type CoordinatorEvents = {
 	/** Emitted when the effective state might have changed due to confirmations or rollbacks */
 	onStateChange: () => void;
 	/** Emitted when a server delta (potentially resolved) should be applied to the local state */
-	onApplyDelta: (delta: ServerDelta) => void; // Delta now includes the key
+	onApplyDelta: (delta: ServerDelta) => void; // Use imported ServerDelta
 	/** Emitted when a pending mutation needs to be rolled back */
 	onRollback: (inversePatchesByAtom: Map<AtomKey, PatchOperation[]>) => void; // Emit Map
 	/** Emitted when a mutation is successfully acknowledged by the server */
@@ -216,8 +213,13 @@ export class OptimisticSyncCoordinator {
 					// For now, return original patches (incorrect but placeholder)
 					transformedPatchesByAtom.set(key, [...patches]); // Return copies
 				});
-				// TODO: Transform inversePatchesByAtom as well?
-				return { ...m, patchesByAtom: transformedPatchesByAtom, inversePatchesByAtom: new Map(m.inversePatchesByAtom) }; // Return copies
+				// TODO: Transform inversePatchesByAtom as well? - Applying placeholder transform
+				const transformedInversePatchesByAtom = new Map<AtomKey, PatchOperation[]>();
+				m.inversePatchesByAtom.forEach((patches, key) => {
+					// Apply transformation logic here (Placeholder: copy)
+					transformedInversePatchesByAtom.set(key, [...patches]);
+				});
+				return { ...m, patchesByAtom: transformedPatchesByAtom, inversePatchesByAtom: transformedInversePatchesByAtom }; // Use transformed inverses
 			});
 			this.pendingMutations = transformedPending;
 		}
@@ -254,6 +256,7 @@ export class OptimisticSyncCoordinator {
 			if (mutationIndex !== -1) {
 				this.pendingMutations.splice(mutationIndex, 1);
 				// TODO: Should delta contain the mutation result to pass to onAck? Assume undefined for now.
+				// Currently, ServerDelta type does not include mutation results. Passing undefined.
 				this.emitter.emit('onAck', delta.clientSeq, undefined);
 				mutationConfirmed = true;
 			}
@@ -267,10 +270,9 @@ export class OptimisticSyncCoordinator {
 
 	/**
 	 * Gets the list of patches representing the current optimistically applied state
-	 * (i.e., all pending mutations combined), potentially grouped by AtomKey.
-	 * TODO: Decide on the return type. Flat array or Map? Guideline C.2 implies Map.
 	 * (i.e., all pending mutations combined), grouped by AtomKey.
 	 */
+	// Returns Map<AtomKey, PatchOperation[]>
 	getPendingPatches(): Map<AtomKey, PatchOperation[]> {
 	 const mergedMap = new Map<AtomKey, PatchOperation[]>();
 	 this.pendingMutations.forEach(m => {

@@ -4,7 +4,7 @@
     "outDir": "./dist",
     "rootDir": "./src",
     // "baseUrl": ".", // Keep removed
-    "jsx": "preserve", // Preserve JSX for build tool (Vite/tsup) to handle with Preact plugin
+    "jsx": "preserve", // Revert back to preserve for build tools
     "jsxImportSource": "preact" // Specify Preact as the source
   },
   "include": ["src/**/*"],

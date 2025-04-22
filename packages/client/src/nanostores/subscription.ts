@@ -286,7 +286,9 @@ export function subscription<
         const inversePatches = inversePatchesByAtom.get(stableAtomKey);
         if (inversePatches && inversePatches.length > 0) {
             console.warn(`[zenQuery][${stableAtomKey}] Rolling back optimistic updates due to mutation failure.`);
-            // TODO: Add comment explaining coordinator inconsistency (uses Operation elsewhere, Patch here)
+            // TODO: Add comment explaining coordinator inconsistency (uses Operation elsewhere, Patch here) - Added comment
+            // Note: Coordinator's onRollback event provides Immer Patch[], while onApplyDelta provides
+            // JSON Patch (Operation[]). This inconsistency should ideally be resolved later.
             try {
                 // Apply rollback patches using Immer patch applicator
                 const baseState = confirmedServerData ?? ({} as TOutput);

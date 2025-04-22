@@ -3,12 +3,13 @@ import viteConfig from '../../vitest.config'; // Import root config if it exists
 
 export default mergeConfig(
   // If root viteConfig exists and you want to inherit from it:
-  // viteConfig ?? {},
+  viteConfig ?? {}, // Assuming viteConfig is imported and potentially undefined
   defineConfig({
     test: {
       environment: 'happy-dom', // Use happy-dom environment
       globals: true, // Optional: Use global APIs like describe, it, expect
       setupFiles: ['./test/setup.ts'], // Point to setup file
     },
+    // Removed plugin and esbuild config
   })
 );

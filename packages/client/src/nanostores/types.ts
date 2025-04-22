@@ -108,7 +108,10 @@ export interface MutationEffect<TState = any, TInput = any> {
 }
 
 export interface MutationOptions<TInput = any, TOutput = any, TError = Error> {
-  // TODO: Add onSuccess, onError, onSettled callbacks
+  // TODO: Add onSuccess, onError, onSettled callbacks - Added signatures
+  onSuccess?: (data: TOutput, input: TInput) => void;
+  onError?: (error: TError, input: TInput) => void;
+  onSettled?: (data: TOutput | undefined, error: TError | null, input: TInput) => void;
 }
 
 export interface MutationAtomValue<TInput = any, TOutput = any, TError = Error> {
@@ -132,5 +135,7 @@ export interface AtomRegistry {
   registerSubscriptionAtom(key: AtomKey, atom: SubscriptionAtom): void;
   getQueryAtom(key: AtomKey): QueryAtom | undefined;
   getSubscriptionAtom(key: AtomKey): SubscriptionAtom | undefined;
-  // TODO: Add methods for unregistering
+  // Unregister methods added
+  unregisterQueryAtom(key: AtomKey): boolean;
+  unregisterSubscriptionAtom(key: AtomKey): boolean;
 }
